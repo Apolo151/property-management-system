@@ -91,6 +91,7 @@ const ReservationsPage = () => {
             value={searchTerm}
             onChange={setSearchTerm}
             placeholder="Search by guest, room, or ID..."
+            label="Search"
           />
           <FilterSelect
             value={statusFilter}

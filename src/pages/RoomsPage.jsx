@@ -125,6 +125,7 @@ const RoomsPage = () => {
             value={searchTerm}
             onChange={setSearchTerm}
             placeholder="Search by room number..."
+            label="Search"
           />
           <FilterSelect
             value={statusFilter}

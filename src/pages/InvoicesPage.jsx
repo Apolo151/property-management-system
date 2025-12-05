@@ -56,6 +56,7 @@ const InvoicesPage = () => {
             value={searchTerm}
             onChange={setSearchTerm}
             placeholder="Search by invoice ID or reservation ID..."
+            label="Search"
           />
           <FilterSelect
             value={statusFilter}
