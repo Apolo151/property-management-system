@@ -6,6 +6,7 @@ import RoomsPage from './pages/RoomsPage'
 import ReservationsPage from './pages/ReservationsPage'
 import CalendarPage from './pages/CalendarPage'
 import GuestsPage from './pages/GuestsPage'
+import InvoicesPage from './pages/InvoicesPage'
 import SettingsPage from './pages/SettingsPage'
 import MainLayout from './layouts/MainLayout'
 
@@ -55,6 +56,7 @@ function App() {
                   <Route path="/reservations" element={<ReservationsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/guests" element={<GuestsPage />} />
+                  <Route path="/invoices" element={<InvoicesPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

@@ -2,21 +2,93 @@ import { useState, useMemo } from 'react'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
-import roomsData from '../data/rooms.json'
+import Modal from '../components/Modal'
+import useStore from '../store/useStore'
 
 const RoomsPage = () => {
+  const { rooms, addRoom } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [newRoom, setNewRoom] = useState({
+    roomNumber: '',
+    type: 'Single',
+    status: 'Available',
+    pricePerNight: '',
+    floor: '',
+    features: [],
+  })
+  const [featureInput, setFeatureInput] = useState('')
 
   const filteredRooms = useMemo(() => {
-    return roomsData.filter((room) => {
+    return rooms.filter((room) => {
       const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = !statusFilter || room.status === statusFilter
       const matchesType = !typeFilter || room.type === typeFilter
       return matchesSearch && matchesStatus && matchesType
     })
-  }, [searchTerm, statusFilter, typeFilter])
+  }, [searchTerm, statusFilter, typeFilter, rooms])
+
+  const handleAddRoom = () => {
+    // Validation
+    if (!newRoom.roomNumber || !newRoom.pricePerNight || !newRoom.floor) {
+      alert('Please fill in all required fields (Room Number, Price/Night, Floor)')
+      return
+    }
+
+    const price = parseFloat(newRoom.pricePerNight)
+    if (isNaN(price) || price <= 0) {
+      alert('Please enter a valid price (must be a positive number)')
+      return
+    }
+
+    const floor = parseInt(newRoom.floor)
+    if (isNaN(floor) || floor <= 0) {
+      alert('Please enter a valid floor number (must be a positive number)')
+      return
+    }
+
+    // Check if room number already exists
+    if (rooms.some((r) => r.roomNumber === newRoom.roomNumber)) {
+      alert('A room with this number already exists')
+      return
+    }
+
+    addRoom({
+      ...newRoom,
+      pricePerNight: price,
+      floor: floor,
+    })
+
+    setIsModalOpen(false)
+    setNewRoom({
+      roomNumber: '',
+      type: 'Single',
+      status: 'Available',
+      pricePerNight: '',
+      floor: '',
+      features: [],
+    })
+    setFeatureInput('')
+  }
+
+  const handleAddFeature = () => {
+    if (featureInput.trim() && !newRoom.features.includes(featureInput.trim())) {
+      setNewRoom({
+        ...newRoom,
+        features: [...newRoom.features, featureInput.trim()],
+      })
+      setFeatureInput('')
+    }
+  }
+
+  const handleRemoveFeature = (feature) => {
+    setNewRoom({
+      ...newRoom,
+      features: newRoom.features.filter((f) => f !== feature),
+    })
+  }
 
   const statusOptions = [
     { value: 'Available', label: 'Available' },
@@ -33,9 +105,17 @@ const RoomsPage = () => {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Rooms Management</h1>
-        <p className="text-gray-600 mt-2">Manage and view all hotel rooms</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Rooms Management</h1>
+          <p className="text-gray-600 mt-2">Manage and view all hotel rooms</p>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="btn btn-primary"
+        >
+          + Add Room
+        </button>
       </div>
 
       {/* Filters */}
@@ -123,8 +203,165 @@ const RoomsPage = () => {
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredRooms.length} of {roomsData.length} rooms
+        Showing {filteredRooms.length} of {rooms.length} rooms
       </div>
+
+      {/* Add Room Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setNewRoom({
+            roomNumber: '',
+            type: 'Single',
+            status: 'Available',
+            pricePerNight: '',
+            floor: '',
+            features: [],
+          })
+          setFeatureInput('')
+        }}
+        title="Add New Room"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Room Number *
+            </label>
+            <input
+              type="text"
+              value={newRoom.roomNumber}
+              onChange={(e) => setNewRoom({ ...newRoom, roomNumber: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Room Type *
+            </label>
+            <select
+              value={newRoom.type}
+              onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}
+              className="input"
+            >
+              <option value="Single">Single</option>
+              <option value="Double">Double</option>
+              <option value="Suite">Suite</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status *
+            </label>
+            <select
+              value={newRoom.status}
+              onChange={(e) => setNewRoom({ ...newRoom, status: e.target.value })}
+              className="input"
+            >
+              <option value="Available">Available</option>
+              <option value="Occupied">Occupied</option>
+              <option value="Cleaning">Cleaning</option>
+              <option value="Out of Service">Out of Service</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price per Night ($) *
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newRoom.pricePerNight}
+              onChange={(e) => setNewRoom({ ...newRoom, pricePerNight: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Floor *
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={newRoom.floor}
+              onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Features
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={featureInput}
+                onChange={(e) => setFeatureInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddFeature()
+                  }
+                }}
+                className="input flex-1"
+                placeholder="Add a feature (e.g., WiFi, TV)"
+              />
+              <button
+                type="button"
+                onClick={handleAddFeature}
+                className="btn btn-secondary"
+              >
+                Add
+              </button>
+            </div>
+            {newRoom.features.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {newRoom.features.map((feature) => (
+                  <span
+                    key={feature}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800"
+                  >
+                    {feature}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFeature(feature)}
+                      className="ml-2 text-primary-600 hover:text-primary-800"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => {
+                setIsModalOpen(false)
+                setNewRoom({
+                  roomNumber: '',
+                  type: 'Single',
+                  status: 'Available',
+                  pricePerNight: '',
+                  floor: '',
+                  features: [],
+                })
+                setFeatureInput('')
+              }}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            <button onClick={handleAddRoom} className="btn btn-primary">
+              Add Room
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -1,17 +1,18 @@
 import { useState, useMemo } from 'react'
-import { format, parseISO, compareAsc } from 'date-fns'
+import { format, parseISO, compareAsc, addDays } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
-import reservationsData from '../data/reservations.json'
+import useStore from '../store/useStore'
 
 const ReservationsPage = () => {
+  const { reservations, addInvoice, guests } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('checkIn')
 
   const filteredAndSortedReservations = useMemo(() => {
-    let filtered = reservationsData.filter((res) => {
+    let filtered = reservations.filter((res) => {
       const matchesSearch =
         res.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         res.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -33,7 +34,35 @@ const ReservationsPage = () => {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, sortBy])
+  }, [searchTerm, statusFilter, sortBy, reservations])
+
+  const handleCreateInvoice = (reservation) => {
+    // Find guest by name or ID
+    const guest = guests.find(
+      (g) => g.name === reservation.guestName || String(g.id) === String(reservation.guestId)
+    )
+
+    if (!guest) {
+      alert('Guest not found. Please ensure the guest exists in the system.')
+      return
+    }
+
+    const today = new Date()
+    const dueDate = addDays(today, 30) // 30 days from today
+
+    const invoice = {
+      reservationId: reservation.id,
+      guestId: String(guest.id),
+      issueDate: format(today, 'yyyy-MM-dd'),
+      dueDate: format(dueDate, 'yyyy-MM-dd'),
+      amount: reservation.totalAmount || 0,
+      status: 'Pending',
+      notes: `Invoice for reservation ${reservation.id}`,
+    }
+
+    addInvoice(invoice)
+    alert(`Invoice created successfully for reservation ${reservation.id}`)
+  }
 
   const statusOptions = [
     { value: 'Confirmed', label: 'Confirmed' },
@@ -107,6 +136,9 @@ const ReservationsPage = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total Amount
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -139,6 +171,14 @@ const ReservationsPage = () => {
                       ${reservation.totalAmount?.toLocaleString() || '0'}
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => handleCreateInvoice(reservation)}
+                      className="text-primary-600 hover:text-primary-900"
+                    >
+                      Create Invoice
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -150,7 +190,7 @@ const ReservationsPage = () => {
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredAndSortedReservations.length} of {reservationsData.length} reservations
+        Showing {filteredAndSortedReservations.length} of {reservations.length} reservations
       </div>
     </div>
   )

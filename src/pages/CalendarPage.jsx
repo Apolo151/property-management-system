@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isWithinInterval, addDays, startOfWeek, endOfWeek } from 'date-fns'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
-import reservationsData from '../data/reservations.json'
-import roomsData from '../data/rooms.json'
+import useStore from '../store/useStore'
 
 const CalendarPage = () => {
+  const { reservations, rooms, guests, addReservation } = useStore()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedReservation, setSelectedReservation] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -16,7 +16,6 @@ const CalendarPage = () => {
     checkOut: '',
     status: 'Confirmed',
   })
-  const [reservations, setReservations] = useState(reservationsData)
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -76,23 +75,26 @@ const CalendarPage = () => {
     }
 
     // Create new reservation
-    const room = roomsData.find((r) => r.roomNumber === newReservation.roomNumber)
+    const room = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
     const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
     const totalAmount = room ? room.pricePerNight * nights : 0
 
+    // Try to find guest by name to link guestId
+    const guest = guests.find((g) => g.name === newReservation.guestName)
+
     const newRes = {
-      id: `RES-${String(reservations.length + 1).padStart(3, '0')}`,
       guestName: newReservation.guestName,
       roomNumber: newReservation.roomNumber,
       checkIn: newReservation.checkIn,
       checkOut: newReservation.checkOut,
       status: newReservation.status,
       totalAmount,
-      guestEmail: '',
-      guestPhone: '',
+      guestEmail: guest?.email || '',
+      guestPhone: guest?.phone || '',
+      guestId: guest ? String(guest.id) : '', // Link guest if found
     }
 
-    setReservations([...reservations, newRes])
+    addReservation(newRes)
     setIsModalOpen(false)
     setNewReservation({
       guestName: '',
@@ -319,7 +321,7 @@ const CalendarPage = () => {
               required
             >
               <option value="">Select a room</option>
-              {roomsData.map((room) => (
+              {rooms.map((room) => (
                 <option key={room.id} value={room.roomNumber}>
                   {room.roomNumber} - {room.type} (${room.pricePerNight}/night)
                 </option>

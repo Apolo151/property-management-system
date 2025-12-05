@@ -1,21 +1,64 @@
 import { useState, useMemo } from 'react'
 import SearchInput from '../components/SearchInput'
-import guestsData from '../data/guests.json'
+import Modal from '../components/Modal'
+import useStore from '../store/useStore'
 
 const GuestsPage = () => {
+  const { guests, addGuest } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [newGuest, setNewGuest] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    pastStays: 0,
+    notes: '',
+  })
 
   const filteredGuests = useMemo(() => {
-    return guestsData.filter((guest) =>
+    return guests.filter((guest) =>
       guest.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
-  }, [searchTerm])
+  }, [searchTerm, guests])
+
+  const handleAddGuest = () => {
+    // Validation
+    if (!newGuest.name || !newGuest.email || !newGuest.phone) {
+      alert('Please fill in all required fields (Name, Email, Phone)')
+      return
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newGuest.email)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    addGuest(newGuest)
+    setIsModalOpen(false)
+    setNewGuest({
+      name: '',
+      phone: '',
+      email: '',
+      pastStays: 0,
+      notes: '',
+    })
+  }
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Guests</h1>
-        <p className="text-gray-600 mt-2">View and manage guest information</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Guests</h1>
+          <p className="text-gray-600 mt-2">View and manage guest information</p>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="btn btn-primary"
+        >
+          + Add Guest
+        </button>
       </div>
 
       {/* Search */}
@@ -81,8 +124,106 @@ const GuestsPage = () => {
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredGuests.length} of {guestsData.length} guests
+        Showing {filteredGuests.length} of {guests.length} guests
       </div>
+
+      {/* Add Guest Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setNewGuest({
+            name: '',
+            phone: '',
+            email: '',
+            pastStays: 0,
+            notes: '',
+          })
+        }}
+        title="Add New Guest"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name *
+            </label>
+            <input
+              type="text"
+              value={newGuest.name}
+              onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email *
+            </label>
+            <input
+              type="email"
+              value={newGuest.email}
+              onChange={(e) => setNewGuest({ ...newGuest, email: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone *
+            </label>
+            <input
+              type="tel"
+              value={newGuest.phone}
+              onChange={(e) => setNewGuest({ ...newGuest, phone: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Past Stays
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={newGuest.pastStays}
+              onChange={(e) => setNewGuest({ ...newGuest, pastStays: parseInt(e.target.value) || 0 })}
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={newGuest.notes}
+              onChange={(e) => setNewGuest({ ...newGuest, notes: e.target.value })}
+              className="input"
+              rows="3"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => {
+                setIsModalOpen(false)
+                setNewGuest({
+                  name: '',
+                  phone: '',
+                  email: '',
+                  pastStays: 0,
+                  notes: '',
+                })
+              }}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            <button onClick={handleAddGuest} className="btn btn-primary">
+              Add Guest
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -9,6 +9,7 @@ const MainLayout = ({ children, onLogout }) => {
     { name: 'Reservations', path: '/reservations', icon: '📅' },
     { name: 'Calendar', path: '/calendar', icon: '🗓️' },
     { name: 'Guests', path: '/guests', icon: '👥' },
+    { name: 'Invoices', path: '/invoices', icon: '💰' },
     { name: 'Settings', path: '/settings', icon: '⚙️' },
   ]
 
