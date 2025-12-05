@@ -1,0 +1,14 @@
+{
+  "name": "Grand Plaza Hotel",
+  "address": "123 Main Street, Downtown District",
+  "city": "New York",
+  "state": "NY",
+  "zipCode": "10001",
+  "phone": "+1 (555) 123-4567",
+  "email": "info@grandplazahotel.com",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "totalRooms": 30,
+  "description": "A luxurious hotel in the heart of the city, offering exceptional comfort and service."
+}
+

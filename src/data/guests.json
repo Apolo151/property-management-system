@@ -1,0 +1,227 @@
+[
+  {
+    "id": 1,
+    "name": "John Smith",
+    "phone": "+1 (555) 111-2222",
+    "email": "john.smith@email.com",
+    "pastStays": 3,
+    "notes": "VIP guest, prefers room with city view"
+  },
+  {
+    "id": 2,
+    "name": "Emily Johnson",
+    "phone": "+1 (555) 222-3333",
+    "email": "emily.j@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 3,
+    "name": "Michael Brown",
+    "phone": "+1 (555) 333-4444",
+    "email": "m.brown@email.com",
+    "pastStays": 5,
+    "notes": "Frequent guest, always books suites"
+  },
+  {
+    "id": 4,
+    "name": "Sarah Davis",
+    "phone": "+1 (555) 444-5555",
+    "email": "sarah.d@email.com",
+    "pastStays": 2,
+    "notes": "Allergic to feathers, needs hypoallergenic pillows"
+  },
+  {
+    "id": 5,
+    "name": "David Wilson",
+    "phone": "+1 (555) 555-6666",
+    "email": "d.wilson@email.com",
+    "pastStays": 0,
+    "notes": "First-time guest"
+  },
+  {
+    "id": 6,
+    "name": "Lisa Anderson",
+    "phone": "+1 (555) 666-7777",
+    "email": "lisa.a@email.com",
+    "pastStays": 4,
+    "notes": "Business traveler, needs early check-in"
+  },
+  {
+    "id": 7,
+    "name": "Robert Taylor",
+    "phone": "+1 (555) 777-8888",
+    "email": "r.taylor@email.com",
+    "pastStays": 2,
+    "notes": ""
+  },
+  {
+    "id": 8,
+    "name": "Jennifer Martinez",
+    "phone": "+1 (555) 888-9999",
+    "email": "j.martinez@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 9,
+    "name": "William Garcia",
+    "phone": "+1 (555) 999-0000",
+    "email": "w.garcia@email.com",
+    "pastStays": 3,
+    "notes": "Prefers quiet rooms, away from elevators"
+  },
+  {
+    "id": 10,
+    "name": "Amanda Rodriguez",
+    "phone": "+1 (555) 000-1111",
+    "email": "a.rodriguez@email.com",
+    "pastStays": 6,
+    "notes": "VIP guest, loyalty program member"
+  },
+  {
+    "id": 11,
+    "name": "James Lee",
+    "phone": "+1 (555) 111-2222",
+    "email": "j.lee@email.com",
+    "pastStays": 2,
+    "notes": ""
+  },
+  {
+    "id": 12,
+    "name": "Patricia White",
+    "phone": "+1 (555) 222-3333",
+    "email": "p.white@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 13,
+    "name": "Christopher Harris",
+    "phone": "+1 (555) 333-4444",
+    "email": "c.harris@email.com",
+    "pastStays": 0,
+    "notes": "New guest"
+  },
+  {
+    "id": 14,
+    "name": "Michelle Clark",
+    "phone": "+1 (555) 444-5555",
+    "email": "m.clark@email.com",
+    "pastStays": 3,
+    "notes": ""
+  },
+  {
+    "id": 15,
+    "name": "Daniel Lewis",
+    "phone": "+1 (555) 555-6666",
+    "email": "d.lewis@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 16,
+    "name": "Nancy Walker",
+    "phone": "+1 (555) 666-7777",
+    "email": "n.walker@email.com",
+    "pastStays": 4,
+    "notes": "Regular guest, prefers upper floors"
+  },
+  {
+    "id": 17,
+    "name": "Matthew Hall",
+    "phone": "+1 (555) 777-8888",
+    "email": "m.hall@email.com",
+    "pastStays": 2,
+    "notes": ""
+  },
+  {
+    "id": 18,
+    "name": "Betty Allen",
+    "phone": "+1 (555) 888-9999",
+    "email": "b.allen@email.com",
+    "pastStays": 5,
+    "notes": "Long-term guest, extended stays"
+  },
+  {
+    "id": 19,
+    "name": "Anthony Young",
+    "phone": "+1 (555) 999-0000",
+    "email": "a.young@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 20,
+    "name": "Dorothy King",
+    "phone": "+1 (555) 000-1111",
+    "email": "d.king@email.com",
+    "pastStays": 3,
+    "notes": ""
+  },
+  {
+    "id": 21,
+    "name": "Mark Wright",
+    "phone": "+1 (555) 111-2222",
+    "email": "m.wright@email.com",
+    "pastStays": 0,
+    "notes": "First visit"
+  },
+  {
+    "id": 22,
+    "name": "Sandra Lopez",
+    "phone": "+1 (555) 222-3333",
+    "email": "s.lopez@email.com",
+    "pastStays": 2,
+    "notes": ""
+  },
+  {
+    "id": 23,
+    "name": "Donald Hill",
+    "phone": "+1 (555) 333-4444",
+    "email": "d.hill@email.com",
+    "pastStays": 1,
+    "notes": ""
+  },
+  {
+    "id": 24,
+    "name": "Carol Scott",
+    "phone": "+1 (555) 444-5555",
+    "email": "c.scott@email.com",
+    "pastStays": 3,
+    "notes": ""
+  },
+  {
+    "id": 25,
+    "name": "Paul Green",
+    "phone": "+1 (555) 555-6666",
+    "email": "p.green@email.com",
+    "pastStays": 0,
+    "notes": "New guest"
+  },
+  {
+    "id": 26,
+    "name": "Ruth Adams",
+    "phone": "+1 (555) 666-7777",
+    "email": "r.adams@email.com",
+    "pastStays": 4,
+    "notes": "VIP guest"
+  },
+  {
+    "id": 27,
+    "name": "Steven Baker",
+    "phone": "+1 (555) 777-8888",
+    "email": "s.baker@email.com",
+    "pastStays": 2,
+    "notes": ""
+  },
+  {
+    "id": 28,
+    "name": "Sharon Nelson",
+    "phone": "+1 (555) 888-9999",
+    "email": "s.nelson@email.com",
+    "pastStays": 1,
+    "notes": ""
+  }
+]
+
