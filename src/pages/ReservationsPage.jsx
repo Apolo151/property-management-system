@@ -15,6 +15,7 @@ const ReservationsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newReservation, setNewReservation] = useState({
     guestId: '',
+    guest2Id: '',
     roomNumber: '',
     checkIn: '',
     checkOut: '',
@@ -107,18 +108,26 @@ const ReservationsPage = () => {
       }
     }
 
-    // Find guest and room
+    // Find guests and room
     const guest = guests.find((g) => String(g.id) === String(newReservation.guestId))
+    const guest2 = newReservation.guest2Id ? guests.find((g) => String(g.id) === String(newReservation.guest2Id)) : null
     const room = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
 
     if (!guest) {
-      alert('Guest not found')
+      alert('Primary guest not found')
       return
     }
 
     if (!room) {
       alert('Room not found')
       return
+    }
+
+    // Validate second guest for double rooms
+    if (room.type === 'Double' && !newReservation.guest2Id) {
+      if (!confirm('Double room selected. Do you want to proceed with only one guest?')) {
+        return
+      }
     }
 
     // Calculate total amount
@@ -138,10 +147,19 @@ const ReservationsPage = () => {
       totalAmount,
     }
 
+    // Add second guest if provided
+    if (guest2) {
+      reservation.guest2Id = String(guest2.id)
+      reservation.guest2Name = guest2.name
+      reservation.guest2Email = guest2.email
+      reservation.guest2Phone = guest2.phone
+    }
+
     addReservation(reservation)
     setIsModalOpen(false)
     setNewReservation({
       guestId: '',
+      guest2Id: '',
       roomNumber: '',
       checkIn: '',
       checkOut: '',
@@ -295,6 +313,7 @@ const ReservationsPage = () => {
           setIsModalOpen(false)
           setNewReservation({
             guestId: '',
+            guest2Id: '',
             roomNumber: '',
             checkIn: '',
             checkOut: '',
@@ -308,7 +327,7 @@ const ReservationsPage = () => {
             value={newReservation.guestId}
             onChange={(guestId) => setNewReservation({ ...newReservation, guestId })}
             guests={guests}
-            label="Guest"
+            label="Primary Guest"
             placeholder="Search for a guest by name, email, or phone..."
           />
 
@@ -319,7 +338,7 @@ const ReservationsPage = () => {
             <select
               value={newReservation.roomNumber}
               onChange={(e) =>
-                setNewReservation({ ...newReservation, roomNumber: e.target.value })
+                setNewReservation({ ...newReservation, roomNumber: e.target.value, guest2Id: '' })
               }
               className="input"
               required
@@ -332,6 +351,19 @@ const ReservationsPage = () => {
               ))}
             </select>
           </div>
+
+          {newReservation.roomNumber && (() => {
+            const selectedRoom = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
+            return selectedRoom && selectedRoom.type === 'Double' ? (
+              <GuestSelect
+                value={newReservation.guest2Id}
+                onChange={(guest2Id) => setNewReservation({ ...newReservation, guest2Id })}
+                guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
+                label="Second Guest (Optional)"
+                placeholder="Search for a second guest by name, email, or phone..."
+              />
+            ) : null
+          })()}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -406,6 +438,7 @@ const ReservationsPage = () => {
                 setIsModalOpen(false)
                 setNewReservation({
                   guestId: '',
+                  guest2Id: '',
                   roomNumber: '',
                   checkIn: '',
                   checkOut: '',
