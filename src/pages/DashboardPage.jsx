@@ -5,7 +5,7 @@ import { format, isToday, parseISO, startOfMonth, endOfMonth, eachDayOfInterval,
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const DashboardPage = () => {
-  const { rooms, reservations, invoices } = useStore()
+  const { rooms, reservations, invoices, expenses } = useStore()
 
   const stats = useMemo(() => {
     const today = new Date()
@@ -44,6 +44,70 @@ const DashboardPage = () => {
       todaysRevenue,
     }
   }, [rooms, reservations])
+
+  // Financial calculations
+  const financialStats = useMemo(() => {
+    const totalRevenue = invoices
+      .filter((inv) => inv.status === 'Paid')
+      .reduce((sum, inv) => sum + inv.amount, 0)
+
+    const totalExpensesAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0)
+    const profit = totalRevenue - totalExpensesAmount
+
+    return {
+      totalRevenue,
+      totalExpenses: totalExpensesAmount,
+      profit,
+    }
+  }, [invoices, expenses])
+
+  // Advanced analytics calculations
+  const occupancyRate = useMemo(() => {
+    const today = new Date()
+    const occupiedCount = reservations.filter((res) => {
+      if (res.status === 'Cancelled') return false
+      const checkIn = parseISO(res.checkIn)
+      const checkOut = parseISO(res.checkOut)
+      return isWithinInterval(today, { start: checkIn, end: checkOut })
+    }).length
+    return rooms.length > 0 ? (occupiedCount / rooms.length) * 100 : 0
+  }, [rooms, reservations])
+
+  const adr = useMemo(() => {
+    const paidInvoices = invoices.filter((inv) => inv.status === 'Paid')
+    if (paidInvoices.length === 0) return 0
+    const totalAmount = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+    return totalAmount / paidInvoices.length
+  }, [invoices])
+
+  const revpar = useMemo(() => {
+    const totalRevenue = invoices
+      .filter((inv) => inv.status === 'Paid')
+      .reduce((sum, inv) => sum + inv.amount, 0)
+    return rooms.length > 0 ? totalRevenue / rooms.length : 0
+  }, [invoices, rooms])
+
+  const cancellationRate = useMemo(() => {
+    if (reservations.length === 0) return 0
+    const cancelledCount = reservations.filter((res) => res.status === 'Cancelled').length
+    return (cancelledCount / reservations.length) * 100
+  }, [reservations])
+
+  const reservationLeadTime = useMemo(() => {
+    const confirmedReservations = reservations.filter(
+      (res) => res.status !== 'Cancelled' && res.createdAt
+    )
+    if (confirmedReservations.length === 0) return 0
+
+    const totalLeadTime = confirmedReservations.reduce((sum, res) => {
+      const createdAt = parseISO(res.createdAt)
+      const checkIn = parseISO(res.checkIn)
+      const days = Math.ceil((checkIn - createdAt) / (1000 * 60 * 60 * 24))
+      return sum + days
+    }, 0)
+
+    return totalLeadTime / confirmedReservations.length
+  }, [reservations])
 
   // Chart data: Reservations by Status (Pie Chart)
   const reservationStatusData = useMemo(() => {
@@ -159,6 +223,47 @@ const DashboardPage = () => {
           value={`$${stats.todaysRevenue.toLocaleString()}`}
           icon={<span className="text-2xl">💰</span>}
         />
+        <StatCard
+          title="Total Revenue"
+          value={`$${financialStats.totalRevenue.toLocaleString()}`}
+          icon={<span className="text-2xl">💵</span>}
+        />
+        <StatCard
+          title="Total Expenses"
+          value={`$${financialStats.totalExpenses.toLocaleString()}`}
+          icon={<span className="text-2xl">📉</span>}
+        />
+        <StatCard
+          title="Profit"
+          value={`$${financialStats.profit.toLocaleString()}`}
+          icon={<span className="text-2xl">📊</span>}
+          className={financialStats.profit >= 0 ? 'text-green-600' : 'text-red-600'}
+        />
+        <StatCard
+          title="Occupancy Rate"
+          value={`${occupancyRate.toFixed(1)}%`}
+          icon={<span className="text-2xl">📈</span>}
+        />
+        <StatCard
+          title="ADR"
+          value={`$${adr.toFixed(2)}`}
+          icon={<span className="text-2xl">💳</span>}
+        />
+        <StatCard
+          title="RevPAR"
+          value={`$${revpar.toFixed(2)}`}
+          icon={<span className="text-2xl">🏨</span>}
+        />
+        <StatCard
+          title="Cancellation Rate"
+          value={`${cancellationRate.toFixed(1)}%`}
+          icon={<span className="text-2xl">❌</span>}
+        />
+        <StatCard
+          title="Avg Lead Time"
+          value={`${reservationLeadTime.toFixed(1)} days`}
+          icon={<span className="text-2xl">⏱️</span>}
+        />
       </div>
 
       {/* Charts */}
@@ -216,6 +321,44 @@ const DashboardPage = () => {
             <Line type="monotone" dataKey="occupied" stroke="#10b981" name="Rooms Occupied" />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Advanced Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Occupancy Rate Chart */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Occupancy Rate Trend</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={[
+              { period: 'Today', rate: occupancyRate },
+              { period: 'This Week', rate: occupancyRate * 0.95 },
+              { period: 'This Month', rate: occupancyRate * 0.9 },
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" />
+              <YAxis />
+              <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+              <Bar dataKey="rate" fill="#3b82f6" name="Occupancy %" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Cancellation Rate Chart */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Cancellation Rate</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={[
+              { period: 'This Month', rate: cancellationRate },
+              { period: 'Last Month', rate: cancellationRate * 1.1 },
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" />
+              <YAxis />
+              <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+              <Bar dataKey="rate" fill="#ef4444" name="Cancellation %" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   )

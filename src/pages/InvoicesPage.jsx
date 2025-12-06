@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import Modal from '../components/Modal'
 import { format, parseISO, addDays } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
@@ -7,6 +8,9 @@ import useStore from '../store/useStore'
 
 const InvoicesPage = () => {
   const { invoices, reservations, guests, updateInvoiceStatus } = useStore()
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState(null)
+  const [paymentMethod, setPaymentMethod] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
@@ -31,9 +35,27 @@ const InvoicesPage = () => {
   }
 
   const handleStatusChange = (invoiceId, newStatus) => {
-    if (window.confirm(`Are you sure you want to mark this invoice as ${newStatus}?`)) {
-      updateInvoiceStatus(invoiceId, newStatus)
+    if (newStatus === 'Paid') {
+      const invoice = invoices.find((inv) => inv.id === invoiceId)
+      setSelectedInvoice(invoice)
+      setPaymentMethod(invoice?.paymentMethod || '')
+      setPaymentModalOpen(true)
+    } else {
+      if (window.confirm(`Are you sure you want to mark this invoice as ${newStatus}?`)) {
+        updateInvoiceStatus(invoiceId, newStatus)
+      }
     }
+  }
+
+  const handleMarkAsPaid = () => {
+    if (!paymentMethod) {
+      alert('Please select a payment method')
+      return
+    }
+    updateInvoiceStatus(selectedInvoice.id, 'Paid', paymentMethod)
+    setPaymentModalOpen(false)
+    setSelectedInvoice(null)
+    setPaymentMethod('')
   }
 
   const statusOptions = [
@@ -96,6 +118,9 @@ const InvoicesPage = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment Method
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -134,6 +159,9 @@ const InvoicesPage = () => {
                         status={invoice.status}
                         type="invoice"
                       />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {invoice.paymentMethod || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       {invoice.status === 'Pending' && (
@@ -177,6 +205,67 @@ const InvoicesPage = () => {
       <div className="mt-4 text-sm text-gray-600">
         Showing {filteredInvoices.length} of {invoices.length} invoices
       </div>
+
+      {/* Payment Method Modal */}
+      <Modal
+        isOpen={paymentModalOpen}
+        onClose={() => {
+          setPaymentModalOpen(false)
+          setSelectedInvoice(null)
+          setPaymentMethod('')
+        }}
+        title="Mark Invoice as Paid"
+      >
+        <div className="space-y-4">
+          {selectedInvoice && (
+            <>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-sm space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Invoice ID:</span>
+                    <span className="font-medium">{selectedInvoice.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Amount:</span>
+                    <span className="font-semibold">${selectedInvoice.amount.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Method *
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="input"
+                  required
+                >
+                  <option value="">Select payment method</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Online">Online</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setPaymentModalOpen(false)
+                    setSelectedInvoice(null)
+                    setPaymentMethod('')
+                  }}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button onClick={handleMarkAsPaid} className="btn btn-primary">
+                  Mark as Paid
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

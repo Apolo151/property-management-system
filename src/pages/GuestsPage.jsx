@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import SearchInput from '../components/SearchInput'
 import Modal from '../components/Modal'
 import useStore from '../store/useStore'
 
 const GuestsPage = () => {
   const { guests, addGuest } = useStore()
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newGuest, setNewGuest] = useState({
@@ -95,7 +97,11 @@ const GuestsPage = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredGuests.map((guest) => (
-                <tr key={guest.id} className="hover:bg-gray-50">
+                <tr
+                  key={guest.id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => navigate(`/guests/${guest.id}`)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{guest.name}</div>
                   </td>

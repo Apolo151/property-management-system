@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { format, parseISO } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
@@ -6,10 +7,12 @@ import Modal from '../components/Modal'
 import useStore from '../store/useStore'
 
 const RoomsPage = () => {
-  const { rooms, addRoom } = useStore()
+  const { rooms, addRoom, housekeeping, updateHousekeepingStatus } = useStore()
+  const [activeTab, setActiveTab] = useState('rooms')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [housekeepingFilter, setHousekeepingFilter] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newRoom, setNewRoom] = useState({
     roomNumber: '',
@@ -103,6 +106,18 @@ const RoomsPage = () => {
     { value: 'Suite', label: 'Suite' },
   ]
 
+  const filteredHousekeeping = useMemo(() => {
+    return housekeeping.filter((hk) => {
+      const room = rooms.find((r) => String(r.id) === hk.roomId)
+      if (!room) return false
+      const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesStatus = !housekeepingFilter || hk.status === housekeepingFilter
+      return matchesSearch && matchesStatus
+    })
+  }, [housekeeping, rooms, searchTerm, housekeepingFilter])
+
+  const staffMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams']
+
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
@@ -110,13 +125,44 @@ const RoomsPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Rooms Management</h1>
           <p className="text-gray-600 mt-2">Manage and view all hotel rooms</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn btn-primary"
-        >
-          + Add Room
-        </button>
+        {activeTab === 'rooms' && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn btn-primary"
+          >
+            + Add Room
+          </button>
+        )}
       </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('rooms')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'rooms'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Rooms
+          </button>
+          <button
+            onClick={() => setActiveTab('housekeeping')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'housekeeping'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Housekeeping
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'rooms' && (
+        <>
 
       {/* Filters */}
       <div className="card mb-6">
@@ -206,6 +252,137 @@ const RoomsPage = () => {
       <div className="mt-4 text-sm text-gray-600">
         Showing {filteredRooms.length} of {rooms.length} rooms
       </div>
+        </>
+      )}
+
+      {activeTab === 'housekeeping' && (
+        <>
+          {/* Housekeeping Filters */}
+          <div className="card mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SearchInput
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Search by room number..."
+                label="Search"
+              />
+              <FilterSelect
+                value={housekeepingFilter}
+                onChange={setHousekeepingFilter}
+                options={[
+                  { value: 'Clean', label: 'Clean' },
+                  { value: 'Dirty', label: 'Dirty' },
+                  { value: 'In Progress', label: 'In Progress' },
+                ]}
+                placeholder="All Statuses"
+                label="Cleaning Status"
+              />
+            </div>
+          </div>
+
+          {/* Housekeeping Table */}
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Room Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Cleaning Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Last Cleaned
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Assigned Staff
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredHousekeeping.map((hk) => {
+                    const room = rooms.find((r) => String(r.id) === hk.roomId)
+                    if (!room) return null
+
+                    return (
+                      <tr key={hk.roomId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {room.roomNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {room.type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <StatusBadge
+                            status={hk.status}
+                            type="housekeeping"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {hk.lastCleaned
+                            ? format(parseISO(hk.lastCleaned), 'MMM dd, yyyy HH:mm')
+                            : 'Never'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={hk.assignedStaff}
+                            onChange={(e) =>
+                              updateHousekeepingStatus(hk.roomId, hk.status, e.target.value)
+                            }
+                            className="input text-sm"
+                          >
+                            <option value="">Unassigned</option>
+                            {staffMembers.map((staff) => (
+                              <option key={staff} value={staff}>
+                                {staff}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex gap-2">
+                            {hk.status !== 'Clean' && (
+                              <button
+                                onClick={() => updateHousekeepingStatus(hk.roomId, 'Clean', hk.assignedStaff)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Mark Clean
+                              </button>
+                            )}
+                            {hk.status !== 'Dirty' && (
+                              <button
+                                onClick={() => updateHousekeepingStatus(hk.roomId, 'Dirty', hk.assignedStaff)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Mark Dirty
+                              </button>
+                            )}
+                            {hk.status !== 'In Progress' && (
+                              <button
+                                onClick={() => updateHousekeepingStatus(hk.roomId, 'In Progress', hk.assignedStaff)}
+                                className="text-yellow-600 hover:text-yellow-900"
+                              >
+                                Start Cleaning
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Add Room Modal */}
       <Modal
