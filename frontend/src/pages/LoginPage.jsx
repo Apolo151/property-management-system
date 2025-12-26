@@ -1,16 +1,30 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import useAuthStore from '../store/authStore'
 
-const LoginPage = ({ onLogin }) => {
+const LoginPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { login, isLoading } = useAuthStore()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Mock login - no real validation
-    onLogin()
-    navigate('/dashboard')
+    setError('')
+    
+    if (!email || !password) {
+      setError('Please enter both email and password')
+      return
+    }
+
+    const result = await login(email, password)
+    
+    if (result.success) {
+      navigate('/dashboard')
+    } else {
+      setError(result.error || 'Login failed')
+    }
   }
 
   return (
@@ -53,13 +67,23 @@ const LoginPage = ({ onLogin }) => {
               />
             </div>
 
-            <button type="submit" className="w-full btn btn-primary">
-              Login
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              className="w-full btn btn-primary"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            Demo: Any email/password will work
+            Default: admin@hotel.com / admin123
           </p>
         </div>
       </div>

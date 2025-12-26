@@ -5,3 +5,7 @@ A comprehensive Property Management System (PMS) designed to streamline hotel op
 
 **Prerequisites**
 - Node.js v18 or higher (Node 22+ recommended)
+
+
+**Installation**
+

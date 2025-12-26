@@ -1,57 +1,109 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
-import useStore from '../store/useStore'
+import useAuditLogsStore from '../store/auditLogsStore'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 
 const AuditLogsPage = () => {
-  const { auditLogs } = useStore()
+  const { auditLogs, loading, error, fetchAuditLogs, total } = useAuditLogsStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [actionFilter, setActionFilter] = useState('')
   const [entityFilter, setEntityFilter] = useState('')
-  const [sortBy, setSortBy] = useState('timestamp')
+  const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
 
+  // Fetch audit logs on mount and when filters change
+  useEffect(() => {
+    const filters = {};
+    if (actionFilter) filters.action = actionFilter;
+    if (entityFilter) filters.entityType = entityFilter;
+    if (searchTerm) filters.search = searchTerm;
+    if (sortBy) filters.sortBy = sortBy;
+    if (sortOrder) filters.sortOrder = sortOrder;
+    filters.limit = 1000; // Get all logs for client-side filtering/sorting
+    
+    const timeoutId = setTimeout(() => {
+      fetchAuditLogs(filters);
+    }, searchTerm ? 300 : 0); // Debounce search
+
+    return () => clearTimeout(timeoutId);
+  }, [actionFilter, entityFilter, searchTerm, sortBy, sortOrder, fetchAuditLogs])
+
   const filteredAndSortedLogs = useMemo(() => {
-    let filtered = auditLogs.filter((log) => {
-      const matchesSearch =
-        log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.entityType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.entityId.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesAction = !actionFilter || log.action === actionFilter
-      const matchesEntity = !entityFilter || log.entityType === entityFilter
-      return matchesSearch && matchesAction && matchesEntity
-    })
+    // Server-side filtering is already done, but we can do additional client-side filtering if needed
+    let filtered = [...auditLogs];
 
-    // Sort
+    // Additional client-side search (if server search doesn't cover everything)
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((log) => {
+        return (
+          log.action.toLowerCase().includes(searchLower) ||
+          log.entityType.toLowerCase().includes(searchLower) ||
+          log.entityId.toLowerCase().includes(searchLower) ||
+          (log.userId && log.userId.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    // Additional client-side filtering
+    if (actionFilter) {
+      filtered = filtered.filter((log) => log.action === actionFilter);
+    }
+
+    if (entityFilter) {
+      filtered = filtered.filter((log) => log.entityType === entityFilter);
+    }
+
+    // Client-side sorting (server already sorts, but we can re-sort if needed)
     filtered.sort((a, b) => {
-      let comparison = 0
-      if (sortBy === 'timestamp') {
-        comparison = parseISO(a.timestamp).getTime() - parseISO(b.timestamp).getTime()
+      let comparison = 0;
+      if (sortBy === 'created_at' || sortBy === 'timestamp') {
+        comparison = parseISO(a.timestamp).getTime() - parseISO(b.timestamp).getTime();
       } else if (sortBy === 'action') {
-        comparison = a.action.localeCompare(b.action)
-      } else if (sortBy === 'entityType') {
-        comparison = a.entityType.localeCompare(b.entityType)
-      } else if (sortBy === 'entityId') {
-        comparison = a.entityId.localeCompare(b.entityId)
+        comparison = a.action.localeCompare(b.action);
+      } else if (sortBy === 'entity_type' || sortBy === 'entityType') {
+        comparison = a.entityType.localeCompare(b.entityType);
+      } else if (sortBy === 'entity_id' || sortBy === 'entityId') {
+        comparison = a.entityId.localeCompare(b.entityId);
       }
-      return sortOrder === 'desc' ? -comparison : comparison
-    })
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
 
-    return filtered
+    return filtered;
   }, [auditLogs, searchTerm, actionFilter, entityFilter, sortBy, sortOrder])
 
   const handleSort = (column) => {
-    if (sortBy === column) {
+    // Map frontend column names to backend sort_by values
+    const columnMap = {
+      'timestamp': 'created_at',
+      'action': 'action',
+      'entityType': 'entity_type',
+      'entityId': 'entity_id',
+    };
+    
+    const backendColumn = columnMap[column] || column;
+    
+    if (sortBy === backendColumn) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
-      setSortBy(column)
+      setSortBy(backendColumn)
       setSortOrder('desc')
     }
   }
 
   const SortIcon = ({ column }) => {
-    if (sortBy !== column) return <span className="text-gray-400">↕</span>
+    // Map frontend column names to backend sort_by values
+    const columnMap = {
+      'timestamp': 'created_at',
+      'action': 'action',
+      'entityType': 'entity_type',
+      'entityId': 'entity_id',
+    };
+    
+    const backendColumn = columnMap[column] || column;
+    
+    if (sortBy !== backendColumn) return <span className="text-gray-400">↕</span>
     return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
   }
 
@@ -105,10 +157,24 @@ const AuditLogsPage = () => {
         </div>
       </div>
 
+      {/* Loading/Error States */}
+      {loading && (
+        <div className="card text-center py-12">
+          <p className="text-gray-500">Loading audit logs...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="card bg-red-50 border border-red-200 text-red-700 p-4 mb-6">
+          <p>Error loading audit logs: {error}</p>
+        </div>
+      )}
+
       {/* Logs Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+      {!loading && !error && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th 
@@ -197,10 +263,13 @@ const AuditLogsPage = () => {
           )}
         </div>
       </div>
+      )}
 
-      <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredAndSortedLogs.length} of {auditLogs.length} audit logs
-      </div>
+      {!loading && (
+        <div className="mt-4 text-sm text-gray-600">
+          Showing {filteredAndSortedLogs.length} of {total} audit logs
+        </div>
+      )}
     </div>
   )
 }

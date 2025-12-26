@@ -1,13 +1,19 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Modal from '../components/Modal'
-import { format, parseISO, addDays } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
-import useStore from '../store/useStore'
+import useInvoicesStore from '../store/invoicesStore'
 
 const InvoicesPage = () => {
-  const { invoices, reservations, guests, updateInvoiceStatus } = useStore()
+  const {
+    invoices,
+    loading: invoicesLoading,
+    error: invoicesError,
+    fetchInvoices,
+    updateInvoice,
+  } = useInvoicesStore()
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('')
@@ -16,14 +22,22 @@ const InvoicesPage = () => {
   const [sortBy, setSortBy] = useState('issueDate')
   const [sortOrder, setSortOrder] = useState('desc')
 
+  // Fetch invoices on mount and when filters change
+  useEffect(() => {
+    const filters = {};
+    if (statusFilter) filters.status = statusFilter;
+    if (searchTerm) filters.search = searchTerm;
+    
+    const timeoutId = setTimeout(() => {
+      fetchInvoices(filters);
+    }, searchTerm ? 300 : 0); // Debounce search
+
+    return () => clearTimeout(timeoutId);
+  }, [statusFilter, searchTerm, fetchInvoices]);
+
   const filteredAndSortedInvoices = useMemo(() => {
-    let filtered = invoices.filter((invoice) => {
-      const matchesSearch =
-        invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.reservationId?.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = !statusFilter || invoice.status === statusFilter
-      return matchesSearch && matchesStatus
-    })
+    // API handles search and status filtering, so we just sort the results
+    let filtered = [...invoices]
 
     // Sort
     filtered.sort((a, b) => {
@@ -41,7 +55,7 @@ const InvoicesPage = () => {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, invoices, sortBy, sortOrder])
+  }, [invoices, sortBy, sortOrder])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -57,17 +71,7 @@ const InvoicesPage = () => {
     return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
   }
 
-  const getGuestName = (guestId) => {
-    const guest = guests.find((g) => String(g.id) === String(guestId))
-    return guest ? guest.name : 'Unknown Guest'
-  }
-
-  const getReservationInfo = (reservationId) => {
-    const reservation = reservations.find((r) => r.id === reservationId)
-    return reservation
-  }
-
-  const handleStatusChange = (invoiceId, newStatus) => {
+  const handleStatusChange = async (invoiceId, newStatus) => {
     if (newStatus === 'Paid') {
       const invoice = invoices.find((inv) => inv.id === invoiceId)
       setSelectedInvoice(invoice)
@@ -75,20 +79,32 @@ const InvoicesPage = () => {
       setPaymentModalOpen(true)
     } else {
       if (window.confirm(`Are you sure you want to mark this invoice as ${newStatus}?`)) {
-        updateInvoiceStatus(invoiceId, newStatus)
+        try {
+          await updateInvoice(invoiceId, { status: newStatus })
+        } catch (error) {
+          alert(error.message || 'Failed to update invoice status')
+        }
       }
     }
   }
 
-  const handleMarkAsPaid = () => {
+  const handleMarkAsPaid = async () => {
     if (!paymentMethod) {
       alert('Please select a payment method')
       return
     }
-    updateInvoiceStatus(selectedInvoice.id, 'Paid', paymentMethod)
-    setPaymentModalOpen(false)
-    setSelectedInvoice(null)
-    setPaymentMethod('')
+    
+    try {
+      await updateInvoice(selectedInvoice.id, {
+        status: 'Paid',
+        paymentMethod,
+      })
+      setPaymentModalOpen(false)
+      setSelectedInvoice(null)
+      setPaymentMethod('')
+    } catch (error) {
+      alert(error.message || 'Failed to update invoice')
+    }
   }
 
   const statusOptions = [
@@ -104,13 +120,20 @@ const InvoicesPage = () => {
         <p className="text-gray-600 mt-2">View and manage all invoices</p>
       </div>
 
+      {/* Error message */}
+      {invoicesError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{invoicesError}</span>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="card mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Search by invoice ID or reservation ID..."
+            placeholder="Search by invoice ID, reservation ID, or guest name..."
             label="Search"
           />
           <FilterSelect
@@ -122,6 +145,11 @@ const InvoicesPage = () => {
           />
         </div>
       </div>
+
+      {/* Loading state */}
+      {invoicesLoading && (
+        <div className="mb-4 text-center text-gray-600">Loading invoices...</div>
+      )}
 
       {/* Invoices Table */}
       <div className="card overflow-hidden">
@@ -183,9 +211,7 @@ const InvoicesPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedInvoices.map((invoice) => {
-                const reservation = getReservationInfo(invoice.reservationId)
-                return (
+              {filteredAndSortedInvoices.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{invoice.id}</div>
@@ -194,7 +220,7 @@ const InvoicesPage = () => {
                       <div className="text-sm text-gray-900">{invoice.reservationId || '-'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{getGuestName(invoice.guestId)}</div>
+                      <div className="text-sm text-gray-900">{invoice.guestName || 'Unknown Guest'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
@@ -245,8 +271,7 @@ const InvoicesPage = () => {
                       )}
                     </td>
                   </tr>
-                )
-              })}
+                ))}
             </tbody>
           </table>
           {filteredAndSortedInvoices.length === 0 && (
@@ -302,6 +327,8 @@ const InvoicesPage = () => {
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
                   <option value="Online">Online</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-4">

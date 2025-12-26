@@ -1,12 +1,16 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isWithinInterval, addDays, startOfWeek, endOfWeek } from 'date-fns'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import GuestSelect from '../components/GuestSelect'
-import useStore from '../store/useStore'
+import useReservationsStore from '../store/reservationsStore'
+import useRoomsStore from '../store/roomsStore'
+import useGuestsStore from '../store/guestsStore'
 
 const CalendarPage = () => {
-  const { reservations, rooms, guests, addReservation } = useStore()
+  const { reservations, fetchReservations, createReservation } = useReservationsStore()
+  const { rooms, fetchRooms } = useRoomsStore()
+  const { guests, fetchGuests } = useGuestsStore()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedReservation, setSelectedReservation] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -18,6 +22,13 @@ const CalendarPage = () => {
     checkOut: '',
     status: 'Confirmed',
   })
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchReservations()
+    fetchRooms()
+    fetchGuests()
+  }, [fetchReservations, fetchRooms, fetchGuests])
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -43,7 +54,7 @@ const CalendarPage = () => {
     setIsModalOpen(true)
   }
 
-  const handleCreateReservation = () => {
+  const handleCreateReservation = async () => {
     // Validation
     if (!newReservation.guestId || !newReservation.roomNumber || !newReservation.checkIn || !newReservation.checkOut) {
       alert('Please fill in all required fields')
@@ -56,24 +67,6 @@ const CalendarPage = () => {
     if (checkOut <= checkIn) {
       alert('Check-out date must be after check-in date')
       return
-    }
-
-    // Check for overlapping reservations
-    const hasOverlap = reservations.some((res) => {
-      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
-      const resCheckIn = parseISO(res.checkIn)
-      const resCheckOut = parseISO(res.checkOut)
-      return (
-        (checkIn >= resCheckIn && checkIn < resCheckOut) ||
-        (checkOut > resCheckIn && checkOut <= resCheckOut) ||
-        (checkIn <= resCheckIn && checkOut >= resCheckOut)
-      )
-    })
-
-    if (hasOverlap) {
-      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
-        return
-      }
     }
 
     // Find guests and room
@@ -98,41 +91,49 @@ const CalendarPage = () => {
       }
     }
 
-    // Calculate total amount
-    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
-    const totalAmount = room.pricePerNight * nights
-
-    // Create new reservation
-    const newRes = {
-      guestId: String(guest.id),
-      guestName: guest.name,
-      guestEmail: guest.email,
-      guestPhone: guest.phone,
-      roomNumber: newReservation.roomNumber,
-      checkIn: newReservation.checkIn,
-      checkOut: newReservation.checkOut,
-      status: newReservation.status,
-      totalAmount,
-    }
-
-    // Add second guest if provided
-    if (guest2) {
-      newRes.guest2Id = String(guest2.id)
-      newRes.guest2Name = guest2.name
-      newRes.guest2Email = guest2.email
-      newRes.guest2Phone = guest2.phone
-    }
-
-    addReservation(newRes)
-    setIsModalOpen(false)
-    setNewReservation({
-      guestId: '',
-      guest2Id: '',
-      roomNumber: '',
-      checkIn: '',
-      checkOut: '',
-      status: 'Confirmed',
+    // Check for overlapping reservations
+    const hasOverlap = reservations.some((res) => {
+      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
+      const resCheckIn = parseISO(res.checkIn)
+      const resCheckOut = parseISO(res.checkOut)
+      return (
+        (checkIn >= resCheckIn && checkIn < resCheckOut) ||
+        (checkOut > resCheckIn && checkOut <= resCheckOut) ||
+        (checkIn <= resCheckIn && checkOut >= resCheckOut)
+      )
     })
+
+    let force = false
+    if (hasOverlap) {
+      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
+        return
+      }
+      force = true
+    }
+
+    try {
+      await createReservation({
+        roomId: room.id,
+        guestId: String(guest.id),
+        guest2Id: guest2 ? String(guest2.id) : undefined,
+        checkIn: newReservation.checkIn,
+        checkOut: newReservation.checkOut,
+        status: newReservation.status,
+        force,
+      })
+
+      setIsModalOpen(false)
+      setNewReservation({
+        guestId: '',
+        guest2Id: '',
+        roomNumber: '',
+        checkIn: '',
+        checkOut: '',
+        status: 'Confirmed',
+      })
+    } catch (error) {
+      alert(error.message || 'Failed to create reservation')
+    }
   }
 
   const getStatusColor = (status) => {

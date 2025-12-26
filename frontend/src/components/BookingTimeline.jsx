@@ -1,19 +1,33 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, addDays, isWithinInterval, isSameDay } from 'date-fns'
-import useStore from '../store/useStore'
+import useReservationsStore from '../store/reservationsStore'
+import useRoomsStore from '../store/roomsStore'
+import useGuestsStore from '../store/guestsStore'
+import GuestSelect from './GuestSelect'
 import Modal from './Modal'
 
 const BookingTimeline = () => {
-  const { rooms, reservations, addReservation, guests } = useStore()
+  const { reservations, fetchReservations, createReservation } = useReservationsStore()
+  const { rooms, fetchRooms } = useRoomsStore()
+  const { guests, fetchGuests } = useGuestsStore()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newReservation, setNewReservation] = useState({
-    guestName: '',
+    guestId: '',
+    guest2Id: '',
     roomNumber: '',
     checkIn: '',
     checkOut: '',
+    status: 'Confirmed',
   })
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchReservations()
+    fetchRooms()
+    fetchGuests()
+  }, [fetchReservations, fetchRooms, fetchGuests])
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
@@ -37,16 +51,18 @@ const BookingTimeline = () => {
   const handleSlotDoubleClick = (room, date) => {
     setSelectedSlot({ room, date })
     setNewReservation({
-      guestName: '',
+      guestId: '',
+      guest2Id: '',
       roomNumber: room.roomNumber,
       checkIn: format(date, 'yyyy-MM-dd'),
       checkOut: format(addDays(date, 1), 'yyyy-MM-dd'),
+      status: 'Confirmed',
     })
     setIsModalOpen(true)
   }
 
-  const handleCreateReservation = () => {
-    if (!newReservation.guestName || !newReservation.checkIn || !newReservation.checkOut) {
+  const handleCreateReservation = async () => {
+    if (!newReservation.guestId || !newReservation.roomNumber || !newReservation.checkIn || !newReservation.checkOut) {
       alert('Please fill in all required fields')
       return
     }
@@ -60,26 +76,56 @@ const BookingTimeline = () => {
     }
 
     const room = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
-    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
-    const totalAmount = room ? room.pricePerNight * nights : 0
+    const guest = guests.find((g) => String(g.id) === String(newReservation.guestId))
+    const guest2 = newReservation.guest2Id ? guests.find((g) => String(g.id) === String(newReservation.guest2Id)) : null
 
-    const guest = guests.find((g) => g.name === newReservation.guestName)
+    if (!room) {
+      alert('Room not found')
+      return
+    }
 
-    addReservation({
-      guestName: newReservation.guestName,
-      roomNumber: newReservation.roomNumber,
-      checkIn: newReservation.checkIn,
-      checkOut: newReservation.checkOut,
-      status: 'Confirmed',
-      totalAmount,
-      guestEmail: guest?.email || '',
-      guestPhone: guest?.phone || '',
-      guestId: guest ? String(guest.id) : '',
+    if (!guest) {
+      alert('Guest not found')
+      return
+    }
+
+    // Check for overlapping reservations
+    const hasOverlap = reservations.some((res) => {
+      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
+      const resCheckIn = parseISO(res.checkIn)
+      const resCheckOut = parseISO(res.checkOut)
+      return (
+        (checkInDate >= resCheckIn && checkInDate < resCheckOut) ||
+        (checkOutDate > resCheckIn && checkOutDate <= resCheckOut) ||
+        (checkInDate <= resCheckIn && checkOutDate >= resCheckOut)
+      )
     })
 
-    setIsModalOpen(false)
-    setNewReservation({ guestName: '', roomNumber: '', checkIn: '', checkOut: '' })
-    setSelectedSlot(null)
+    let force = false
+    if (hasOverlap) {
+      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
+        return
+      }
+      force = true
+    }
+
+    try {
+      await createReservation({
+        roomId: room.id,
+        guestId: String(guest.id),
+        guest2Id: guest2 ? String(guest2.id) : undefined,
+        checkIn: newReservation.checkIn,
+        checkOut: newReservation.checkOut,
+        status: newReservation.status,
+        force,
+      })
+
+      setIsModalOpen(false)
+      setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
+      setSelectedSlot(null)
+    } catch (error) {
+      alert(error.message || 'Failed to create reservation')
+    }
   }
 
   const getStatusColor = (status) => {
@@ -218,24 +264,19 @@ const BookingTimeline = () => {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false)
-          setNewReservation({ guestName: '', roomNumber: '', checkIn: '', checkOut: '' })
+          setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
           setSelectedSlot(null)
         }}
         title="Create Reservation"
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name *</label>
-            <input
-              type="text"
-              value={newReservation.guestName}
-              onChange={(e) =>
-                setNewReservation({ ...newReservation, guestName: e.target.value })
-              }
-              className="input"
-              required
-            />
-          </div>
+          <GuestSelect
+            value={newReservation.guestId}
+            onChange={(guestId) => setNewReservation({ ...newReservation, guestId })}
+            guests={guests}
+            label="Primary Guest"
+            placeholder="Search for a guest by name, email, or phone..."
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
             <input
@@ -245,6 +286,18 @@ const BookingTimeline = () => {
               className="input bg-gray-50"
             />
           </div>
+          {newReservation.roomNumber && (() => {
+            const selectedRoom = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
+            return selectedRoom && selectedRoom.type === 'Double' ? (
+              <GuestSelect
+                value={newReservation.guest2Id}
+                onChange={(guest2Id) => setNewReservation({ ...newReservation, guest2Id })}
+                guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
+                label="Second Guest (Optional)"
+                placeholder="Search for a second guest by name, email, or phone..."
+              />
+            ) : null
+          })()}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date *</label>
             <input
@@ -270,11 +323,26 @@ const BookingTimeline = () => {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={newReservation.status}
+              onChange={(e) =>
+                setNewReservation({ ...newReservation, status: e.target.value })
+              }
+              className="input"
+            >
+              <option value="Confirmed">Confirmed</option>
+              <option value="Checked-in">Checked-in</option>
+              <option value="Checked-out">Checked-out</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => {
                 setIsModalOpen(false)
-                setNewReservation({ guestName: '', roomNumber: '', checkIn: '', checkOut: '' })
+                setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
                 setSelectedSlot(null)
               }}
               className="btn btn-secondary"

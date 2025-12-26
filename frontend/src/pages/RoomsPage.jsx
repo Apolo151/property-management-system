@@ -1,13 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import Modal from '../components/Modal'
-import useStore from '../store/useStore'
+import useRoomsStore from '../store/roomsStore'
 
 const RoomsPage = () => {
-  const { rooms, addRoom, housekeeping, updateHousekeepingStatus } = useStore()
+  const { rooms, housekeeping, addRoom, updateHousekeepingStatus, isLoading, initialize } = useRoomsStore()
+
+  // Fetch rooms and housekeeping on mount
+  useEffect(() => {
+    initialize()
+  }, [initialize])
   const [activeTab, setActiveTab] = useState('rooms')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -33,7 +38,7 @@ const RoomsPage = () => {
     })
   }, [searchTerm, statusFilter, typeFilter, rooms])
 
-  const handleAddRoom = () => {
+  const handleAddRoom = async () => {
     // Validation
     if (!newRoom.roomNumber || !newRoom.pricePerNight || !newRoom.floor) {
       alert('Please fill in all required fields (Room Number, Price/Night, Floor)')
@@ -52,28 +57,30 @@ const RoomsPage = () => {
       return
     }
 
-    // Check if room number already exists
-    if (rooms.some((r) => r.roomNumber === newRoom.roomNumber)) {
-      alert('A room with this number already exists')
-      return
+    try {
+      await addRoom({
+        roomNumber: newRoom.roomNumber,
+        type: newRoom.type,
+        status: newRoom.status,
+        pricePerNight: price,
+        floor: floor,
+        features: newRoom.features,
+      })
+
+      setIsModalOpen(false)
+      setNewRoom({
+        roomNumber: '',
+        type: 'Single',
+        status: 'Available',
+        pricePerNight: '',
+        floor: '',
+        features: [],
+      })
+      setFeatureInput('')
+      alert('Room created successfully!')
+    } catch (error) {
+      alert(error.message || 'Failed to create room')
     }
-
-    addRoom({
-      ...newRoom,
-      pricePerNight: price,
-      floor: floor,
-    })
-
-    setIsModalOpen(false)
-    setNewRoom({
-      roomNumber: '',
-      type: 'Single',
-      status: 'Available',
-      pricePerNight: '',
-      floor: '',
-      features: [],
-    })
-    setFeatureInput('')
   }
 
   const handleAddFeature = () => {
@@ -243,7 +250,10 @@ const RoomsPage = () => {
               ))}
             </tbody>
           </table>
-          {filteredRooms.length === 0 && (
+          {isLoading && filteredRooms.length === 0 && (
+            <div className="text-center py-12 text-gray-500">Loading rooms...</div>
+          )}
+          {!isLoading && filteredRooms.length === 0 && (
             <div className="text-center py-12 text-gray-500">No rooms found</div>
           )}
         </div>
@@ -333,9 +343,13 @@ const RoomsPage = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
                             value={hk.assignedStaff}
-                            onChange={(e) =>
-                              updateHousekeepingStatus(hk.roomId, hk.status, e.target.value)
-                            }
+                            onChange={async (e) => {
+                              try {
+                                await updateHousekeepingStatus(hk.roomId, hk.status, e.target.value)
+                              } catch (error) {
+                                alert(error.message || 'Failed to update housekeeping')
+                              }
+                            }}
                             className="input text-sm"
                           >
                             <option value="">Unassigned</option>
@@ -350,7 +364,13 @@ const RoomsPage = () => {
                           <div className="flex gap-2">
                             {hk.status !== 'Clean' && (
                               <button
-                                onClick={() => updateHousekeepingStatus(hk.roomId, 'Clean', hk.assignedStaff)}
+                                onClick={async () => {
+                                  try {
+                                    await updateHousekeepingStatus(hk.roomId, 'Clean', hk.assignedStaff)
+                                  } catch (error) {
+                                    alert(error.message || 'Failed to update housekeeping')
+                                  }
+                                }}
                                 className="text-green-600 hover:text-green-900"
                               >
                                 Mark Clean
@@ -358,7 +378,13 @@ const RoomsPage = () => {
                             )}
                             {hk.status !== 'Dirty' && (
                               <button
-                                onClick={() => updateHousekeepingStatus(hk.roomId, 'Dirty', hk.assignedStaff)}
+                                onClick={async () => {
+                                  try {
+                                    await updateHousekeepingStatus(hk.roomId, 'Dirty', hk.assignedStaff)
+                                  } catch (error) {
+                                    alert(error.message || 'Failed to update housekeeping')
+                                  }
+                                }}
                                 className="text-red-600 hover:text-red-900"
                               >
                                 Mark Dirty
@@ -366,7 +392,13 @@ const RoomsPage = () => {
                             )}
                             {hk.status !== 'In Progress' && (
                               <button
-                                onClick={() => updateHousekeepingStatus(hk.roomId, 'In Progress', hk.assignedStaff)}
+                                onClick={async () => {
+                                  try {
+                                    await updateHousekeepingStatus(hk.roomId, 'In Progress', hk.assignedStaff)
+                                  } catch (error) {
+                                    alert(error.message || 'Failed to update housekeeping')
+                                  }
+                                }}
                                 className="text-yellow-600 hover:text-yellow-900"
                               >
                                 Start Cleaning
@@ -534,8 +566,12 @@ const RoomsPage = () => {
             >
               Cancel
             </button>
-            <button onClick={handleAddRoom} className="btn btn-primary">
-              Add Room
+            <button 
+              onClick={handleAddRoom} 
+              className="btn btn-primary"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Creating...' : 'Add Room'}
             </button>
           </div>
         </div>

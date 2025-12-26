@@ -1,11 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchInput from '../components/SearchInput'
 import Modal from '../components/Modal'
-import useStore from '../store/useStore'
+import useGuestsStore from '../store/guestsStore'
 
 const GuestsPage = () => {
-  const { guests, addGuest } = useStore()
+  const {
+    guests,
+    loading: guestsLoading,
+    error: guestsError,
+    fetchGuests,
+    createGuest,
+  } = useGuestsStore()
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('id')
@@ -19,10 +25,18 @@ const GuestsPage = () => {
     notes: '',
   })
 
+  // Fetch guests on mount and when search term changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchGuests(searchTerm ? { search: searchTerm } : {})
+    }, 300) // Debounce search
+
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm, fetchGuests])
+
   const filteredAndSortedGuests = useMemo(() => {
-    let filtered = guests.filter((guest) =>
-      guest.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    // API handles search, so we just sort the results
+    let filtered = [...guests]
 
     // Sort
     filtered.sort((a, b) => {
@@ -58,29 +72,35 @@ const GuestsPage = () => {
     return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
   }
 
-  const handleAddGuest = () => {
+  const handleAddGuest = async () => {
     // Validation
-    if (!newGuest.name || !newGuest.email || !newGuest.phone) {
-      alert('Please fill in all required fields (Name, Email, Phone)')
+    if (!newGuest.name) {
+      alert('Please fill in the name field')
       return
     }
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(newGuest.email)) {
-      alert('Please enter a valid email address')
-      return
+    // Email validation if provided
+    if (newGuest.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newGuest.email)) {
+        alert('Please enter a valid email address')
+        return
+      }
     }
 
-    addGuest(newGuest)
-    setIsModalOpen(false)
-    setNewGuest({
-      name: '',
-      phone: '',
-      email: '',
-      pastStays: 0,
-      notes: '',
-    })
+    try {
+      await createGuest(newGuest)
+      setIsModalOpen(false)
+      setNewGuest({
+        name: '',
+        phone: '',
+        email: '',
+        pastStays: 0,
+        notes: '',
+      })
+    } catch (error) {
+      alert(error.message || 'Failed to create guest')
+    }
   }
 
   return (
@@ -97,6 +117,18 @@ const GuestsPage = () => {
           + Add Guest
         </button>
       </div>
+
+      {/* Error message */}
+      {guestsError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{guestsError}</span>
+        </div>
+      )}
+
+      {/* Loading state */}
+      {guestsLoading && (
+        <div className="mb-4 text-center text-gray-600">Loading guests...</div>
+      )}
 
       {/* Search */}
       <div className="card mb-6">
@@ -222,26 +254,24 @@ const GuestsPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email *
+              Email
             </label>
             <input
               type="email"
               value={newGuest.email}
               onChange={(e) => setNewGuest({ ...newGuest, email: e.target.value })}
               className="input"
-              required
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone *
+              Phone
             </label>
             <input
               type="tel"
               value={newGuest.phone}
               onChange={(e) => setNewGuest({ ...newGuest, phone: e.target.value })}
               className="input"
-              required
             />
           </div>
           <div>

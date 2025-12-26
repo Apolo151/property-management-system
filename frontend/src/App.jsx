@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import RoomsPage from './pages/RoomsPage'
@@ -17,13 +17,34 @@ import AuditLogsPage from './pages/AuditLogsPage'
 import SettingsPage from './pages/SettingsPage'
 import MainLayout from './layouts/MainLayout'
 import useStore from './store/useStore'
+import useAuthStore from './store/authStore'
 import { parseISO, isToday, isPast } from 'date-fns'
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem('isAuthenticated') === 'true'
-  )
+  const { isAuthenticated, initialize, ensureValidToken } = useAuthStore()
   const { reservations, invoices, housekeeping, addNotification } = useStore()
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initialize()
+  }, [initialize])
+
+  // Proactive token refresh - check every 5 minutes
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const checkAndRefreshToken = () => {
+      ensureValidToken().catch(() => {
+        // Token refresh failed, user will be logged out automatically
+      })
+    }
+
+    // Check immediately, then every 5 minutes
+    checkAndRefreshToken()
+    const interval = setInterval(checkAndRefreshToken, 5 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [isAuthenticated, ensureValidToken])
 
   // Generate notifications
   useEffect(() => {
@@ -99,22 +120,7 @@ function App() {
     return () => clearInterval(interval)
   }, [isAuthenticated, reservations, invoices, housekeeping, addNotification])
 
-  useEffect(() => {
-    // Persist auth state
-    if (isAuthenticated) {
-      localStorage.setItem('isAuthenticated', 'true')
-    } else {
-      localStorage.removeItem('isAuthenticated')
-    }
-  }, [isAuthenticated])
-
-  const handleLogin = () => {
-    setIsAuthenticated(true)
-  }
-
-  const handleLogout = () => {
-    setIsAuthenticated(false)
-  }
+  const { logout } = useAuthStore()
 
   return (
     <Router>
@@ -125,7 +131,7 @@ function App() {
             isAuthenticated ? (
               <Navigate to="/dashboard" replace />
             ) : (
-              <LoginPage onLogin={handleLogin} />
+              <LoginPage />
             )
           }
         />
@@ -133,7 +139,7 @@ function App() {
           path="/*"
           element={
             isAuthenticated ? (
-              <MainLayout onLogout={handleLogout}>
+              <MainLayout onLogout={logout}>
                 <Routes>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/rooms" element={<RoomsPage />} />

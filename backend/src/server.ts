@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import morgan from 'morgan';
 
 import { buildApp } from './app.js';

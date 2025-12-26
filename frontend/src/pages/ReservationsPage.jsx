@@ -1,14 +1,26 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO, compareAsc, addDays } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import Modal from '../components/Modal'
 import GuestSelect from '../components/GuestSelect'
-import useStore from '../store/useStore'
+import useReservationsStore from '../store/reservationsStore'
+import useRoomsStore from '../store/roomsStore'
+import useGuestsStore from '../store/guestsStore'
+import useInvoicesStore from '../store/invoicesStore'
 
 const ReservationsPage = () => {
-  const { reservations, addInvoice, guests, rooms, addReservation } = useStore()
+  const { rooms } = useRoomsStore()
+  const { guests, fetchGuests } = useGuestsStore()
+  const { createInvoice } = useInvoicesStore()
+  const {
+    reservations,
+    loading: reservationsLoading,
+    error: reservationsError,
+    fetchReservations,
+    createReservation,
+  } = useReservationsStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
@@ -22,6 +34,12 @@ const ReservationsPage = () => {
     checkOut: '',
     status: 'Confirmed',
   })
+
+  // Fetch reservations and guests on mount
+  useEffect(() => {
+    fetchReservations()
+    fetchGuests()
+  }, [fetchReservations, fetchGuests])
 
   const filteredAndSortedReservations = useMemo(() => {
     let filtered = reservations.filter((res) => {
@@ -59,7 +77,7 @@ const ReservationsPage = () => {
     return filtered
   }, [searchTerm, statusFilter, sortBy, reservations])
 
-  const handleCreateInvoice = (reservation) => {
+  const handleCreateInvoice = async (reservation) => {
     // Find guest by name or ID
     const guest = guests.find(
       (g) => g.name === reservation.guestName || String(g.id) === String(reservation.guestId)
@@ -73,21 +91,24 @@ const ReservationsPage = () => {
     const today = new Date()
     const dueDate = addDays(today, 30) // 30 days from today
 
-    const invoice = {
-      reservationId: reservation.id,
-      guestId: String(guest.id),
-      issueDate: format(today, 'yyyy-MM-dd'),
-      dueDate: format(dueDate, 'yyyy-MM-dd'),
-      amount: reservation.totalAmount || 0,
-      status: 'Pending',
-      notes: `Invoice for reservation ${reservation.id}`,
-    }
+    try {
+      await createInvoice({
+        reservationId: reservation.id,
+        guestId: String(guest.id),
+        issueDate: format(today, 'yyyy-MM-dd'),
+        dueDate: format(dueDate, 'yyyy-MM-dd'),
+        amount: reservation.totalAmount || 0,
+        status: 'Pending',
+        notes: `Invoice for reservation ${reservation.id}`,
+      })
 
-    addInvoice(invoice)
-    alert(`Invoice created successfully for reservation ${reservation.id}`)
+      alert(`Invoice created successfully for reservation ${reservation.id}`)
+    } catch (error) {
+      alert(error.message || 'Failed to create invoice')
+    }
   }
 
-  const handleAddReservation = () => {
+  const handleAddReservation = async () => {
     // Validation
     if (!newReservation.guestId || !newReservation.roomNumber || !newReservation.checkIn || !newReservation.checkOut) {
       alert('Please fill in all required fields')
@@ -100,24 +121,6 @@ const ReservationsPage = () => {
     if (checkOut <= checkIn) {
       alert('Check-out date must be after check-in date')
       return
-    }
-
-    // Check for overlapping reservations
-    const hasOverlap = reservations.some((res) => {
-      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
-      const resCheckIn = parseISO(res.checkIn)
-      const resCheckOut = parseISO(res.checkOut)
-      return (
-        (checkIn >= resCheckIn && checkIn < resCheckOut) ||
-        (checkOut > resCheckIn && checkOut <= resCheckOut) ||
-        (checkIn <= resCheckIn && checkOut >= resCheckOut)
-      )
-    })
-
-    if (hasOverlap) {
-      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
-        return
-      }
     }
 
     // Find guests and room
@@ -142,42 +145,51 @@ const ReservationsPage = () => {
       }
     }
 
-    // Calculate total amount
-    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
-    const totalAmount = room.pricePerNight * nights
-
-    // Create reservation
-    const reservation = {
-      guestId: String(guest.id),
-      guestName: guest.name,
-      guestEmail: guest.email,
-      guestPhone: guest.phone,
-      roomNumber: newReservation.roomNumber,
-      checkIn: newReservation.checkIn,
-      checkOut: newReservation.checkOut,
-      status: newReservation.status,
-      totalAmount,
-    }
-
-    // Add second guest if provided
-    if (guest2) {
-      reservation.guest2Id = String(guest2.id)
-      reservation.guest2Name = guest2.name
-      reservation.guest2Email = guest2.email
-      reservation.guest2Phone = guest2.phone
-    }
-
-    addReservation(reservation)
-    setIsModalOpen(false)
-    setNewReservation({
-      guestId: '',
-      guest2Id: '',
-      roomNumber: '',
-      checkIn: '',
-      checkOut: '',
-      status: 'Confirmed',
+    // Check for overlapping reservations
+    const hasOverlap = reservations.some((res) => {
+      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
+      const resCheckIn = parseISO(res.checkIn)
+      const resCheckOut = parseISO(res.checkOut)
+      return (
+        (checkIn >= resCheckIn && checkIn < resCheckOut) ||
+        (checkOut > resCheckIn && checkOut <= resCheckOut) ||
+        (checkIn <= resCheckIn && checkOut >= resCheckOut)
+      )
     })
-    alert('Reservation created successfully!')
+
+    let force = false
+    if (hasOverlap) {
+      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
+        return
+      }
+      force = true
+    }
+
+    try {
+      // Create reservation via API
+      await createReservation({
+        roomId: room.id,
+        guestId: String(guest.id),
+        guest2Id: guest2 ? String(guest2.id) : undefined,
+        checkIn: newReservation.checkIn,
+        checkOut: newReservation.checkOut,
+        status: newReservation.status,
+        force,
+      })
+
+      setIsModalOpen(false)
+      setNewReservation({
+        guestId: '',
+        guest2Id: '',
+        roomNumber: '',
+        checkIn: '',
+        checkOut: '',
+        status: 'Confirmed',
+      })
+      alert('Reservation created successfully!')
+    } catch (error) {
+      alert(error.message || 'Failed to create reservation')
+    }
   }
 
   const statusOptions = [
@@ -240,6 +252,18 @@ const ReservationsPage = () => {
           />
         </div>
       </div>
+
+      {/* Error message */}
+      {reservationsError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{reservationsError}</span>
+        </div>
+      )}
+
+      {/* Loading state */}
+      {reservationsLoading && (
+        <div className="mb-4 text-center text-gray-600">Loading reservations...</div>
+      )}
 
       {/* Reservations Table */}
       <div className="card overflow-hidden">

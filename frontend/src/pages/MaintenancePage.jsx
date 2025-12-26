@@ -1,13 +1,22 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
-import useStore from '../store/useStore'
+import useRoomsStore from '../store/roomsStore'
+import useMaintenanceStore from '../store/maintenanceStore'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 
 const MaintenancePage = () => {
-  const { rooms, maintenanceRequests, addMaintenanceRequest, updateMaintenanceStatus } = useStore()
+  const { rooms, fetchRooms } = useRoomsStore()
+  const {
+    maintenanceRequests,
+    loading: maintenanceLoading,
+    error: maintenanceError,
+    fetchMaintenanceRequests,
+    createMaintenanceRequest,
+    updateMaintenanceRequest,
+  } = useMaintenanceStore()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -22,16 +31,27 @@ const MaintenancePage = () => {
     priority: 'Medium',
   })
 
+  // Fetch data on mount and when filters change
+  useEffect(() => {
+    fetchRooms()
+  }, [fetchRooms])
+
+  useEffect(() => {
+    const filters = {};
+    if (statusFilter) filters.status = statusFilter;
+    if (priorityFilter) filters.priority = priorityFilter;
+    if (searchTerm) filters.search = searchTerm;
+    
+    const timeoutId = setTimeout(() => {
+      fetchMaintenanceRequests(filters);
+    }, searchTerm ? 300 : 0); // Debounce search
+
+    return () => clearTimeout(timeoutId);
+  }, [statusFilter, priorityFilter, searchTerm, fetchMaintenanceRequests]);
+
   const filteredAndSortedRequests = useMemo(() => {
-    let filtered = maintenanceRequests.filter((req) => {
-      const matchesSearch =
-        req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.description.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = !statusFilter || req.status === statusFilter
-      const matchesPriority = !priorityFilter || req.priority === priorityFilter
-      return matchesSearch && matchesStatus && matchesPriority
-    })
+    // API handles search, status, and priority filtering, so we just sort the results
+    let filtered = [...maintenanceRequests]
 
     // Sort
     filtered.sort((a, b) => {
@@ -50,7 +70,7 @@ const MaintenancePage = () => {
     })
 
     return filtered
-  }, [maintenanceRequests, searchTerm, statusFilter, priorityFilter, sortBy, sortOrder])
+  }, [maintenanceRequests, sortBy, sortOrder])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -66,7 +86,7 @@ const MaintenancePage = () => {
     return sortOrder === 'asc' ? <span>↑</span> : <span>↓</span>
   }
 
-  const handleCreateRequest = () => {
+  const handleCreateRequest = async () => {
     if (!newRequest.roomNumber || !newRequest.title || !newRequest.description) {
       alert('Please fill in all required fields')
       return
@@ -78,23 +98,33 @@ const MaintenancePage = () => {
       return
     }
 
-    addMaintenanceRequest({
-      ...newRequest,
-      roomId: String(room.id),
-    })
+    try {
+      await createMaintenanceRequest({
+        roomId: room.id,
+        title: newRequest.title,
+        description: newRequest.description,
+        priority: newRequest.priority,
+      })
 
-    setIsModalOpen(false)
-    setNewRequest({
-      roomId: '',
-      roomNumber: '',
-      title: '',
-      description: '',
-      priority: 'Medium',
-    })
+      setIsModalOpen(false)
+      setNewRequest({
+        roomId: '',
+        roomNumber: '',
+        title: '',
+        description: '',
+        priority: 'Medium',
+      })
+    } catch (error) {
+      alert(error.message || 'Failed to create maintenance request')
+    }
   }
 
-  const handleStatusChange = (requestId, newStatus) => {
-    updateMaintenanceStatus(requestId, newStatus)
+  const handleStatusChange = async (requestId, newStatus) => {
+    try {
+      await updateMaintenanceRequest(requestId, { status: newStatus })
+    } catch (error) {
+      alert(error.message || 'Failed to update maintenance request status')
+    }
   }
 
   const statusOptions = [
@@ -137,6 +167,13 @@ const MaintenancePage = () => {
         </button>
       </div>
 
+      {/* Error message */}
+      {maintenanceError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{maintenanceError}</span>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="card mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -162,6 +199,11 @@ const MaintenancePage = () => {
           />
         </div>
       </div>
+
+      {/* Loading state */}
+      {maintenanceLoading && (
+        <div className="mb-4 text-center text-gray-600">Loading maintenance requests...</div>
+      )}
 
       {/* Requests Table */}
       <div className="card overflow-hidden">
