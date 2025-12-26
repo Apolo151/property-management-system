@@ -1,12 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
-import useStore from '../store/useStore'
+import useExpensesStore from '../store/expensesStore'
 import Modal from '../components/Modal'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 
 const ExpensesPage = () => {
-  const { expenses, addExpense } = useStore()
+  const {
+    expenses,
+    loading: expensesLoading,
+    error: expensesError,
+    fetchExpenses,
+    createExpense,
+  } = useExpensesStore()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -18,6 +24,19 @@ const ExpensesPage = () => {
     date: format(new Date(), 'yyyy-MM-dd'),
     notes: '',
   })
+
+  // Fetch expenses on mount and when filters change
+  useEffect(() => {
+    const filters = {};
+    if (categoryFilter) filters.category = categoryFilter;
+    if (searchTerm) filters.search = searchTerm;
+    
+    const timeoutId = setTimeout(() => {
+      fetchExpenses(filters);
+    }, searchTerm ? 300 : 0); // Debounce search
+
+    return () => clearTimeout(timeoutId);
+  }, [categoryFilter, searchTerm, fetchExpenses]);
 
   const categories = [
     'Utilities',
@@ -31,13 +50,8 @@ const ExpensesPage = () => {
   ]
 
   const filteredAndSortedExpenses = useMemo(() => {
-    let filtered = expenses.filter((exp) => {
-      const matchesSearch =
-        exp.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        exp.notes.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCategory = !categoryFilter || exp.category === categoryFilter
-      return matchesSearch && matchesCategory
-    })
+    // API handles search and category filtering, so we just sort the results
+    let filtered = [...expenses]
 
     // Sort
     filtered.sort((a, b) => {
@@ -53,7 +67,7 @@ const ExpensesPage = () => {
     })
 
     return filtered
-  }, [expenses, searchTerm, categoryFilter, sortBy, sortOrder])
+  }, [expenses, sortBy, sortOrder])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -81,7 +95,7 @@ const ExpensesPage = () => {
     return grouped
   }, [expenses])
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!newExpense.category || !newExpense.amount) {
       alert('Please fill in category and amount')
       return
@@ -93,18 +107,24 @@ const ExpensesPage = () => {
       return
     }
 
-    addExpense({
-      ...newExpense,
-      amount,
-    })
+    try {
+      await createExpense({
+        category: newExpense.category,
+        amount,
+        date: newExpense.date,
+        notes: newExpense.notes || undefined,
+      })
 
-    setIsModalOpen(false)
-    setNewExpense({
-      category: '',
-      amount: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      notes: '',
-    })
+      setIsModalOpen(false)
+      setNewExpense({
+        category: '',
+        amount: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        notes: '',
+      })
+    } catch (error) {
+      alert(error.message || 'Failed to create expense')
+    }
   }
 
   return (
@@ -118,6 +138,13 @@ const ExpensesPage = () => {
           + Add Expense
         </button>
       </div>
+
+      {/* Error message */}
+      {expensesError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <span className="block sm:inline">{expensesError}</span>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -155,6 +182,11 @@ const ExpensesPage = () => {
           />
         </div>
       </div>
+
+      {/* Loading state */}
+      {expensesLoading && (
+        <div className="mb-4 text-center text-gray-600">Loading expenses...</div>
+      )}
 
       {/* Expenses Table */}
       <div className="card overflow-hidden">

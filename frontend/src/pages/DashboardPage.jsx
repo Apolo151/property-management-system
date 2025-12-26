@@ -1,57 +1,87 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import StatCard from '../components/StatCard'
 import useStore from '../store/useStore'
+import { api } from '../utils/api.js'
 import { format, isToday, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isWithinInterval, getMonth, getYear } from 'date-fns'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const DashboardPage = () => {
-  const { rooms, reservations, invoices, expenses } = useStore()
+  const { reservations, invoices, expenses } = useStore()
+  const [reportStats, setReportStats] = useState(null)
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Fetch stats and rooms in parallel
+        const [stats, roomsData] = await Promise.all([
+          api.reports.getStats(),
+          api.rooms.getAll()
+        ])
+        
+        setReportStats(stats)
+        setRooms(roomsData)
+      } catch (err) {
+        setError(err.message || 'Failed to load dashboard statistics')
+        console.error('Error fetching dashboard data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
+
+  // Calculate stats from backend data
   const stats = useMemo(() => {
-    const today = new Date()
-
     const totalRooms = rooms.length
+    // Backend returns status field directly
     const occupiedRooms = rooms.filter((room) => room.status === 'Occupied').length
     const availableRooms = rooms.filter((room) => room.status === 'Available').length
 
-    const todaysCheckIns = reservations.filter((res) => {
-      const checkIn = parseISO(res.checkIn)
-      return isToday(checkIn) && (res.status === 'Confirmed' || res.status === 'Checked-in')
-    }).length
-
-    const todaysCheckOuts = reservations.filter((res) => {
-      const checkOut = parseISO(res.checkOut)
-      return isToday(checkOut) && (res.status === 'Checked-in' || res.status === 'Checked-out')
-    }).length
-
-    const todaysRevenue = reservations
-      .filter((res) => {
-        const checkIn = parseISO(res.checkIn)
-        const checkOut = parseISO(res.checkOut)
-        return (
-          (isToday(checkIn) || isToday(checkOut) || (checkIn <= today && checkOut >= today)) &&
-          res.status !== 'Cancelled'
-        )
+    // Calculate today's revenue from invoices issued today
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+    
+    const todaysRevenue = invoices
+      .filter((inv) => {
+        const issueDate = inv.issueDate ? inv.issueDate.split('T')[0] : null
+        return issueDate === todayStr && inv.status === 'Paid'
       })
-      .reduce((sum, res) => sum + (res.totalAmount || 0), 0)
+      .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0)
 
     return {
       totalRooms,
       occupiedRooms,
       availableRooms,
-      todaysCheckIns,
-      todaysCheckOuts,
+      todaysCheckIns: reportStats?.reservations?.today_check_ins || 0,
+      todaysCheckOuts: reportStats?.reservations?.today_check_outs || 0,
       todaysRevenue,
     }
-  }, [rooms, reservations])
+  }, [rooms, reportStats, invoices])
 
-  // Financial calculations
+  // Financial calculations from backend stats (always use backend data)
   const financialStats = useMemo(() => {
+    if (reportStats?.financial) {
+      return {
+        totalRevenue: Number(reportStats.financial.total_revenue) || 0,
+        totalExpenses: Number(reportStats.financial.total_expenses) || 0,
+        profit: Number(reportStats.financial.profit) || 0,
+      }
+    }
+
+    // Fallback to local calculations if backend data not available
     const totalRevenue = invoices
       .filter((inv) => inv.status === 'Paid')
-      .reduce((sum, inv) => sum + inv.amount, 0)
+      .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0)
 
-    const totalExpensesAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0)
+    const totalExpensesAmount = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0)
     const profit = totalRevenue - totalExpensesAmount
 
     return {
@@ -59,22 +89,24 @@ const DashboardPage = () => {
       totalExpenses: totalExpensesAmount,
       profit,
     }
-  }, [invoices, expenses])
+  }, [reportStats, invoices, expenses])
 
-  // Advanced analytics calculations
+  // Cancellation rate from backend stats
   const cancellationRate = useMemo(() => {
+    if (reportStats?.reservations) {
+      const total = reportStats.reservations.total || 0
+      const cancelled = reportStats.reservations.by_status?.Cancelled || 0
+      return total > 0 ? (cancelled / total) * 100 : 0
+    }
+
+    // Fallback to local calculation
     if (reservations.length === 0) return 0
     const cancelledCount = reservations.filter((res) => res.status === 'Cancelled').length
     return (cancelledCount / reservations.length) * 100
-  }, [reservations])
+  }, [reportStats, reservations])
 
   // Chart data: Reservations by Status (Pie Chart)
   const reservationStatusData = useMemo(() => {
-    const statusCounts = reservations.reduce((acc, res) => {
-      acc[res.status] = (acc[res.status] || 0) + 1
-      return acc
-    }, {})
-
     const COLORS = {
       'Confirmed': '#3b82f6',
       'Checked-in': '#10b981',
@@ -82,24 +114,44 @@ const DashboardPage = () => {
       'Cancelled': '#ef4444',
     }
 
+    // Use backend stats if available
+    if (reportStats?.reservations?.by_status) {
+      return Object.entries(reportStats.reservations.by_status).map(([name, value]) => ({
+        name,
+        value: Number(value) || 0,
+        color: COLORS[name] || '#9ca3af',
+      }))
+    }
+
+    // Fallback to local data
+    const statusCounts = reservations.reduce((acc, res) => {
+      acc[res.status] = (acc[res.status] || 0) + 1
+      return acc
+    }, {})
+
     return Object.entries(statusCounts).map(([name, value]) => ({
       name,
       value,
       color: COLORS[name] || '#9ca3af',
     }))
-  }, [reservations])
+  }, [reportStats, reservations])
 
   // Chart data: Revenue per Month (Bar Chart) based on invoices
   const revenueByMonthData = useMemo(() => {
     const monthRevenue = {}
     
     invoices
-      .filter((inv) => inv.status === 'Paid')
+      .filter((inv) => inv.status === 'Paid' && inv.issueDate)
       .forEach((inv) => {
-        const date = parseISO(inv.issueDate)
-        const month = getMonth(date) + 1
-        const monthKey = `${getYear(date)}-${String(month).padStart(2, '0')}`
-        monthRevenue[monthKey] = (monthRevenue[monthKey] || 0) + inv.amount
+        try {
+          const date = parseISO(inv.issueDate)
+          const month = getMonth(date) + 1
+          const monthKey = `${getYear(date)}-${String(month).padStart(2, '0')}`
+          monthRevenue[monthKey] = (monthRevenue[monthKey] || 0) + (parseFloat(inv.amount) || 0)
+        } catch (e) {
+          // Skip invalid dates
+          console.warn('Invalid date in invoice:', inv.issueDate)
+        }
       })
 
     // Get last 6 months
@@ -121,6 +173,7 @@ const DashboardPage = () => {
   // Chart data: Occupancy over next 30 days (Line Chart)
   const occupancyData = useMemo(() => {
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const next30Days = eachDayOfInterval({
       start: today,
       end: addDays(today, 30),
@@ -128,10 +181,14 @@ const DashboardPage = () => {
 
     return next30Days.map((date) => {
       const occupiedCount = reservations.filter((res) => {
-        if (res.status === 'Cancelled') return false
-        const checkIn = parseISO(res.checkIn)
-        const checkOut = parseISO(res.checkOut)
-        return isWithinInterval(date, { start: checkIn, end: checkOut })
+        if (res.status === 'Cancelled' || !res.checkIn || !res.checkOut) return false
+        try {
+          const checkIn = parseISO(res.checkIn)
+          const checkOut = parseISO(res.checkOut)
+          return isWithinInterval(date, { start: checkIn, end: checkOut })
+        } catch (e) {
+          return false
+        }
       }).length
 
       return {
@@ -142,6 +199,38 @@ const DashboardPage = () => {
   }, [reservations])
 
   const COLORS = ['#3b82f6', '#10b981', '#6b7280', '#ef4444', '#f59e0b']
+
+  if (loading) {
+    return (
+      <div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-2">Welcome back! Here's an overview of your hotel.</p>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-center py-8">
+            <div className="text-gray-500">Loading dashboard data...</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-2">Welcome back! Here's an overview of your hotel.</p>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-center py-8">
+            <div className="text-red-600">Error: {error}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -203,6 +292,20 @@ const DashboardPage = () => {
           value={`${cancellationRate.toFixed(1)}%`}
           icon={<span className="text-2xl">❌</span>}
         />
+        {reportStats?.occupancy && (
+          <>
+            <StatCard
+              title="Current Occupancy Rate"
+              value={`${Number(reportStats.occupancy.current_occupancy_rate || 0).toFixed(1)}%`}
+              icon={<span className="text-2xl">📈</span>}
+            />
+            <StatCard
+              title="Average Occupancy (30 days)"
+              value={`${Number(reportStats.occupancy.average_occupancy_rate || 0).toFixed(1)}%`}
+              icon={<span className="text-2xl">📊</span>}
+            />
+          </>
+        )}
       </div>
 
       {/* Charts */}

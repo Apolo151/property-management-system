@@ -1,10 +1,16 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
 import Notifications from '../components/Notifications'
 
 const MainLayout = ({ children, onLogout }) => {
   const location = useLocation()
+  const navigate = useNavigate()
   const { darkMode, toggleDarkMode } = useStore()
+
+  const handleLogout = () => {
+    onLogout()
+    navigate('/login')
+  }
 
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
@@ -58,7 +64,7 @@ const MainLayout = ({ children, onLogout }) => {
         {/* Logout */}
         <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <button
-            onClick={onLogout}
+            onClick={handleLogout}
             className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${
               darkMode
                 ? 'text-gray-300 hover:bg-gray-700'

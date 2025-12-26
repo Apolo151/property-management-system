@@ -1,89 +1,156 @@
-import { useState, useMemo } from 'react'
-import { format, parseISO, isWithinInterval, addDays } from 'date-fns'
-import useStore from '../store/useStore'
+import { useState, useMemo, useEffect } from 'react'
+import { format, parseISO, addDays } from 'date-fns'
+import useReservationsStore from '../store/reservationsStore'
+import useRoomsStore from '../store/roomsStore'
+import useGuestsStore from '../store/guestsStore'
 import StatusBadge from '../components/StatusBadge'
+import GuestSelect from '../components/GuestSelect'
 import Modal from '../components/Modal'
 
 const AvailabilityPage = () => {
-  const { rooms, reservations, addReservation, guests } = useStore()
+  const { createReservation, checkAvailability } = useReservationsStore()
+  const { rooms, fetchRooms } = useRoomsStore()
+  const { guests, fetchGuests } = useGuestsStore()
   const [checkIn, setCheckIn] = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'))
   const [checkOut, setCheckOut] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
   const [roomType, setRoomType] = useState('')
   const [numGuests, setNumGuests] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState(null)
-  const [guestName, setGuestName] = useState('')
+  const [guestId, setGuestId] = useState('')
+  const [guest2Id, setGuest2Id] = useState('')
+  const [availableRooms, setAvailableRooms] = useState([])
+  const [loading, setLoading] = useState(false)
 
-  const availableRooms = useMemo(() => {
-    if (!checkIn || !checkOut) return []
+  // Fetch data on mount
+  useEffect(() => {
+    fetchRooms()
+    fetchGuests()
+  }, [fetchRooms, fetchGuests])
 
-    const checkInDate = parseISO(checkIn)
-    const checkOutDate = parseISO(checkOut)
+  // Check availability when dates change
+  useEffect(() => {
+    const checkRoomAvailability = async () => {
+      if (!checkIn || !checkOut) {
+        setAvailableRooms([])
+        return
+      }
 
-    if (checkOutDate <= checkInDate) return []
+      const checkInDate = parseISO(checkIn)
+      const checkOutDate = parseISO(checkOut)
 
-    return rooms.filter((room) => {
-      // Filter by type
-      if (roomType && room.type !== roomType) return false
+      if (checkOutDate <= checkInDate) {
+        setAvailableRooms([])
+        return
+      }
 
-      // Check if room is available (not out of service)
-      if (room.status === 'Out of Service') return false
+      setLoading(true)
+      try {
+        const result = await checkAvailability(checkIn, checkOut)
+        // Transform API response to match frontend format
+        let filtered = result.rooms.map((room) => ({
+          id: room.id,
+          roomNumber: room.room_number,
+          type: room.type,
+          status: room.status,
+          pricePerNight: parseFloat(room.price_per_night),
+          floor: room.floor,
+          features: Array.isArray(room.features) ? room.features : [],
+          description: room.description,
+        }))
 
-      // Check for overlapping reservations
-      const hasConflict = reservations.some((res) => {
-        if (res.status === 'Cancelled') return false
-        if (res.roomNumber !== room.roomNumber) return false
+        // Filter by type if selected
+        if (roomType) {
+          filtered = filtered.filter((room) => room.type === roomType)
+        }
 
-        const resCheckIn = parseISO(res.checkIn)
-        const resCheckOut = parseISO(res.checkOut)
+        setAvailableRooms(filtered)
+      } catch (error) {
+        console.error('Error checking availability:', error)
+        setAvailableRooms([])
+      } finally {
+        setLoading(false)
+      }
+    }
 
-        return (
-          isWithinInterval(checkInDate, { start: resCheckIn, end: resCheckOut }) ||
-          isWithinInterval(checkOutDate, { start: resCheckIn, end: resCheckOut }) ||
-          (checkInDate <= resCheckIn && checkOutDate >= resCheckOut)
-        )
-      })
-
-      return !hasConflict
-    })
-  }, [checkIn, checkOut, roomType, rooms, reservations])
+    const timeoutId = setTimeout(checkRoomAvailability, 300) // Debounce
+    return () => clearTimeout(timeoutId)
+  }, [checkIn, checkOut, roomType, checkAvailability])
 
   const handleBookRoom = (room) => {
     setSelectedRoom(room)
     setIsModalOpen(true)
   }
 
-  const handleCreateReservation = () => {
-    if (!guestName.trim()) {
-      alert('Please enter guest name')
+  const handleCreateReservation = async () => {
+    if (!guestId) {
+      alert('Please select a guest')
       return
     }
 
     const checkInDate = parseISO(checkIn)
     const checkOutDate = parseISO(checkOut)
-    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
-    const totalAmount = selectedRoom.pricePerNight * nights
 
-    // Try to find guest
-    const guest = guests.find((g) => g.name === guestName)
-
-    const newReservation = {
-      guestName,
-      roomNumber: selectedRoom.roomNumber,
-      checkIn,
-      checkOut,
-      status: 'Confirmed',
-      totalAmount,
-      guestEmail: guest?.email || '',
-      guestPhone: guest?.phone || '',
-      guestId: guest ? String(guest.id) : '',
+    if (checkOutDate <= checkInDate) {
+      alert('Check-out date must be after check-in date')
+      return
     }
 
-    addReservation(newReservation)
-    setIsModalOpen(false)
-    setGuestName('')
-    setSelectedRoom(null)
-    alert(`Reservation created successfully for ${selectedRoom.roomNumber}`)
+    const guest = guests.find((g) => String(g.id) === String(guestId))
+    const guest2 = guest2Id ? guests.find((g) => String(g.id) === String(guest2Id)) : null
+
+    if (!guest) {
+      alert('Guest not found')
+      return
+    }
+
+    if (!selectedRoom) {
+      alert('Room not found')
+      return
+    }
+
+    // Validate second guest for double rooms
+    if (selectedRoom.type === 'Double' && !guest2Id) {
+      if (!confirm('Double room selected. Do you want to proceed with only one guest?')) {
+        return
+      }
+    }
+
+    try {
+      await createReservation({
+        roomId: selectedRoom.id,
+        guestId: String(guest.id),
+        guest2Id: guest2 ? String(guest2.id) : undefined,
+        checkIn,
+        checkOut,
+        status: 'Confirmed',
+      })
+
+      setIsModalOpen(false)
+      setGuestId('')
+      setGuest2Id('')
+      setSelectedRoom(null)
+      alert(`Reservation created successfully for ${selectedRoom.roomNumber}`)
+      
+      // Refresh availability
+      const result = await checkAvailability(checkIn, checkOut)
+      let filtered = result.rooms.map((room) => ({
+        id: room.id,
+        roomNumber: room.room_number,
+        type: room.type,
+        status: room.status,
+        pricePerNight: parseFloat(room.price_per_night),
+        floor: room.floor,
+        features: Array.isArray(room.features) ? room.features : [],
+        description: room.description,
+      }))
+      if (roomType) {
+        filtered = filtered.filter((room) => room.type === roomType)
+      }
+      setAvailableRooms(filtered)
+    } catch (error) {
+      alert(error.message || 'Failed to create reservation')
+    }
   }
 
   const roomTypes = ['Single', 'Double', 'Suite']
@@ -151,7 +218,9 @@ const AvailabilityPage = () => {
           Available Rooms ({availableRooms.length})
         </h2>
 
-        {availableRooms.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Checking availability...</div>
+        ) : availableRooms.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             {!checkIn || !checkOut
               ? 'Please select check-in and check-out dates'
@@ -207,23 +276,29 @@ const AvailabilityPage = () => {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false)
-          setGuestName('')
+          setGuestId('')
+          setGuest2Id('')
           setSelectedRoom(null)
         }}
         title={`Book Room ${selectedRoom?.roomNumber}`}
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name *</label>
-            <input
-              type="text"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              className="input"
-              placeholder="Enter guest name"
-              required
+          <GuestSelect
+            value={guestId}
+            onChange={setGuestId}
+            guests={guests}
+            label="Primary Guest"
+            placeholder="Search for a guest by name, email, or phone..."
+          />
+          {selectedRoom && selectedRoom.type === 'Double' && (
+            <GuestSelect
+              value={guest2Id}
+              onChange={setGuest2Id}
+              guests={guests.filter((g) => String(g.id) !== String(guestId))}
+              label="Second Guest (Optional)"
+              placeholder="Search for a second guest by name, email, or phone..."
             />
-          </div>
+          )}
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -250,7 +325,8 @@ const AvailabilityPage = () => {
             <button
               onClick={() => {
                 setIsModalOpen(false)
-                setGuestName('')
+                setGuestId('')
+                setGuest2Id('')
                 setSelectedRoom(null)
               }}
               className="btn btn-secondary"
