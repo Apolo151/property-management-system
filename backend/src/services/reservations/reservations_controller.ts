@@ -5,6 +5,14 @@ import type {
   UpdateReservationRequest,
   ReservationResponse,
 } from './reservations_types.js';
+import {
+  queueReservationSyncHook,
+  queueReservationCancelHook,
+  queueRoomAvailabilitySyncHook,
+} from '../../integrations/beds24/hooks/sync_hooks.js';
+import { RoomTypeAvailabilityService } from '../room_types/room_type_availability_service.js';
+
+const availabilityService = new RoomTypeAvailabilityService();
 
 // Helper function to check for overlapping reservations
 async function hasOverlappingReservation(
@@ -71,11 +79,14 @@ export async function getReservationsHandler(
       .select(
         'reservations.*',
         'rooms.room_number',
+        'room_types.name as room_type_name',
+        'room_types.room_type as room_type',
         'primary_guest.name as primary_guest_name',
         'primary_guest.email as primary_guest_email',
         'primary_guest.phone as primary_guest_phone',
       )
-      .join('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
       .whereNull('reservations.deleted_at')
       .orderBy('reservations.created_at', 'desc');
@@ -95,6 +106,7 @@ export async function getReservationsHandler(
     if (search) {
       query = query.where(function () {
         this.where('rooms.room_number', 'ilike', `%${search}%`)
+          .orWhere('room_types.name', 'ilike', `%${search}%`)
           .orWhere('primary_guest.name', 'ilike', `%${search}%`)
           .orWhere('reservations.id', 'ilike', `%${search}%`);
       });
@@ -116,7 +128,11 @@ export async function getReservationsHandler(
       return {
         id: res.id,
         room_id: res.room_id,
-        room_number: res.room_number,
+        room_type_id: res.room_type_id,
+        room_number: res.room_number || res.room_type_name,
+        room_type_name: res.room_type_name,
+        assigned_unit_id: res.assigned_unit_id || null,
+        units_requested: res.units_requested || 1,
         primary_guest_id: res.primary_guest_id,
         primary_guest_name: res.primary_guest_name,
         primary_guest_email: res.primary_guest_email,
@@ -156,11 +172,14 @@ export async function getReservationHandler(
       .select(
         'reservations.*',
         'rooms.room_number',
+        'room_types.name as room_type_name',
+        'room_types.room_type as room_type',
         'primary_guest.name as primary_guest_name',
         'primary_guest.email as primary_guest_email',
         'primary_guest.phone as primary_guest_phone',
       )
-      .join('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
       .where('reservations.id', id)
       .whereNull('reservations.deleted_at')
@@ -184,7 +203,11 @@ export async function getReservationHandler(
     const response: ReservationResponse = {
       id: reservation.id,
       room_id: reservation.room_id,
-      room_number: reservation.room_number,
+      room_type_id: reservation.room_type_id,
+      room_number: reservation.room_number || reservation.room_type_name || null,
+      room_type_name: reservation.room_type_name,
+      assigned_unit_id: reservation.assigned_unit_id || null,
+      units_requested: reservation.units_requested || 1,
       primary_guest_id: reservation.primary_guest_id,
       primary_guest_name: reservation.primary_guest_name,
       primary_guest_email: reservation.primary_guest_email,
@@ -218,7 +241,10 @@ export async function createReservationHandler(
 ) {
   try {
     const {
-      room_id,
+      room_id, // Legacy: individual room
+      room_type_id, // New: room type
+      assigned_unit_id,
+      units_requested = 1,
       primary_guest_id,
       secondary_guest_id,
       check_in,
@@ -229,10 +255,10 @@ export async function createReservationHandler(
       force = false,
     } = req.body;
 
-    // Validation
-    if (!room_id || !primary_guest_id || !check_in || !check_out) {
+    // Validation: require either room_id (legacy) or room_type_id (new)
+    if ((!room_id && !room_type_id) || !primary_guest_id || !check_in || !check_out) {
       res.status(400).json({
-        error: 'room_id, primary_guest_id, check_in, and check_out are required',
+        error: 'Either room_id or room_type_id, primary_guest_id, check_in, and check_out are required',
       } as any);
       return;
     }
@@ -247,13 +273,60 @@ export async function createReservationHandler(
       return;
     }
 
-    // Check if room exists
-    const room = await db('rooms').where({ id: room_id }).first();
-    if (!room) {
-      res.status(404).json({
-        error: 'Room not found',
-      } as any);
-      return;
+    // Handle room_type_id (new Beds24-style) or room_id (legacy)
+    let roomTypeId: string | null = null;
+    let roomId: string | null = null;
+    let pricePerNight = 0;
+
+    if (room_type_id) {
+      // New: Room type based reservation
+      const roomType = await db('room_types').where({ id: room_type_id }).whereNull('deleted_at').first();
+      if (!roomType) {
+        res.status(404).json({
+          error: 'Room type not found',
+        } as any);
+        return;
+      }
+      roomTypeId = room_type_id;
+      pricePerNight = parseFloat(roomType.price_per_night);
+
+      // Check availability for room type
+      if (!force) {
+        const hasAvailability = await availabilityService.hasAvailability(
+          room_type_id,
+          checkInDate,
+          checkOutDate,
+          units_requested
+        );
+        if (!hasAvailability) {
+          res.status(409).json({
+            error: `Not enough units available. Requested: ${units_requested}`,
+          } as any);
+          return;
+        }
+      }
+    } else if (room_id) {
+      // Legacy: Individual room based reservation
+      const room = await db('rooms').where({ id: room_id }).first();
+      if (!room) {
+        res.status(404).json({
+          error: 'Room not found',
+        } as any);
+        return;
+      }
+      roomId = room_id;
+      pricePerNight = parseFloat(room.price_per_night);
+
+      // Check for overlapping reservations (unless force is true)
+      if (!force) {
+        const hasOverlap = await hasOverlappingReservation(room_id, checkInDate, checkOutDate);
+        if (hasOverlap) {
+          res.status(409).json({
+            error: 'Room already has a reservation during this period',
+          } as any);
+          return;
+        }
+      }
     }
 
     // Check if primary guest exists
@@ -265,26 +338,19 @@ export async function createReservationHandler(
       return;
     }
 
-    // Check for overlapping reservations (unless force is true)
-    if (!force) {
-      const hasOverlap = await hasOverlappingReservation(room_id, checkInDate, checkOutDate);
-      if (hasOverlap) {
-        res.status(409).json({
-          error: 'Room already has a reservation during this period',
-        } as any);
-        return;
-      }
-    }
-
     // Calculate total amount
-    const totalAmount = await calculateTotalAmount(room_id, checkInDate, checkOutDate);
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    const totalAmount = pricePerNight * nights * units_requested;
 
     // Create reservation in transaction
     const reservation = await db.transaction(async (trx) => {
       // Create reservation
       const [newReservation] = await trx('reservations')
         .insert({
-          room_id,
+          room_id: roomId, // Legacy: nullable
+          room_type_id: roomTypeId, // New: nullable
+          assigned_unit_id: assigned_unit_id || null,
+          units_requested: units_requested || 1,
           primary_guest_id,
           check_in: checkInDate.toISOString().split('T')[0],
           check_out: checkOutDate.toISOString().split('T')[0],
@@ -316,13 +382,15 @@ export async function createReservationHandler(
         });
       }
 
-      // Update room status if status is Checked-in
-      if (status === 'Checked-in') {
-        await trx('rooms').where({ id: room_id }).update({ status: 'Occupied' });
+      // Update room status if status is Checked-in (legacy: only for individual rooms)
+      if (status === 'Checked-in' && roomId) {
+        await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
         await trx('housekeeping')
-          .where({ room_id })
+          .where({ room_id: roomId })
           .update({ status: 'Dirty', updated_at: new Date() });
       }
+      // Note: For room types, we don't update individual room status
+      // Room type availability is calculated dynamically
 
       return newReservation;
     });
@@ -332,11 +400,14 @@ export async function createReservationHandler(
       .select(
         'reservations.*',
         'rooms.room_number',
+        'room_types.name as room_type_name',
+        'room_types.room_type as room_type',
         'primary_guest.name as primary_guest_name',
         'primary_guest.email as primary_guest_email',
         'primary_guest.phone as primary_guest_phone',
       )
-      .join('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
       .where('reservations.id', reservation.id)
       .first();
@@ -352,7 +423,11 @@ export async function createReservationHandler(
     const response: ReservationResponse = {
       id: fullReservation.id,
       room_id: fullReservation.room_id,
-      room_number: fullReservation.room_number,
+      room_type_id: fullReservation.room_type_id,
+      room_number: fullReservation.room_number || fullReservation.room_type_name || null,
+      room_type_name: fullReservation.room_type_name,
+      assigned_unit_id: fullReservation.assigned_unit_id || null,
+      units_requested: fullReservation.units_requested || 1,
       primary_guest_id: fullReservation.primary_guest_id,
       primary_guest_name: fullReservation.primary_guest_name,
       primary_guest_email: fullReservation.primary_guest_email,
@@ -481,6 +556,19 @@ export async function updateReservationHandler(
       }
     });
 
+    // Queue Beds24 sync (non-blocking)
+    if (existing.source !== 'Beds24') {
+      queueReservationSyncHook(id, 'update').catch((err) => {
+        console.error('Failed to queue reservation sync:', err);
+      });
+      // Sync room availability if room or dates changed
+      if (updates.room_id || updates.check_in || updates.check_out) {
+        queueRoomAvailabilitySyncHook(roomId).catch((err) => {
+          console.error('Failed to queue room availability sync:', err);
+        });
+      }
+    }
+
     // Fetch updated reservation
     const updated = await db('reservations')
       .select(
@@ -562,6 +650,17 @@ export async function deleteReservationHandler(
     // Update room status if it was occupied
     if (reservation.status === 'Checked-in') {
       await db('rooms').where({ id: reservation.room_id }).update({ status: 'Available' });
+    }
+
+    // Queue Beds24 sync for cancellation (non-blocking)
+    if (reservation.source !== 'Beds24') {
+      queueReservationCancelHook(id).catch((err) => {
+        console.error('Failed to queue reservation cancel sync:', err);
+      });
+      // Sync room availability
+      queueRoomAvailabilitySyncHook(reservation.room_id).catch((err) => {
+        console.error('Failed to queue room availability sync:', err);
+      });
     }
 
     res.status(204).send();

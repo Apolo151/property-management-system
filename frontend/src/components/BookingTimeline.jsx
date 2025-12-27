@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, addDays, isWithinInterval, isSameDay } from 'date-fns'
 import useReservationsStore from '../store/reservationsStore'
-import useRoomsStore from '../store/roomsStore'
+import useRoomTypesStore from '../store/roomTypesStore'
 import useGuestsStore from '../store/guestsStore'
 import GuestSelect from './GuestSelect'
 import Modal from './Modal'
 
 const BookingTimeline = () => {
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
-  const { rooms, fetchRooms } = useRoomsStore()
+  const { roomTypes, fetchRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests } = useGuestsStore()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedSlot, setSelectedSlot] = useState(null)
@@ -16,32 +16,73 @@ const BookingTimeline = () => {
   const [newReservation, setNewReservation] = useState({
     guestId: '',
     guest2Id: '',
-    roomNumber: '',
+    roomTypeId: '',
+    unitIndex: null, // Which unit (0-based index) within the room type
     checkIn: '',
     checkOut: '',
     status: 'Confirmed',
+    unitsRequested: 1,
   })
 
   // Fetch data on mount
   useEffect(() => {
     fetchReservations()
-    fetchRooms()
+    fetchRoomTypes()
     fetchGuests()
-  }, [fetchReservations, fetchRooms, fetchGuests])
+  }, [fetchReservations, fetchRoomTypes, fetchGuests])
+
+  // Generate flat list of all individual rooms from room types
+  const allRooms = useMemo(() => {
+    const rooms = []
+    roomTypes.forEach((roomType) => {
+      // Create one row for each unit in the room type
+      for (let i = 0; i < roomType.qty; i++) {
+        rooms.push({
+          id: `${roomType.id}-unit-${i}`,
+          roomTypeId: roomType.id,
+          roomTypeName: roomType.name,
+          roomType: roomType.roomType,
+          unitIndex: i,
+          unitNumber: i + 1,
+          totalUnits: roomType.qty,
+          pricePerNight: roomType.pricePerNight,
+          maxPeople: roomType.maxPeople,
+        })
+      }
+    })
+    return rooms
+  }, [roomTypes])
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
-  const getReservationsForRoom = (roomNumber) => {
-    return reservations.filter(
-      (res) => res.roomNumber === roomNumber && res.status !== 'Cancelled'
-    )
+  // Get reservations for a specific room unit
+  const getReservationsForRoom = (roomTypeId, unitIndex) => {
+    const unitId = `${roomTypeId}-unit-${unitIndex}`
+    return reservations.filter((res) => {
+      if (res.status === 'Cancelled') return false
+      if (res.roomTypeId !== roomTypeId) return false
+      
+      // If reservation has assigned_unit_id, only show on that specific unit
+      if (res.assignedUnitId) {
+        return res.assignedUnitId === unitId
+      }
+      
+      // If no assigned_unit_id (legacy/unassigned reservation), show on first available unit
+      // This handles old reservations and Beds24 bookings that don't specify a unit
+      // We'll show unassigned reservations on unit 0 (first unit)
+      if (unitIndex === 0) {
+        return true
+      }
+      
+      return false
+    })
   }
 
-  const getReservationForSlot = (roomNumber, date) => {
-    return reservations.find((res) => {
-      if (res.roomNumber !== roomNumber || res.status === 'Cancelled') return false
+  const getReservationForSlot = (roomTypeId, unitIndex, date) => {
+    const roomReservations = getReservationsForRoom(roomTypeId, unitIndex)
+    return roomReservations.find((res) => {
       const checkIn = parseISO(res.checkIn)
       const checkOut = parseISO(res.checkOut)
       return isWithinInterval(date, { start: checkIn, end: checkOut })
@@ -53,16 +94,18 @@ const BookingTimeline = () => {
     setNewReservation({
       guestId: '',
       guest2Id: '',
-      roomNumber: room.roomNumber,
+      roomTypeId: room.roomTypeId,
+      unitIndex: room.unitIndex,
       checkIn: format(date, 'yyyy-MM-dd'),
       checkOut: format(addDays(date, 1), 'yyyy-MM-dd'),
       status: 'Confirmed',
+      unitsRequested: 1,
     })
     setIsModalOpen(true)
   }
 
   const handleCreateReservation = async () => {
-    if (!newReservation.guestId || !newReservation.roomNumber || !newReservation.checkIn || !newReservation.checkOut) {
+    if (!newReservation.guestId || !newReservation.roomTypeId || !newReservation.checkIn || !newReservation.checkOut) {
       alert('Please fill in all required fields')
       return
     }
@@ -75,23 +118,24 @@ const BookingTimeline = () => {
       return
     }
 
-    const room = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
     const guest = guests.find((g) => String(g.id) === String(newReservation.guestId))
     const guest2 = newReservation.guest2Id ? guests.find((g) => String(g.id) === String(newReservation.guest2Id)) : null
-
-    if (!room) {
-      alert('Room not found')
-      return
-    }
 
     if (!guest) {
       alert('Guest not found')
       return
     }
 
-    // Check for overlapping reservations
-    const hasOverlap = reservations.some((res) => {
-      if (res.roomNumber !== newReservation.roomNumber || res.status === 'Cancelled') return false
+    const roomType = roomTypes.find((rt) => rt.id === newReservation.roomTypeId)
+    if (!roomType) {
+      alert('Room type not found')
+      return
+    }
+
+    // Check for overlapping reservations (availability check)
+    // Count reserved units for the date range
+    const overlappingReservations = reservations.filter((res) => {
+      if (res.roomTypeId !== newReservation.roomTypeId || res.status === 'Cancelled') return false
       const resCheckIn = parseISO(res.checkIn)
       const resCheckOut = parseISO(res.checkOut)
       return (
@@ -100,28 +144,38 @@ const BookingTimeline = () => {
         (checkInDate <= resCheckIn && checkOutDate >= resCheckOut)
       )
     })
-
+    
+    const totalReservedUnits = overlappingReservations.reduce((sum, res) => sum + (res.unitsRequested || 1), 0)
+    const requestedUnits = newReservation.unitsRequested || 1
+    
     let force = false
-    if (hasOverlap) {
-      if (!confirm('Room already has a reservation during this period. Continue anyway?')) {
+    if (totalReservedUnits + requestedUnits > roomType.qty) {
+      if (!confirm('Not enough available units during this period. Continue anyway?')) {
         return
       }
       force = true
     }
 
     try {
+      // Create assigned_unit_id from roomTypeId and unitIndex
+      const assignedUnitId = newReservation.unitIndex !== null 
+        ? `${newReservation.roomTypeId}-unit-${newReservation.unitIndex}`
+        : undefined
+
       await createReservation({
-        roomId: room.id,
-        guestId: String(guest.id),
-        guest2Id: guest2 ? String(guest2.id) : undefined,
-        checkIn: newReservation.checkIn,
-        checkOut: newReservation.checkOut,
+        roomTypeId: newReservation.roomTypeId,
+        assignedUnitId: assignedUnitId,
+        unitsRequested: newReservation.unitsRequested || 1,
+        primary_guest_id: String(guest.id),
+        secondary_guest_id: guest2 ? String(guest2.id) : undefined,
+        check_in: newReservation.checkIn,
+        check_out: newReservation.checkOut,
         status: newReservation.status,
         force,
       })
 
       setIsModalOpen(false)
-      setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
+      setNewReservation({ guestId: '', guest2Id: '', roomTypeId: '', unitIndex: null, checkIn: '', checkOut: '', status: 'Confirmed', unitsRequested: 1 })
       setSelectedSlot(null)
     } catch (error) {
       alert(error.message || 'Failed to create reservation')
@@ -186,21 +240,25 @@ const BookingTimeline = () => {
             ))}
           </div>
 
-          {/* Rows for each room */}
-          {rooms.map((room) => {
-            const roomReservations = getReservationsForRoom(room.roomNumber)
-
+          {/* Rows for each individual room */}
+          {allRooms.map((room) => {
+            const roomType = roomTypes.find((rt) => rt.id === room.roomTypeId)
+            
             return (
               <div key={room.id} className="flex border-b last:border-b-0 hover:bg-gray-50">
                 {/* Room name column */}
                 <div className="w-48 p-3 border-r sticky left-0 bg-white z-10">
-                  <div className="font-medium text-gray-900">{room.roomNumber}</div>
-                  <div className="text-xs text-gray-500">{room.type}</div>
+                  <div className="font-medium text-gray-900">
+                    {room.roomTypeName} #{room.unitNumber}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {room.roomType} • {room.totalUnits} total
+                  </div>
                 </div>
 
                 {/* Day cells */}
                 {days.map((day) => {
-                  const reservation = getReservationForSlot(room.roomNumber, day)
+                  const reservation = getReservationForSlot(room.roomTypeId, room.unitIndex, day)
                   const isCheckIn = reservation && isSameDay(parseISO(reservation.checkIn), day)
                   const isCheckOut = reservation && isSameDay(parseISO(reservation.checkOut), day)
 
@@ -216,11 +274,16 @@ const BookingTimeline = () => {
                           className={`h-full p-2 text-white text-xs ${getStatusColor(
                             reservation.status
                           )} flex items-center justify-between`}
-                          title={`${reservation.guestName} - ${reservation.id}`}
+                          title={`${reservation.guestName} - ${reservation.unitsRequested || 1} unit(s) - ${reservation.id}`}
                         >
                           <span className="truncate">{reservation.guestName}</span>
-                          {isCheckIn && <span className="ml-1">📥</span>}
-                          {isCheckOut && <span className="ml-1">📤</span>}
+                          <div className="flex items-center gap-1">
+                            {reservation.unitsRequested > 1 && (
+                              <span className="text-xs">×{reservation.unitsRequested}</span>
+                            )}
+                            {isCheckIn && <span>📥</span>}
+                            {isCheckOut && <span>📤</span>}
+                          </div>
                         </div>
                       ) : (
                         <div className="h-full p-2 hover:bg-blue-50 transition-colors">
@@ -233,6 +296,14 @@ const BookingTimeline = () => {
               </div>
             )
           })}
+          
+          {allRooms.length === 0 && (
+            <div className="flex border-b">
+              <div className="w-full p-8 text-center text-gray-500">
+                No rooms available. Please add room types in the Room Types section.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -264,7 +335,7 @@ const BookingTimeline = () => {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false)
-          setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
+          setNewReservation({ guestId: '', guest2Id: '', roomTypeId: '', unitIndex: null, checkIn: '', checkOut: '', status: 'Confirmed', unitsRequested: 1 })
           setSelectedSlot(null)
         }}
         title="Create Reservation"
@@ -281,21 +352,48 @@ const BookingTimeline = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
             <input
               type="text"
-              value={newReservation.roomNumber}
+              value={
+                newReservation.roomTypeId
+                  ? (() => {
+                      const roomType = roomTypes.find((rt) => rt.id === newReservation.roomTypeId)
+                      return roomType
+                        ? `${roomType.name} #${(newReservation.unitIndex || 0) + 1}`
+                        : 'Room'
+                    })()
+                  : ''
+              }
               disabled
               className="input bg-gray-50"
             />
           </div>
-          {newReservation.roomNumber && (() => {
-            const selectedRoom = rooms.find((r) => r.roomNumber === newReservation.roomNumber)
-            return selectedRoom && selectedRoom.type === 'Double' ? (
-              <GuestSelect
-                value={newReservation.guest2Id}
-                onChange={(guest2Id) => setNewReservation({ ...newReservation, guest2Id })}
-                guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
-                label="Second Guest (Optional)"
-                placeholder="Search for a second guest by name, email, or phone..."
-              />
+          {newReservation.roomTypeId && (() => {
+            const selectedRoomType = roomTypes.find((rt) => rt.id === newReservation.roomTypeId)
+            return selectedRoomType ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Units Requested</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedRoomType.qty}
+                    value={newReservation.unitsRequested || 1}
+                    onChange={(e) => setNewReservation({ ...newReservation, unitsRequested: parseInt(e.target.value) || 1 })}
+                    className="input"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Available: {selectedRoomType.qty} unit{selectedRoomType.qty !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                {selectedRoomType.maxPeople && selectedRoomType.maxPeople >= 2 && (
+                  <GuestSelect
+                    value={newReservation.guest2Id}
+                    onChange={(guest2Id) => setNewReservation({ ...newReservation, guest2Id })}
+                    guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
+                    label="Second Guest (Optional)"
+                    placeholder="Search for a second guest by name, email, or phone..."
+                  />
+                )}
+              </>
             ) : null
           })()}
           <div>
@@ -342,7 +440,7 @@ const BookingTimeline = () => {
             <button
               onClick={() => {
                 setIsModalOpen(false)
-                setNewReservation({ guestId: '', guest2Id: '', roomNumber: '', checkIn: '', checkOut: '', status: 'Confirmed' })
+                setNewReservation({ guestId: '', guest2Id: '', roomTypeId: '', unitIndex: null, checkIn: '', checkOut: '', status: 'Confirmed', unitsRequested: 1 })
                 setSelectedSlot(null)
               }}
               className="btn btn-secondary"

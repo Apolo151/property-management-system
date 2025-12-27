@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import RoomsPage from './pages/RoomsPage'
+import RoomTypesPage from './pages/RoomTypesPage'
 import ReservationsPage from './pages/ReservationsPage'
 import CalendarPage from './pages/CalendarPage'
 import AvailabilityPage from './pages/AvailabilityPage'
@@ -143,6 +144,7 @@ function App() {
                 <Routes>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/rooms" element={<RoomsPage />} />
+                  <Route path="/room-types" element={<RoomTypesPage />} />
                   <Route path="/reservations" element={<ReservationsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/availability" element={<AvailabilityPage />} />

@@ -15,6 +15,7 @@ const MainLayout = ({ children, onLogout }) => {
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Rooms', path: '/rooms', icon: '🛏️' },
+    { name: 'Room Types', path: '/room-types', icon: '🏨' },
     { name: 'Reservations', path: '/reservations', icon: '📅' },
     { name: 'Calendar', path: '/calendar', icon: '🗓️' },
     { name: 'Availability', path: '/availability', icon: '🔍' },

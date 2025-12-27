@@ -1,38 +1,39 @@
 import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO, addDays } from 'date-fns'
 import useReservationsStore from '../store/reservationsStore'
-import useRoomsStore from '../store/roomsStore'
+import useRoomTypesStore from '../store/roomTypesStore'
 import useGuestsStore from '../store/guestsStore'
+import { api } from '../utils/api'
 import StatusBadge from '../components/StatusBadge'
 import GuestSelect from '../components/GuestSelect'
 import Modal from '../components/Modal'
 
 const AvailabilityPage = () => {
-  const { createReservation, checkAvailability } = useReservationsStore()
-  const { rooms, fetchRooms } = useRoomsStore()
+  const { createReservation } = useReservationsStore()
+  const { getAvailableRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests } = useGuestsStore()
   const [checkIn, setCheckIn] = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'))
   const [checkOut, setCheckOut] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
-  const [roomType, setRoomType] = useState('')
+  const [roomTypeFilter, setRoomTypeFilter] = useState('')
   const [numGuests, setNumGuests] = useState(1)
+  const [unitsRequested, setUnitsRequested] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedRoom, setSelectedRoom] = useState(null)
+  const [selectedRoomType, setSelectedRoomType] = useState(null)
   const [guestId, setGuestId] = useState('')
   const [guest2Id, setGuest2Id] = useState('')
-  const [availableRooms, setAvailableRooms] = useState([])
+  const [availableRoomTypes, setAvailableRoomTypes] = useState([])
   const [loading, setLoading] = useState(false)
 
   // Fetch data on mount
   useEffect(() => {
-    fetchRooms()
     fetchGuests()
-  }, [fetchRooms, fetchGuests])
+  }, [fetchGuests])
 
   // Check availability when dates change
   useEffect(() => {
-    const checkRoomAvailability = async () => {
+    const checkRoomTypeAvailability = async () => {
       if (!checkIn || !checkOut) {
-        setAvailableRooms([])
+        setAvailableRoomTypes([])
         return
       }
 
@@ -40,45 +41,36 @@ const AvailabilityPage = () => {
       const checkOutDate = parseISO(checkOut)
 
       if (checkOutDate <= checkInDate) {
-        setAvailableRooms([])
+        setAvailableRoomTypes([])
         return
       }
 
       setLoading(true)
       try {
-        const result = await checkAvailability(checkIn, checkOut)
-        // Transform API response to match frontend format
-        let filtered = result.rooms.map((room) => ({
-          id: room.id,
-          roomNumber: room.room_number,
-          type: room.type,
-          status: room.status,
-          pricePerNight: parseFloat(room.price_per_night),
-          floor: room.floor,
-          features: Array.isArray(room.features) ? room.features : [],
-          description: room.description,
-        }))
+        const result = await getAvailableRoomTypes(checkIn, checkOut, {
+          room_type: roomTypeFilter || undefined,
+          max_people: numGuests > 0 ? numGuests : undefined,
+          units_requested: unitsRequested,
+        })
 
-        // Filter by type if selected
-        if (roomType) {
-          filtered = filtered.filter((room) => room.type === roomType)
-        }
+        // Extract room_types from result (already transformed by store)
+        let filtered = result.room_types || []
 
-        setAvailableRooms(filtered)
+        setAvailableRoomTypes(filtered)
       } catch (error) {
         console.error('Error checking availability:', error)
-        setAvailableRooms([])
+        setAvailableRoomTypes([])
       } finally {
         setLoading(false)
       }
     }
 
-    const timeoutId = setTimeout(checkRoomAvailability, 300) // Debounce
+    const timeoutId = setTimeout(checkRoomTypeAvailability, 300) // Debounce
     return () => clearTimeout(timeoutId)
-  }, [checkIn, checkOut, roomType, checkAvailability])
+  }, [checkIn, checkOut, roomTypeFilter, numGuests, unitsRequested])
 
-  const handleBookRoom = (room) => {
-    setSelectedRoom(room)
+  const handleBookRoomType = (roomType) => {
+    setSelectedRoomType(roomType)
     setIsModalOpen(true)
   }
 
@@ -104,21 +96,15 @@ const AvailabilityPage = () => {
       return
     }
 
-    if (!selectedRoom) {
-      alert('Room not found')
+    if (!selectedRoomType) {
+      alert('Room type not found')
       return
-    }
-
-    // Validate second guest for double rooms
-    if (selectedRoom.type === 'Double' && !guest2Id) {
-      if (!confirm('Double room selected. Do you want to proceed with only one guest?')) {
-        return
-      }
     }
 
     try {
       await createReservation({
-        roomId: selectedRoom.id,
+        room_type_id: selectedRoomType.room_type_id,
+        units_requested: unitsRequested,
         guestId: String(guest.id),
         guest2Id: guest2 ? String(guest2.id) : undefined,
         checkIn,
@@ -129,31 +115,34 @@ const AvailabilityPage = () => {
       setIsModalOpen(false)
       setGuestId('')
       setGuest2Id('')
-      setSelectedRoom(null)
-      alert(`Reservation created successfully for ${selectedRoom.roomNumber}`)
+      setSelectedRoomType(null)
+      alert(`Reservation created successfully for ${selectedRoomType.room_type_name}`)
       
       // Refresh availability
-      const result = await checkAvailability(checkIn, checkOut)
-      let filtered = result.rooms.map((room) => ({
-        id: room.id,
-        roomNumber: room.room_number,
-        type: room.type,
-        status: room.status,
-        pricePerNight: parseFloat(room.price_per_night),
-        floor: room.floor,
-        features: Array.isArray(room.features) ? room.features : [],
-        description: room.description,
-      }))
-      if (roomType) {
-        filtered = filtered.filter((room) => room.type === roomType)
-      }
-      setAvailableRooms(filtered)
+      const result = await api.roomTypes.getAvailable(checkIn, checkOut, {
+        room_type: roomTypeFilter || undefined,
+        max_people: numGuests > 0 ? numGuests : undefined,
+        units_requested: unitsRequested,
+      })
+      setAvailableRoomTypes(result.room_types || [])
     } catch (error) {
       alert(error.message || 'Failed to create reservation')
     }
   }
 
-  const roomTypes = ['Single', 'Double', 'Suite']
+  const beds24RoomTypeOptions = [
+    { value: '', label: 'All Types' },
+    { value: 'single', label: 'Single' },
+    { value: 'double', label: 'Double' },
+    { value: 'twin', label: 'Twin' },
+    { value: 'twinDouble', label: 'Twin Double' },
+    { value: 'triple', label: 'Triple' },
+    { value: 'quadruple', label: 'Quadruple' },
+    { value: 'apartment', label: 'Apartment' },
+    { value: 'family', label: 'Family' },
+    { value: 'suite', label: 'Suite' },
+    { value: 'studio', label: 'Studio' },
+  ]
 
   return (
     <div>
@@ -189,11 +178,10 @@ const AvailabilityPage = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
-            <select value={roomType} onChange={(e) => setRoomType(e.target.value)} className="input">
-              <option value="">All Types</option>
-              {roomTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
+            <select value={roomTypeFilter} onChange={(e) => setRoomTypeFilter(e.target.value)} className="input">
+              {beds24RoomTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -203,9 +191,20 @@ const AvailabilityPage = () => {
             <input
               type="number"
               min="1"
-              max="10"
+              max="20"
               value={numGuests}
               onChange={(e) => setNumGuests(parseInt(e.target.value) || 1)}
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Units Requested</label>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={unitsRequested}
+              onChange={(e) => setUnitsRequested(parseInt(e.target.value) || 1)}
               className="input"
             />
           </div>
@@ -215,54 +214,57 @@ const AvailabilityPage = () => {
       {/* Results */}
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Available Rooms ({availableRooms.length})
+          Available Room Types ({availableRoomTypes.length})
         </h2>
 
         {loading ? (
           <div className="text-center py-12 text-gray-500">Checking availability...</div>
-        ) : availableRooms.length === 0 ? (
+        ) : availableRoomTypes.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             {!checkIn || !checkOut
               ? 'Please select check-in and check-out dates'
-              : 'No rooms available for the selected dates'}
+              : 'No room types available for the selected dates'}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableRooms.map((room) => {
+            {availableRoomTypes.map((roomType) => {
               const nights = Math.ceil(
-                (parseISO(checkOut) - parseISO(checkIn)) / (1000 * 60 * 60 * 24)
+                (parseISO(checkOut).getTime() - parseISO(checkIn).getTime()) / (1000 * 60 * 60 * 24)
               )
-              const totalPrice = room.pricePerNight * nights
+              const totalPrice = roomType.price_per_night * nights * unitsRequested
 
               return (
-                <div key={room.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={roomType.room_type_id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Room {room.roomNumber}</h3>
-                      <p className="text-sm text-gray-600">{room.type}</p>
+                      <h3 className="text-lg font-semibold text-gray-900">{roomType.room_type_name}</h3>
+                      <p className="text-sm text-gray-600 capitalize">{roomType.room_type}</p>
                     </div>
-                    <StatusBadge status={room.status} type="room" />
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      {roomType.available_units}/{roomType.total_units} available
+                    </span>
                   </div>
 
                   <div className="space-y-2 mb-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Price per night:</span>
-                      <span className="font-medium">${room.pricePerNight}</span>
+                      <span className="font-medium">${roomType.price_per_night.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total ({nights} nights):</span>
-                      <span className="font-semibold text-primary-600">${totalPrice}</span>
+                      <span className="text-gray-600">Total ({nights} nights, {unitsRequested} unit{unitsRequested > 1 ? 's' : ''}):</span>
+                      <span className="font-semibold text-primary-600">${totalPrice.toFixed(2)}</span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Floor: {room.floor} | Features: {room.features?.join(', ') || 'N/A'}
+                      Available: {roomType.available_units} / {roomType.total_units} units
                     </div>
                   </div>
 
                   <button
-                    onClick={() => handleBookRoom(room)}
+                    onClick={() => handleBookRoomType(roomType)}
                     className="w-full btn btn-primary"
+                    disabled={roomType.available_units < unitsRequested}
                   >
-                    Book Now
+                    {roomType.available_units >= unitsRequested ? 'Book Now' : 'Not Enough Units'}
                   </button>
                 </div>
               )
@@ -278,9 +280,9 @@ const AvailabilityPage = () => {
           setIsModalOpen(false)
           setGuestId('')
           setGuest2Id('')
-          setSelectedRoom(null)
+          setSelectedRoomType(null)
         }}
-        title={`Book Room ${selectedRoom?.roomNumber}`}
+        title={`Book ${selectedRoomType?.room_type_name || 'Room Type'}`}
       >
         <div className="space-y-4">
           <GuestSelect
@@ -290,20 +292,27 @@ const AvailabilityPage = () => {
             label="Primary Guest"
             placeholder="Search for a guest by name, email, or phone..."
           />
-          {selectedRoom && selectedRoom.type === 'Double' && (
-            <GuestSelect
-              value={guest2Id}
-              onChange={setGuest2Id}
-              guests={guests.filter((g) => String(g.id) !== String(guestId))}
-              label="Second Guest (Optional)"
-              placeholder="Search for a second guest by name, email, or phone..."
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Units Requested
+            </label>
+            <input
+              type="number"
+              min="1"
+              max={selectedRoomType?.available_units || 1}
+              value={unitsRequested}
+              onChange={(e) => setUnitsRequested(parseInt(e.target.value) || 1)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          )}
+            <p className="mt-1 text-sm text-gray-500">
+              Available: {selectedRoomType?.available_units || 0} units
+            </p>
+          </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Room:</span>
-                <span className="font-medium">{selectedRoom?.roomNumber} - {selectedRoom?.type}</span>
+                <span className="text-gray-600">Room Type:</span>
+                <span className="font-medium">{selectedRoomType?.room_type_name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Check-in:</span>
@@ -314,9 +323,13 @@ const AvailabilityPage = () => {
                 <span className="font-medium">{format(parseISO(checkOut), 'MMM dd, yyyy')}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-600">Units:</span>
+                <span className="font-medium">{unitsRequested}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600">Total Amount:</span>
                 <span className="font-semibold text-lg">
-                  ${selectedRoom ? selectedRoom.pricePerNight * Math.ceil((parseISO(checkOut) - parseISO(checkIn)) / (1000 * 60 * 60 * 24)) : 0}
+                  ${selectedRoomType ? (selectedRoomType.price_per_night * Math.ceil((parseISO(checkOut).getTime() - parseISO(checkIn).getTime()) / (1000 * 60 * 60 * 24)) * unitsRequested).toFixed(2) : '0.00'}
                 </span>
               </div>
             </div>
@@ -327,13 +340,17 @@ const AvailabilityPage = () => {
                 setIsModalOpen(false)
                 setGuestId('')
                 setGuest2Id('')
-                setSelectedRoom(null)
+                setSelectedRoomType(null)
               }}
               className="btn btn-secondary"
             >
               Cancel
             </button>
-            <button onClick={handleCreateReservation} className="btn btn-primary">
+            <button 
+              onClick={handleCreateReservation} 
+              className="btn btn-primary"
+              disabled={!selectedRoomType || selectedRoomType.available_units < unitsRequested}
+            >
               Confirm Booking
             </button>
           </div>
