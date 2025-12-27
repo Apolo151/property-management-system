@@ -4,142 +4,138 @@ import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import Modal from '../components/Modal'
+import useRoomTypesStore from '../store/roomTypesStore'
 import useRoomsStore from '../store/roomsStore'
+import { api } from '../utils/api'
 
 const RoomsPage = () => {
-  const { rooms, housekeeping, addRoom, updateHousekeepingStatus, isLoading, initialize } = useRoomsStore()
+  const { roomTypes, fetchRoomTypes, isLoading: roomTypesLoading } = useRoomTypesStore()
+  const { housekeeping, fetchHousekeeping, updateHousekeepingStatus, isLoading: housekeepingLoading } = useRoomsStore()
+  const [staff, setStaff] = useState([])
+  const [staffLoading, setStaffLoading] = useState(false)
 
-  // Fetch rooms and housekeeping on mount
+  // Fetch room types, housekeeping, and staff on mount
   useEffect(() => {
-    initialize()
-  }, [initialize])
+    fetchRoomTypes()
+    fetchHousekeeping()
+    fetchStaff()
+  }, [fetchRoomTypes, fetchHousekeeping])
+
+  // Fetch staff members
+  const fetchStaff = async () => {
+    try {
+      setStaffLoading(true)
+      const users = await api.users.getAll()
+      // Filter to only active staff members and format for display
+      const activeStaff = users
+        .filter(user => user.is_active)
+        .map(user => ({
+          id: user.id,
+          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
+          email: user.email,
+        }))
+      setStaff(activeStaff)
+    } catch (error) {
+      console.error('Error fetching staff:', error)
+      // Fallback to empty array if fetch fails
+      setStaff([])
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
+  // Generate flat list of all individual room units from room types
+  const allRooms = useMemo(() => {
+    const rooms = []
+    roomTypes.forEach((roomType) => {
+      // Create one row for each unit in the room type
+      for (let i = 0; i < roomType.qty; i++) {
+        rooms.push({
+          id: `${roomType.id}-unit-${i}`, // Unit ID format
+          roomTypeId: roomType.id,
+          roomTypeName: roomType.name,
+          roomType: roomType.roomType,
+          unitIndex: i,
+          unitNumber: i + 1,
+          totalUnits: roomType.qty,
+          pricePerNight: roomType.pricePerNight,
+          floor: roomType.floor,
+          maxPeople: roomType.maxPeople,
+          features: roomType.features || [],
+        })
+      }
+    })
+    return rooms
+  }, [roomTypes])
   const [activeTab, setActiveTab] = useState('rooms')
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [housekeepingFilter, setHousekeepingFilter] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [newRoom, setNewRoom] = useState({
-    roomNumber: '',
-    type: 'Single',
-    status: 'Available',
-    pricePerNight: '',
-    floor: '',
-    features: [],
-  })
-  const [featureInput, setFeatureInput] = useState('')
 
   const filteredRooms = useMemo(() => {
-    return rooms.filter((room) => {
-      const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = !statusFilter || room.status === statusFilter
-      const matchesType = !typeFilter || room.type === typeFilter
-      return matchesSearch && matchesStatus && matchesType
+    return allRooms.filter((room) => {
+      const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
+      const matchesSearch = roomDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesType = !typeFilter || room.roomType === typeFilter
+      return matchesSearch && matchesType
     })
-  }, [searchTerm, statusFilter, typeFilter, rooms])
+  }, [searchTerm, typeFilter, allRooms])
 
-  const handleAddRoom = async () => {
-    // Validation
-    if (!newRoom.roomNumber || !newRoom.pricePerNight || !newRoom.floor) {
-      alert('Please fill in all required fields (Room Number, Price/Night, Floor)')
-      return
-    }
-
-    const price = parseFloat(newRoom.pricePerNight)
-    if (isNaN(price) || price <= 0) {
-      alert('Please enter a valid price (must be a positive number)')
-      return
-    }
-
-    const floor = parseInt(newRoom.floor)
-    if (isNaN(floor) || floor <= 0) {
-      alert('Please enter a valid floor number (must be a positive number)')
-      return
-    }
-
-    try {
-      await addRoom({
-        roomNumber: newRoom.roomNumber,
-        type: newRoom.type,
-        status: newRoom.status,
-        pricePerNight: price,
-        floor: floor,
-        features: newRoom.features,
-      })
-
-      setIsModalOpen(false)
-      setNewRoom({
-        roomNumber: '',
-        type: 'Single',
-        status: 'Available',
-        pricePerNight: '',
-        floor: '',
-        features: [],
-      })
-      setFeatureInput('')
-      alert('Room created successfully!')
-    } catch (error) {
-      alert(error.message || 'Failed to create room')
-    }
-  }
-
-  const handleAddFeature = () => {
-    if (featureInput.trim() && !newRoom.features.includes(featureInput.trim())) {
-      setNewRoom({
-        ...newRoom,
-        features: [...newRoom.features, featureInput.trim()],
-      })
-      setFeatureInput('')
-    }
-  }
-
-  const handleRemoveFeature = (feature) => {
-    setNewRoom({
-      ...newRoom,
-      features: newRoom.features.filter((f) => f !== feature),
-    })
-  }
-
-  const statusOptions = [
-    { value: 'Available', label: 'Available' },
-    { value: 'Occupied', label: 'Occupied' },
-    { value: 'Cleaning', label: 'Cleaning' },
-    { value: 'Out of Service', label: 'Out of Service' },
-  ]
-
-  const typeOptions = [
-    { value: 'Single', label: 'Single' },
-    { value: 'Double', label: 'Double' },
-    { value: 'Suite', label: 'Suite' },
-  ]
+  // Get unique room types for filter
+  const roomTypeOptions = useMemo(() => {
+    const types = new Set(roomTypes.map(rt => rt.roomType))
+    return Array.from(types).map(type => ({
+      value: type,
+      label: type.charAt(0).toUpperCase() + type.slice(1)
+    }))
+  }, [roomTypes])
 
   const filteredHousekeeping = useMemo(() => {
-    return housekeeping.filter((hk) => {
-      const room = rooms.find((r) => String(r.id) === hk.roomId)
-      if (!room) return false
-      const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = !housekeepingFilter || hk.status === housekeepingFilter
-      return matchesSearch && matchesStatus
-    })
-  }, [housekeeping, rooms, searchTerm, housekeepingFilter])
+    return allRooms.map((room) => {
+      // Find housekeeping record for this unit (using unit ID format)
+      const hk = housekeeping.find((h) => h.roomId === room.id)
+      
+      // If no housekeeping record exists, create a default one for display
+      const housekeepingData = hk || {
+        id: null,
+        roomId: room.id,
+        status: 'Clean',
+        assignedStaff: '',
+        lastCleaned: null,
+        notes: null,
+      }
 
-  const staffMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams']
+      // Map assignedStaff (could be ID or name) to staff member for display
+      // Check if assignedStaff is a UUID (staff ID) or a name
+      const isStaffId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(housekeepingData.assignedStaff || '')
+      const assignedStaffMember = isStaffId 
+        ? staff.find(s => s.id === housekeepingData.assignedStaff)
+        : null
+
+      const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
+      const matchesSearch = roomDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesStatus = !housekeepingFilter || housekeepingData.status === housekeepingFilter
+
+      if (!matchesSearch || !matchesStatus) return null
+
+      return {
+        ...housekeepingData,
+        assignedStaffId: isStaffId ? housekeepingData.assignedStaff : null, // Store ID if it's a UUID
+        assignedStaffName: assignedStaffMember?.name || (isStaffId ? null : housekeepingData.assignedStaff), // Store name for display
+        room,
+      }
+    }).filter(Boolean)
+  }, [housekeeping, allRooms, searchTerm, housekeepingFilter, staff])
 
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Rooms Management</h1>
-          <p className="text-gray-600 mt-2">Manage and view all hotel rooms</p>
+          <p className="text-gray-600 mt-2">View all room units and manage housekeeping</p>
         </div>
-        {activeTab === 'rooms' && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="btn btn-primary"
-          >
-            + Add Room
-          </button>
-        )}
       </div>
 
       {/* Tabs */}
@@ -173,25 +169,18 @@ const RoomsPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Search by room number..."
+            placeholder="Search by room name or type..."
             label="Search"
-          />
-          <FilterSelect
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={statusOptions}
-            placeholder="All Statuses"
-            label="Status"
           />
           <FilterSelect
             value={typeFilter}
             onChange={setTypeFilter}
-            options={typeOptions}
-            placeholder="All Types"
+            options={roomTypeOptions}
+            placeholder="All Room Types"
             label="Room Type"
           />
         </div>
@@ -204,19 +193,22 @@ const RoomsPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Room Number
+                  Room
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  Room Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Unit
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Price/Night
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Floor
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Max People
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Features
@@ -227,40 +219,46 @@ const RoomsPage = () => {
               {filteredRooms.map((room) => (
                 <tr key={room.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{room.roomNumber}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {room.roomTypeName} #{room.unitNumber}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{room.type}</div>
+                    <div className="text-sm text-gray-900 capitalize">{room.roomType}</div>
+                    <div className="text-xs text-gray-500">{room.totalUnits} total units</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusBadge status={room.status} type="room" />
+                    <div className="text-sm text-gray-900">Unit {room.unitNumber} of {room.totalUnits}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">${room.pricePerNight}</div>
+                    <div className="text-sm text-gray-900">${room.pricePerNight?.toFixed(2) || '0.00'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{room.floor}</div>
+                    <div className="text-sm text-gray-900">{room.floor || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{room.maxPeople || 'N/A'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-500">
-                      {room.features?.join(', ') || 'N/A'}
+                      {room.features?.length > 0 ? room.features.join(', ') : 'N/A'}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {isLoading && filteredRooms.length === 0 && (
+          {(roomTypesLoading || housekeepingLoading) && filteredRooms.length === 0 && (
             <div className="text-center py-12 text-gray-500">Loading rooms...</div>
           )}
-          {!isLoading && filteredRooms.length === 0 && (
-            <div className="text-center py-12 text-gray-500">No rooms found</div>
+          {!roomTypesLoading && !housekeepingLoading && filteredRooms.length === 0 && (
+            <div className="text-center py-12 text-gray-500">No rooms found. Please add room types in the Room Types section.</div>
           )}
         </div>
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredRooms.length} of {rooms.length} rooms
+        Showing {filteredRooms.length} of {allRooms.length} room units
       </div>
         </>
       )}
@@ -317,17 +315,17 @@ const RoomsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredHousekeeping.map((hk) => {
-                    const room = rooms.find((r) => String(r.id) === hk.roomId)
-                    if (!room) return null
+                  {filteredHousekeeping.map((item) => {
+                    const { room, ...hk } = item
+                    const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
 
                     return (
-                      <tr key={hk.roomId} className="hover:bg-gray-50">
+                      <tr key={room.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {room.roomNumber}
+                          {roomDisplayName}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {room.type}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
+                          {room.roomType}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge
@@ -342,22 +340,30 @@ const RoomsPage = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
-                            value={hk.assignedStaff}
+                            value={hk.assignedStaffId || hk.assignedStaff || ''}
                             onChange={async (e) => {
                               try {
-                                await updateHousekeepingStatus(hk.roomId, hk.status, e.target.value)
+                                await updateHousekeepingStatus(room.id, hk.status, e.target.value)
+                                await fetchHousekeeping() // Refresh after update
                               } catch (error) {
                                 alert(error.message || 'Failed to update housekeeping')
                               }
                             }}
                             className="input text-sm"
+                            disabled={staffLoading}
                           >
                             <option value="">Unassigned</option>
-                            {staffMembers.map((staff) => (
-                              <option key={staff} value={staff}>
-                                {staff}
-                              </option>
-                            ))}
+                            {staffLoading ? (
+                              <option disabled>Loading staff...</option>
+                            ) : staff.length === 0 ? (
+                              <option disabled>No staff members available</option>
+                            ) : (
+                              staff.map((staffMember) => (
+                                <option key={staffMember.id} value={staffMember.id}>
+                                  {staffMember.name}
+                                </option>
+                              ))
+                            )}
                           </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -366,7 +372,8 @@ const RoomsPage = () => {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await updateHousekeepingStatus(hk.roomId, 'Clean', hk.assignedStaff)
+                                    await updateHousekeepingStatus(room.id, 'Clean', hk.assignedStaffId || hk.assignedStaff)
+                                    await fetchHousekeeping() // Refresh after update
                                   } catch (error) {
                                     alert(error.message || 'Failed to update housekeeping')
                                   }
@@ -380,7 +387,8 @@ const RoomsPage = () => {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await updateHousekeepingStatus(hk.roomId, 'Dirty', hk.assignedStaff)
+                                    await updateHousekeepingStatus(room.id, 'Dirty', hk.assignedStaffId || hk.assignedStaff)
+                                    await fetchHousekeeping() // Refresh after update
                                   } catch (error) {
                                     alert(error.message || 'Failed to update housekeeping')
                                   }
@@ -394,7 +402,8 @@ const RoomsPage = () => {
                               <button
                                 onClick={async () => {
                                   try {
-                                    await updateHousekeepingStatus(hk.roomId, 'In Progress', hk.assignedStaff)
+                                    await updateHousekeepingStatus(room.id, 'In Progress', hk.assignedStaffId || hk.assignedStaff)
+                                    await fetchHousekeeping() // Refresh after update
                                   } catch (error) {
                                     alert(error.message || 'Failed to update housekeeping')
                                   }
@@ -413,169 +422,11 @@ const RoomsPage = () => {
               </table>
             </div>
           </div>
+          {filteredHousekeeping.length === 0 && (
+            <div className="text-center py-12 text-gray-500">No rooms found</div>
+          )}
         </>
       )}
-
-      {/* Add Room Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setNewRoom({
-            roomNumber: '',
-            type: 'Single',
-            status: 'Available',
-            pricePerNight: '',
-            floor: '',
-            features: [],
-          })
-          setFeatureInput('')
-        }}
-        title="Add New Room"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Room Number *
-            </label>
-            <input
-              type="text"
-              value={newRoom.roomNumber}
-              onChange={(e) => setNewRoom({ ...newRoom, roomNumber: e.target.value })}
-              className="input"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Room Type *
-            </label>
-            <select
-              value={newRoom.type}
-              onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}
-              className="input"
-            >
-              <option value="Single">Single</option>
-              <option value="Double">Double</option>
-              <option value="Suite">Suite</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Status *
-            </label>
-            <select
-              value={newRoom.status}
-              onChange={(e) => setNewRoom({ ...newRoom, status: e.target.value })}
-              className="input"
-            >
-              <option value="Available">Available</option>
-              <option value="Occupied">Occupied</option>
-              <option value="Cleaning">Cleaning</option>
-              <option value="Out of Service">Out of Service</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Price per Night ($) *
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={newRoom.pricePerNight}
-              onChange={(e) => setNewRoom({ ...newRoom, pricePerNight: e.target.value })}
-              className="input"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Floor *
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={newRoom.floor}
-              onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
-              className="input"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Features
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={featureInput}
-                onChange={(e) => setFeatureInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleAddFeature()
-                  }
-                }}
-                className="input flex-1"
-                placeholder="Add a feature (e.g., WiFi, TV)"
-              />
-              <button
-                type="button"
-                onClick={handleAddFeature}
-                className="btn btn-secondary"
-              >
-                Add
-              </button>
-            </div>
-            {newRoom.features.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {newRoom.features.map((feature) => (
-                  <span
-                    key={feature}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800"
-                  >
-                    {feature}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFeature(feature)}
-                      className="ml-2 text-primary-600 hover:text-primary-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={() => {
-                setIsModalOpen(false)
-                setNewRoom({
-                  roomNumber: '',
-                  type: 'Single',
-                  status: 'Available',
-                  pricePerNight: '',
-                  floor: '',
-                  features: [],
-                })
-                setFeatureInput('')
-              }}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleAddRoom} 
-              className="btn btn-primary"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating...' : 'Add Room'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

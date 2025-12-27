@@ -11,6 +11,7 @@ export interface HotelSettingsResponse {
   timezone: string;
   check_in_time: string;
   check_out_time: string;
+  beds24_property_id?: number | null;
   settings?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -28,6 +29,7 @@ export interface UpdateHotelSettingsRequest {
   timezone?: string;
   check_in_time?: string;
   check_out_time?: string;
+  beds24_property_id?: number | null;
   settings?: Record<string, any>;
 }
 

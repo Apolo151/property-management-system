@@ -186,7 +186,7 @@ export const api = {
     me: () => request('/auth/me'),
   },
 
-  // Rooms endpoints
+  // Rooms endpoints (legacy - for backward compatibility)
   rooms: {
     getAll: (params = {}) => {
       const queryString = new URLSearchParams(params).toString();
@@ -223,6 +223,51 @@ export const api = {
     getAllHousekeeping: (params = {}) => {
       const queryString = new URLSearchParams(params).toString();
       return request(`/v1/housekeeping${queryString ? `?${queryString}` : ''}`);
+    },
+  },
+
+  // Room Types endpoints
+  roomTypes: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return request(`/v1/room-types${queryString ? `?${queryString}` : ''}`);
+    },
+
+    getById: (id) => request(`/v1/room-types/${id}`),
+
+    create: (roomTypeData) =>
+      request('/v1/room-types', {
+        method: 'POST',
+        body: roomTypeData,
+      }),
+
+    update: (id, roomTypeData) =>
+      request(`/v1/room-types/${id}`, {
+        method: 'PUT',
+        body: roomTypeData,
+      }),
+
+    delete: (id) =>
+      request(`/v1/room-types/${id}`, {
+        method: 'DELETE',
+      }),
+
+    getAvailability: (id, startDate, endDate) => {
+      const queryString = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+      }).toString();
+      return request(`/v1/room-types/${id}/availability?${queryString}`);
+    },
+
+    getAvailable: (checkIn, checkOut, filters = {}) => {
+      const params = {
+        check_in: checkIn,
+        check_out: checkOut,
+        ...filters,
+      };
+      const queryString = new URLSearchParams(params).toString();
+      return request(`/v1/room-types/available?${queryString}`);
     },
   },
 
@@ -397,6 +442,75 @@ export const api = {
       request('/v1/settings', {
         method: 'PUT',
         body: settingsData,
+      }),
+
+    // Beds24 endpoints
+    getBeds24Config: () => request('/v1/settings/beds24'),
+
+    authenticateBeds24: (inviteCode, beds24PropertyId, deviceName) =>
+      request('/v1/settings/beds24/authenticate', {
+        method: 'POST',
+        body: { inviteCode, beds24PropertyId, deviceName },
+      }),
+
+    updateBeds24Config: (configData) =>
+      request('/v1/settings/beds24', {
+        method: 'PUT',
+        body: configData,
+      }),
+
+    testBeds24Connection: () =>
+      request('/v1/settings/beds24/test', {
+        method: 'POST',
+      }),
+    triggerInitialSync: () =>
+      request('/v1/settings/beds24/initial-sync', {
+        method: 'POST',
+      }),
+
+    // Beds24 room mapping endpoints
+    getBeds24Rooms: () => request('/v1/settings/beds24/rooms'),
+    getUnmappedBeds24Rooms: () => request('/v1/settings/beds24/rooms/unmapped'),
+    getPmsRoomsWithMapping: () => request('/v1/settings/beds24/rooms/pms'),
+    mapRoom: (pmsRoomId, beds24RoomId) =>
+      request('/v1/settings/beds24/rooms/map', {
+        method: 'POST',
+        body: { pmsRoomId, beds24RoomId },
+      }),
+    unmapRoom: (roomId) =>
+      request(`/v1/settings/beds24/rooms/${roomId}/map`, {
+        method: 'DELETE',
+      }),
+    autoCreateRooms: (options = {}) =>
+      request('/v1/settings/beds24/rooms/auto-create', {
+        method: 'POST',
+        body: options,
+      }),
+
+    // Data management endpoints
+    clearAllData: () =>
+      request('/v1/settings/clear-all-data', {
+        method: 'POST',
+      }),
+  },
+
+  // Users/Staff endpoints
+  users: {
+    getAll: () => request('/v1/users'),
+    getById: (id) => request(`/v1/users/${id}`),
+    create: (userData) =>
+      request('/v1/users', {
+        method: 'POST',
+        body: userData,
+      }),
+    update: (id, userData) =>
+      request(`/v1/users/${id}`, {
+        method: 'PUT',
+        body: userData,
+      }),
+    delete: (id) =>
+      request(`/v1/users/${id}`, {
+        method: 'DELETE',
       }),
   },
 };

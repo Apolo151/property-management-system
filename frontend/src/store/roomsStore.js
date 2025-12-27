@@ -17,11 +17,14 @@ const useRoomsStore = create((set, get) => ({
         id: room.id,
         roomNumber: room.room_number,
         type: room.type,
+        roomType: room.room_type,
         status: room.status,
         pricePerNight: parseFloat(room.price_per_night),
         floor: room.floor,
         features: Array.isArray(room.features) ? room.features : [],
         description: room.description,
+        unitAllocation: room.unit_allocation || 'perBooking',
+        units: Array.isArray(room.units) ? room.units : [],
       }));
       set({ rooms: transformedRooms, isLoading: false });
       return transformedRooms;
@@ -39,11 +42,14 @@ const useRoomsStore = create((set, get) => ({
       const backendData = {
         room_number: roomData.roomNumber,
         type: roomData.type,
+        room_type: roomData.roomType, // Required Beds24 room type
         status: roomData.status || 'Available',
         price_per_night: roomData.pricePerNight,
         floor: roomData.floor,
         features: roomData.features || [],
         description: roomData.description,
+        unit_allocation: roomData.unitAllocation || 'perBooking',
+        units: roomData.units || [],
       };
 
       const room = await api.rooms.create(backendData);
@@ -83,11 +89,14 @@ const useRoomsStore = create((set, get) => ({
       const backendUpdates = {};
       if (updates.roomNumber !== undefined) backendUpdates.room_number = updates.roomNumber;
       if (updates.type !== undefined) backendUpdates.type = updates.type;
+      if (updates.roomType !== undefined) backendUpdates.room_type = updates.roomType;
       if (updates.status !== undefined) backendUpdates.status = updates.status;
       if (updates.pricePerNight !== undefined) backendUpdates.price_per_night = updates.pricePerNight;
       if (updates.floor !== undefined) backendUpdates.floor = updates.floor;
       if (updates.features !== undefined) backendUpdates.features = updates.features;
       if (updates.description !== undefined) backendUpdates.description = updates.description;
+      if (updates.unitAllocation !== undefined) backendUpdates.unit_allocation = updates.unitAllocation;
+      if (updates.units !== undefined) backendUpdates.units = updates.units;
 
       const room = await api.rooms.update(roomId, backendUpdates);
       
@@ -96,11 +105,14 @@ const useRoomsStore = create((set, get) => ({
         id: room.id,
         roomNumber: room.room_number,
         type: room.type,
+        roomType: room.room_type,
         status: room.status,
         pricePerNight: parseFloat(room.price_per_night),
         floor: room.floor,
         features: Array.isArray(room.features) ? room.features : [],
         description: room.description,
+        unitAllocation: room.unit_allocation || 'perBooking',
+        units: Array.isArray(room.units) ? room.units : [],
       };
 
       set((state) => ({
@@ -126,9 +138,10 @@ const useRoomsStore = create((set, get) => ({
     try {
       const housekeeping = await api.rooms.getAllHousekeeping(filters);
       // Transform backend format to frontend format
+      // Support both room_id (legacy) and unit_id (room type units)
       const transformedHousekeeping = housekeeping.map((hk) => ({
         id: hk.id,
-        roomId: hk.room_id,
+        roomId: hk.unit_id || hk.room_id, // Use unit_id if present, otherwise room_id
         status: hk.status,
         assignedStaff: hk.assigned_staff_name || hk.assigned_staff_id || '',
         lastCleaned: hk.last_cleaned,
@@ -160,9 +173,10 @@ const useRoomsStore = create((set, get) => ({
       const housekeeping = await api.rooms.updateHousekeeping(roomId, updateData);
       
       // Transform backend response to frontend format
+      // Support both room_id (legacy) and unit_id (room type units)
       const transformedHousekeeping = {
         id: housekeeping.id,
-        roomId: housekeeping.room_id,
+        roomId: housekeeping.unit_id || housekeeping.room_id, // Use unit_id if present, otherwise room_id
         status: housekeeping.status,
         assignedStaff: housekeeping.assigned_staff_name || housekeeping.assigned_staff_id || '',
         lastCleaned: housekeeping.last_cleaned,

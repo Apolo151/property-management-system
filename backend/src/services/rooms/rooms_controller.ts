@@ -6,7 +6,12 @@ import type {
   UpdateHousekeepingRequest,
   RoomResponse,
   HousekeepingResponse,
+  Beds24RoomType,
 } from './rooms_types.js';
+import {
+  queueRoomAvailabilitySyncHook,
+  queueRoomRatesSyncHook,
+} from '../../integrations/beds24/hooks/sync_hooks.js';
 
 // Get all rooms
 export async function getRoomsHandler(
@@ -36,6 +41,7 @@ export async function getRoomsHandler(
     const roomsWithFeatures = rooms.map((room) => ({
       ...room,
       features: Array.isArray(room.features) ? room.features : [],
+      units: Array.isArray(room.units) ? room.units : (typeof room.units === 'string' ? JSON.parse(room.units || '[]') : []),
     }));
 
     res.json(roomsWithFeatures as any);
@@ -65,6 +71,7 @@ export async function getRoomHandler(
     const roomWithFeatures = {
       ...room,
       features: Array.isArray(room.features) ? room.features : [],
+      units: Array.isArray(room.units) ? room.units : (typeof room.units === 'string' ? JSON.parse(room.units || '[]') : []),
     };
 
     res.json(roomWithFeatures as any);
@@ -80,12 +87,45 @@ export async function createRoomHandler(
   next: NextFunction,
 ) {
   try {
-    const { room_number, type, status = 'Available', price_per_night, floor, features = [], description } = req.body;
+    const { 
+      room_number, 
+      type, 
+      room_type, 
+      status = 'Available', 
+      price_per_night, 
+      floor, 
+      features = [], 
+      description,
+      unit_allocation = 'perBooking',
+      // Beds24-compatible fields
+      qty,
+      min_price,
+      max_price,
+      rack_rate,
+      cleaning_fee,
+      security_deposit,
+      max_people,
+      max_adult,
+      max_children,
+      min_stay,
+      max_stay,
+      tax_percentage,
+      tax_per_person,
+      room_size,
+      highlight_color,
+      sell_priority,
+      include_reports,
+      restriction_strategy,
+      overbooking_protection,
+      block_after_checkout_days,
+      control_priority,
+      units = [], // Array of unit objects
+    } = req.body;
 
     // Validation
-    if (!room_number || !type || !price_per_night || !floor) {
+    if (!room_number || !type || !room_type || !price_per_night || !floor) {
       res.status(400).json({
-        error: 'room_number, type, price_per_night, and floor are required',
+        error: 'room_number, type, room_type, price_per_night, and floor are required',
       } as any);
       return;
     }
@@ -99,10 +139,32 @@ export async function createRoomHandler(
       return;
     }
 
-    // Validate type
+    // Validate legacy type
     if (!['Single', 'Double', 'Suite'].includes(type)) {
       res.status(400).json({
         error: 'Invalid room type',
+      } as any);
+      return;
+    }
+
+    // Validate Beds24 room_type
+    const validBeds24RoomTypes: Beds24RoomType[] = [
+      'single', 'double', 'twin', 'twinDouble', 'triple', 'quadruple',
+      'apartment', 'family', 'suite', 'studio', 'dormitoryRoom', 'bedInDormitory',
+      'bungalow', 'chalet', 'holidayHome', 'villa', 'mobileHome', 'tent',
+      'campSite', 'activity', 'tour', 'carRental'
+    ];
+    if (!validBeds24RoomTypes.includes(room_type)) {
+      res.status(400).json({
+        error: 'Invalid Beds24 room_type',
+      } as any);
+      return;
+    }
+
+    // Validate unit_allocation
+    if (unit_allocation && !['perBooking', 'perGuest'].includes(unit_allocation)) {
+      res.status(400).json({
+        error: 'Invalid unit_allocation. Must be "perBooking" or "perGuest"',
       } as any);
       return;
     }
@@ -120,11 +182,36 @@ export async function createRoomHandler(
       .insert({
         room_number,
         type,
+        room_type,
         status,
         price_per_night,
         floor,
         features: JSON.stringify(features),
         description,
+        unit_allocation: unit_allocation || 'perBooking',
+        // Beds24-compatible fields
+        qty,
+        min_price,
+        max_price,
+        rack_rate,
+        cleaning_fee,
+        security_deposit,
+        max_people,
+        max_adult,
+        max_children,
+        min_stay,
+        max_stay,
+        tax_percentage,
+        tax_per_person,
+        room_size,
+        highlight_color,
+        sell_priority,
+        include_reports,
+        restriction_strategy,
+        overbooking_protection,
+        block_after_checkout_days,
+        control_priority,
+        units: JSON.stringify(units || []),
       })
       .returning('*');
 
@@ -134,9 +221,11 @@ export async function createRoomHandler(
       status: status === 'Cleaning' ? 'In Progress' : status === 'Occupied' ? 'Dirty' : 'Clean',
     });
 
+    // Parse JSONB fields
     const roomWithFeatures = {
       ...room,
       features: Array.isArray(room.features) ? room.features : [],
+      units: Array.isArray(room.units) ? room.units : (typeof room.units === 'string' ? JSON.parse(room.units || '[]') : []),
     };
 
     res.status(201).json(roomWithFeatures as any);
@@ -175,6 +264,30 @@ export async function updateRoomHandler(
       }
     }
 
+    // Validate Beds24 room_type if provided
+    if (updates.room_type !== undefined) {
+      const validBeds24RoomTypes: Beds24RoomType[] = [
+        'single', 'double', 'twin', 'twinDouble', 'triple', 'quadruple',
+        'apartment', 'family', 'suite', 'studio', 'dormitoryRoom', 'bedInDormitory',
+        'bungalow', 'chalet', 'holidayHome', 'villa', 'mobileHome', 'tent',
+        'campSite', 'activity', 'tour', 'carRental'
+      ];
+      if (!validBeds24RoomTypes.includes(updates.room_type)) {
+        res.status(400).json({
+          error: 'Invalid Beds24 room_type',
+        } as any);
+        return;
+      }
+    }
+
+    // Validate unit_allocation if provided
+    if (updates.unit_allocation !== undefined && !['perBooking', 'perGuest'].includes(updates.unit_allocation)) {
+      res.status(400).json({
+        error: 'Invalid unit_allocation. Must be "perBooking" or "perGuest"',
+      } as any);
+      return;
+    }
+
     // Prepare update data
     const updateData: any = {
       updated_at: new Date(),
@@ -182,11 +295,37 @@ export async function updateRoomHandler(
 
     if (updates.room_number !== undefined) updateData.room_number = updates.room_number;
     if (updates.type !== undefined) updateData.type = updates.type;
+    if (updates.room_type !== undefined) updateData.room_type = updates.room_type;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.price_per_night !== undefined) updateData.price_per_night = updates.price_per_night;
     if (updates.floor !== undefined) updateData.floor = updates.floor;
     if (updates.features !== undefined) updateData.features = JSON.stringify(updates.features);
     if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.unit_allocation !== undefined) updateData.unit_allocation = updates.unit_allocation;
+    
+    // Beds24-compatible fields
+    if (updates.qty !== undefined) updateData.qty = updates.qty;
+    if (updates.min_price !== undefined) updateData.min_price = updates.min_price;
+    if (updates.max_price !== undefined) updateData.max_price = updates.max_price;
+    if (updates.rack_rate !== undefined) updateData.rack_rate = updates.rack_rate;
+    if (updates.cleaning_fee !== undefined) updateData.cleaning_fee = updates.cleaning_fee;
+    if (updates.security_deposit !== undefined) updateData.security_deposit = updates.security_deposit;
+    if (updates.max_people !== undefined) updateData.max_people = updates.max_people;
+    if (updates.max_adult !== undefined) updateData.max_adult = updates.max_adult;
+    if (updates.max_children !== undefined) updateData.max_children = updates.max_children;
+    if (updates.min_stay !== undefined) updateData.min_stay = updates.min_stay;
+    if (updates.max_stay !== undefined) updateData.max_stay = updates.max_stay;
+    if (updates.tax_percentage !== undefined) updateData.tax_percentage = updates.tax_percentage;
+    if (updates.tax_per_person !== undefined) updateData.tax_per_person = updates.tax_per_person;
+    if (updates.room_size !== undefined) updateData.room_size = updates.room_size;
+    if (updates.highlight_color !== undefined) updateData.highlight_color = updates.highlight_color;
+    if (updates.sell_priority !== undefined) updateData.sell_priority = updates.sell_priority;
+    if (updates.include_reports !== undefined) updateData.include_reports = updates.include_reports;
+    if (updates.restriction_strategy !== undefined) updateData.restriction_strategy = updates.restriction_strategy;
+    if (updates.overbooking_protection !== undefined) updateData.overbooking_protection = updates.overbooking_protection;
+    if (updates.block_after_checkout_days !== undefined) updateData.block_after_checkout_days = updates.block_after_checkout_days;
+    if (updates.control_priority !== undefined) updateData.control_priority = updates.control_priority;
+    if (updates.units !== undefined) updateData.units = JSON.stringify(updates.units);
 
     // Update room
     const [room] = await db('rooms')
@@ -211,7 +350,24 @@ export async function updateRoomHandler(
     const roomWithFeatures = {
       ...room,
       features: Array.isArray(room.features) ? room.features : [],
+      units: Array.isArray(room.units) ? room.units : (typeof room.units === 'string' ? JSON.parse(room.units || '[]') : []),
     };
+
+    // Queue Beds24 sync if room is mapped (non-blocking)
+    if (room.beds24_room_id) {
+      // Sync availability if status changed
+      if (updates.status !== undefined) {
+        queueRoomAvailabilitySyncHook(id).catch((err) => {
+          console.error('Failed to queue room availability sync:', err);
+        });
+      }
+      // Sync rates if price changed
+      if (updates.price_per_night !== undefined) {
+        queueRoomRatesSyncHook(id).catch((err) => {
+          console.error('Failed to queue room rates sync:', err);
+        });
+      }
+    }
 
     res.json(roomWithFeatures as any);
   } catch (error) {
@@ -259,7 +415,7 @@ export async function deleteRoomHandler(
   }
 }
 
-// Get housekeeping for a room
+// Get housekeeping for a room or unit
 export async function getRoomHousekeepingHandler(
   req: Request<{ id: string }>,
   res: Response<HousekeepingResponse>,
@@ -268,27 +424,51 @@ export async function getRoomHousekeepingHandler(
   try {
     const { id } = req.params;
 
-    const housekeeping = await db('housekeeping').where({ room_id: id }).first();
+    // Check if this is a unit ID (format: "roomTypeId-unit-index") or a room ID (UUID)
+    const isUnitId = id.includes('-unit-');
+    
+    let housekeeping = null;
+    if (isUnitId) {
+      housekeeping = await db('housekeeping').where({ unit_id: id }).first();
+    } else {
+      housekeeping = await db('housekeeping').where({ room_id: id }).first();
+    }
 
     if (!housekeeping) {
       // Create housekeeping record if it doesn't exist
-      const room = await db('rooms').where({ id }).first();
-      if (!room) {
-        res.status(404).json({
-          error: 'Room not found',
-        } as any);
+      if (isUnitId) {
+        // For units, just create with default status
+        const [newHousekeeping] = await db('housekeeping')
+          .insert({
+            unit_id: id,
+            room_id: null,
+            status: 'Clean',
+          })
+          .returning('*');
+
+        res.json(newHousekeeping as any);
+        return;
+      } else {
+        // For legacy rooms, check if room exists
+        const room = await db('rooms').where({ id }).first();
+        if (!room) {
+          res.status(404).json({
+            error: 'Room not found',
+          } as any);
+          return;
+        }
+
+        const [newHousekeeping] = await db('housekeeping')
+          .insert({
+            room_id: id,
+            unit_id: null,
+            status: 'Clean',
+          })
+          .returning('*');
+
+        res.json(newHousekeeping as any);
         return;
       }
-
-      const [newHousekeeping] = await db('housekeeping')
-        .insert({
-          room_id: id,
-          status: 'Clean',
-        })
-        .returning('*');
-
-      res.json(newHousekeeping as any);
-      return;
     }
 
     res.json(housekeeping as any);
@@ -297,7 +477,7 @@ export async function getRoomHousekeepingHandler(
   }
 }
 
-// Update housekeeping for a room
+// Update housekeeping for a room or unit
 export async function updateRoomHousekeepingHandler(
   req: Request<{ id: string }, HousekeepingResponse, UpdateHousekeepingRequest>,
   res: Response<HousekeepingResponse>,
@@ -322,17 +502,40 @@ export async function updateRoomHousekeepingHandler(
       return;
     }
 
-    // Check if room exists
-    const room = await db('rooms').where({ id }).first();
-    if (!room) {
-      res.status(404).json({
-        error: 'Room not found',
-      } as any);
-      return;
-    }
+    // Check if this is a unit ID (format: "roomTypeId-unit-index") or a room ID (UUID)
+    const isUnitId = id.includes('-unit-');
+    
+    let room = null;
+    let housekeeping = null;
 
-    // Check if housekeeping record exists
-    let housekeeping = await db('housekeeping').where({ room_id: id }).first();
+    if (isUnitId) {
+      // This is a unit ID - housekeeping is local only, no Beds24 sync
+      // Extract room type ID from unit ID
+      const roomTypeId = id.split('-unit-')[0];
+      const roomType = await db('room_types').where({ id: roomTypeId }).whereNull('deleted_at').first();
+      
+      if (!roomType) {
+        res.status(404).json({
+          error: 'Room type not found for unit',
+        } as any);
+        return;
+      }
+
+      // Check if housekeeping record exists for this unit
+      housekeeping = await db('housekeeping').where({ unit_id: id }).first();
+    } else {
+      // This is a legacy room ID (UUID) - check if room exists
+      room = await db('rooms').where({ id }).first();
+      if (!room) {
+        res.status(404).json({
+          error: 'Room not found',
+        } as any);
+        return;
+      }
+
+      // Check if housekeeping record exists
+      housekeeping = await db('housekeeping').where({ room_id: id }).first();
+    }
 
     const updateData: any = {
       status,
@@ -360,20 +563,46 @@ export async function updateRoomHousekeepingHandler(
 
     if (housekeeping) {
       // Update existing
+      const whereClause = isUnitId ? { unit_id: id } : { room_id: id };
       const [updated] = await db('housekeeping')
-        .where({ room_id: id })
+        .where(whereClause)
         .update(updateData)
         .returning('*');
+
+      // Queue Beds24 availability sync only for legacy rooms (not units)
+      // Housekeeping for units is local only, not synced with Beds24
+      if (!isUnitId && room && room.beds24_room_id && (status === 'Dirty' || status === 'In Progress')) {
+        queueRoomAvailabilitySyncHook(id).catch((err) => {
+          console.error('Failed to queue room availability sync:', err);
+        });
+      }
 
       res.json(updated as any);
     } else {
       // Create new
+      const insertData: any = {
+        ...updateData,
+      };
+
+      if (isUnitId) {
+        insertData.unit_id = id;
+        insertData.room_id = null;
+      } else {
+        insertData.room_id = id;
+        insertData.unit_id = null;
+      }
+
       const [created] = await db('housekeeping')
-        .insert({
-          room_id: id,
-          ...updateData,
-        })
+        .insert(insertData)
         .returning('*');
+
+      // Queue Beds24 availability sync only for legacy rooms (not units)
+      // Housekeeping for units is local only, not synced with Beds24
+      if (!isUnitId && room && room.beds24_room_id && (status === 'Dirty' || status === 'In Progress')) {
+        queueRoomAvailabilitySyncHook(id).catch((err) => {
+          console.error('Failed to queue room availability sync:', err);
+        });
+      }
 
       res.status(201).json(created as any);
     }
@@ -400,9 +629,17 @@ export async function getAllHousekeepingHandler(
     }
 
     if (search) {
+      // Search in both legacy rooms and room type units
       query = query
-        .join('rooms', 'housekeeping.room_id', 'rooms.id')
-        .where('rooms.room_number', 'ilike', `%${search}%`)
+        .leftJoin('rooms', 'housekeeping.room_id', 'rooms.id')
+        .leftJoin('room_types', function() {
+          // Extract room_type_id from unit_id (format: "roomTypeId-unit-index")
+          this.on(db.raw("housekeeping.unit_id LIKE room_types.id || '-unit-%'"), '=', db.raw('true'));
+        })
+        .where(function() {
+          this.where('rooms.room_number', 'ilike', `%${search}%`)
+            .orWhere('room_types.name', 'ilike', `%${search}%`);
+        })
         .select('housekeeping.*'); // Ensure we only select housekeeping columns
     }
 
