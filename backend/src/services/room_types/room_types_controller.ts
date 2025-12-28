@@ -370,8 +370,27 @@ export async function getAvailableRoomTypesHandler(
       return;
     }
 
-    const checkInDate = new Date(check_in as string);
-    const checkOutDate = new Date(check_out as string);
+    // Validate date strings
+    const checkInStr = String(check_in).trim();
+    const checkOutStr = String(check_out).trim();
+
+    if (!checkInStr || !checkOutStr) {
+      res.status(400).json({
+        error: 'check_in and check_out cannot be empty',
+      });
+      return;
+    }
+
+    const checkInDate = new Date(checkInStr);
+    const checkOutDate = new Date(checkOutStr);
+
+    // Validate that dates are valid
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      res.status(400).json({
+        error: 'Invalid date format. Use YYYY-MM-DD',
+      });
+      return;
+    }
 
     if (checkOutDate <= checkInDate) {
       res.status(400).json({

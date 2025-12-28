@@ -188,6 +188,22 @@ export class ReservationPushService {
         apiBooking.roomQty = reservation.units_requested;
       }
 
+      // Extract unitId from assigned_unit_id if present (for room type reservations)
+      // Format: ${roomTypeId}-unit-${unitIndex} where unitIndex is 0-based
+      // Convert to Beds24's 1-based unitId
+      if (reservation.assigned_unit_id && reservation.room_type_id) {
+        const match = reservation.assigned_unit_id.match(/^(.+)-unit-(\d+)$/);
+        if (match && match[1] === reservation.room_type_id) {
+          const unitIndex = parseInt(match[2], 10);
+          // Convert 0-based (PMS) to 1-based (Beds24)
+          // unitIndex: 0 -> unitId: 1, unitIndex: 1 -> unitId: 2, etc.
+          const unitId = unitIndex + 1;
+          if (unitId >= 1) {
+            apiBooking.unitId = unitId;
+          }
+        }
+      }
+
       // Create or update booking in Beds24
       let beds24BookingId: number;
       if (reservation.beds24_booking_id) {
@@ -507,13 +523,19 @@ export class ReservationPushService {
   }
 
   /**
-   * Load reservation with all necessary data
+   * Load reservation with all necessary data.
+   * 
+   * Note: With the pg-types DATE parser override in database.ts,
+   * PostgreSQL DATE columns now return strings directly (e.g., "2025-12-31")
+   * instead of Date objects, so no timezone conversion is needed here.
    */
   private async loadReservationData(reservationId: string) {
-    return db('reservations')
+    const reservation = await db('reservations')
       .where({ id: reservationId })
       .whereNull('deleted_at')
       .first();
+    
+    return reservation || null;
   }
 
   /**

@@ -45,6 +45,7 @@ export interface Beds24Booking {
   masterId?: number;
   propertyId: number;
   roomId: number;
+  unitId?: number; // Beds24 unit identifier (1-based: 1 = first unit, 2 = second unit, etc.)
   arrivalDate: string; // YYYY-MM-DD
   departureDate: string; // YYYY-MM-DD
   status: 'confirmed' | 'cancelled' | 'checkedin' | 'checkedout' | 'request' | 'new' | 'inquiry';

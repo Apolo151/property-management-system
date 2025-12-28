@@ -16,6 +16,7 @@ export function normalizeBooking(booking: any): Beds24Booking | null {
     masterId: booking.masterId || booking.master_id,
     propertyId: booking.propertyId || booking.property_id || booking.propertyId,
     roomId: booking.roomId || booking.room_id || booking.roomId,
+    unitId: booking.unitId || booking.unit_id || null, // Beds24 unit identifier (1-based)
     status: booking.status,
     price: booking.price || booking.totalPrice || booking.total_price || 0,
     currency: booking.currency,

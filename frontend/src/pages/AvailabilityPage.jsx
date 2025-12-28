@@ -42,6 +42,13 @@ const AvailabilityPage = () => {
       const checkInDate = parseISO(checkIn)
       const checkOutDate = parseISO(checkOut)
 
+      // Validate dates
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        console.error('Invalid dates:', { checkIn, checkOut })
+        setAvailableRoomTypes([])
+        return
+      }
+
       if (checkOutDate <= checkInDate) {
         setAvailableRoomTypes([])
         return
@@ -49,18 +56,35 @@ const AvailabilityPage = () => {
 
       setLoading(true)
       try {
+        console.log('Fetching availability with params:', {
+          checkIn,
+          checkOut,
+          room_type: roomTypeFilter || undefined,
+          max_people: numGuests > 0 ? numGuests : undefined,
+          units_requested: unitsRequested,
+        })
+
         const result = await getAvailableRoomTypes(checkIn, checkOut, {
           room_type: roomTypeFilter || undefined,
           max_people: numGuests > 0 ? numGuests : undefined,
           units_requested: unitsRequested,
         })
 
-        // Extract room_types from result (already transformed by store)
-        let filtered = result.room_types || []
+        console.log('Availability result:', result)
 
-        setAvailableRoomTypes(filtered)
+        // Handle both possible response structures (defensive coding)
+        const roomTypes = result?.room_types || result || []
+        const finalRoomTypes = Array.isArray(roomTypes) ? roomTypes : []
+        
+        console.log('Setting room types:', finalRoomTypes)
+        setAvailableRoomTypes(finalRoomTypes)
+
+        if (finalRoomTypes.length === 0) {
+          console.log('No room types found for criteria')
+        }
       } catch (error) {
         console.error('Error checking availability:', error)
+        toast.error(error.message || 'Failed to check availability')
         setAvailableRoomTypes([])
       } finally {
         setLoading(false)
@@ -69,7 +93,7 @@ const AvailabilityPage = () => {
 
     const timeoutId = setTimeout(checkRoomTypeAvailability, 300) // Debounce
     return () => clearTimeout(timeoutId)
-  }, [checkIn, checkOut, roomTypeFilter, numGuests, unitsRequested])
+  }, [checkIn, checkOut, roomTypeFilter, numGuests, unitsRequested, getAvailableRoomTypes])
 
   const handleBookRoomType = (roomType) => {
     setSelectedRoomType(roomType)
@@ -120,13 +144,15 @@ const AvailabilityPage = () => {
       setSelectedRoomType(null)
       toast.success(`Reservation created successfully for ${selectedRoomType.room_type_name}`)
       
-      // Refresh availability
-      const result = await api.roomTypes.getAvailable(checkIn, checkOut, {
+      // Refresh availability using store for consistency
+      const result = await getAvailableRoomTypes(checkIn, checkOut, {
         room_type: roomTypeFilter || undefined,
         max_people: numGuests > 0 ? numGuests : undefined,
         units_requested: unitsRequested,
       })
-      setAvailableRoomTypes(result.room_types || [])
+      // Handle both possible response structures (defensive coding)
+      const roomTypes = result?.room_types || result || []
+      setAvailableRoomTypes(Array.isArray(roomTypes) ? roomTypes : [])
     } catch (error) {
       toast.error(error.message || 'Failed to create reservation')
     }

@@ -188,14 +188,26 @@ export class RoomSyncService {
       .whereNotNull('beds24_room_id')
       .select('beds24_room_id');
 
+    // Normalize and create a set of mapped Beds24 room IDs
+    // Handle both string and number types, trim whitespace, and filter out empty values
     const mappedBeds24Ids = new Set(
-      mappedRooms.map((r) => r.beds24_room_id?.toString())
+      mappedRooms
+        .map((r) => {
+          if (!r.beds24_room_id) return null;
+          // Convert to string, trim whitespace, and normalize
+          const normalized = String(r.beds24_room_id).trim();
+          return normalized || null;
+        })
+        .filter((id): id is string => id !== null)
     );
 
     // Filter out already mapped rooms
-    return beds24Rooms.filter(
-      (room) => !mappedBeds24Ids.has(room.id?.toString() || '')
-    );
+    // Normalize the comparison by converting to string and trimming
+    return beds24Rooms.filter((room) => {
+      if (!room.id) return true; // Include rooms without IDs (shouldn't happen, but safe)
+      const normalizedRoomId = String(room.id).trim();
+      return !mappedBeds24Ids.has(normalizedRoomId);
+    });
   }
 
   /**
