@@ -1,12 +1,22 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 
-const GuestSelect = ({ value, onChange, guests, placeholder = 'Search for a guest...', label = 'Guest' }) => {
+const GuestSelect = ({ 
+  value, 
+  onChange, 
+  guests, 
+  placeholder = 'Search for a guest or type a name to create new...', 
+  label = 'Guest',
+  required = false,
+  onCreateGuest,
+  guestName,
+  onGuestNameChange
+}) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
 
-  const selectedGuest = guests.find((g) => String(g.id) === String(value))
+  const selectedGuest = value ? guests.find((g) => String(g.id) === String(value)) : null
 
   const filteredGuests = useMemo(() => {
     if (!searchTerm.trim()) return guests
@@ -14,50 +24,114 @@ const GuestSelect = ({ value, onChange, guests, placeholder = 'Search for a gues
     return guests.filter(
       (guest) =>
         guest.name.toLowerCase().includes(term) ||
-        guest.email.toLowerCase().includes(term) ||
-        guest.phone.toLowerCase().includes(term)
+        guest.email?.toLowerCase().includes(term) ||
+        guest.phone?.toLowerCase().includes(term)
     )
   }, [guests, searchTerm])
+
+  // Check if search term matches any existing guest
+  const hasExactMatch = useMemo(() => {
+    if (!searchTerm.trim()) return false
+    const term = searchTerm.toLowerCase().trim()
+    return guests.some(
+      (guest) => guest.name.toLowerCase().trim() === term
+    )
+  }, [guests, searchTerm])
+
+  // Check if we should show "Create new guest" option
+  const showCreateOption = useMemo(() => {
+    return searchTerm.trim().length > 0 && !hasExactMatch && filteredGuests.length === 0
+  }, [searchTerm, hasExactMatch, filteredGuests.length])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false)
-        setSearchTerm('')
+        // Don't clear searchTerm if we're using guestName prop
+        if (!guestName) {
+          setSearchTerm('')
+        }
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [guestName])
 
   const handleSelect = (guest) => {
     onChange(String(guest.id))
     setIsOpen(false)
     setSearchTerm('')
+    if (onGuestNameChange) {
+      onGuestNameChange('')
+    }
   }
+
+  const handleCreateNew = () => {
+    if (onCreateGuest && searchTerm.trim()) {
+      onCreateGuest(searchTerm.trim())
+      setSearchTerm('')
+      setIsOpen(false)
+    }
+  }
+
+  const handleClear = () => {
+    onChange('')
+    setSearchTerm('')
+    if (onGuestNameChange) {
+      onGuestNameChange('')
+    }
+    setIsOpen(false)
+  }
+
+  // Use guestName prop if provided, otherwise use selectedGuest name or searchTerm
+  const displayValue = guestName || (isOpen ? searchTerm : (selectedGuest?.name || ''))
 
   return (
     <div className="relative" ref={dropdownRef}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label} *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
       )}
       <div className="relative">
         <input
           ref={inputRef}
           type="text"
-          value={isOpen ? searchTerm : selectedGuest?.name || ''}
+          value={displayValue}
           onChange={(e) => {
-            setSearchTerm(e.target.value)
+            const newValue = e.target.value
+            setSearchTerm(newValue)
+            if (onGuestNameChange) {
+              onGuestNameChange(newValue)
+            }
             if (!isOpen) setIsOpen(true)
+            // Clear selected guest if user starts typing
+            if (value && newValue !== selectedGuest?.name) {
+              onChange('')
+            }
           }}
           onFocus={() => {
             setIsOpen(true)
-            setSearchTerm('')
+            if (!value) {
+              setSearchTerm('')
+            }
           }}
           placeholder={placeholder}
           className="input w-full pr-10"
         />
+        {value && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute inset-y-0 right-8 flex items-center pr-2 text-gray-400 hover:text-gray-600"
+            title="Clear selection"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
           <svg
             className="h-5 w-5 text-gray-400"
@@ -77,8 +151,28 @@ const GuestSelect = ({ value, onChange, guests, placeholder = 'Search for a gues
 
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          {filteredGuests.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500">No guests found</div>
+          {!required && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-200"
+            >
+              <div className="font-medium text-gray-600">No guest (optional)</div>
+            </button>
+          )}
+          {showCreateOption && onCreateGuest && (
+            <button
+              type="button"
+              onClick={handleCreateNew}
+              className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none border-b border-gray-200"
+            >
+              <div className="font-medium text-blue-600">+ Create new guest: "{searchTerm.trim()}"</div>
+            </button>
+          )}
+          {filteredGuests.length === 0 && !showCreateOption ? (
+            <div className="px-4 py-3 text-sm text-gray-500">
+              {searchTerm.trim() ? 'No guests found. Type a name to create a new guest.' : 'No guests found'}
+            </div>
           ) : (
             filteredGuests.map((guest) => (
               <button
@@ -89,7 +183,7 @@ const GuestSelect = ({ value, onChange, guests, placeholder = 'Search for a gues
               >
                 <div className="font-medium text-gray-900">{guest.name}</div>
                 <div className="text-sm text-gray-500">
-                  {guest.email} • {guest.phone}
+                  {guest.email || 'No email'} • {guest.phone || 'No phone'}
                 </div>
               </button>
             ))

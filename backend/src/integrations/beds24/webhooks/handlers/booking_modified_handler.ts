@@ -55,20 +55,50 @@ export async function handleBookingModified(booking: Beds24Booking | any): Promi
       );
     }
 
-    // Find room
-    const room = await db('rooms')
+    // Find room type by beds24_room_id (preferred) or fallback to individual room
+    let roomTypeId: string | null = null;
+    let roomId: string | null = null;
+
+    // Try to find room type first (new Beds24-style with unitId support)
+    const roomType = await db('room_types')
       .where({ beds24_room_id: normalizedBooking.roomId?.toString() })
+      .whereNull('deleted_at')
       .first();
 
-    if (!room) {
-      return {
-        success: false,
-        error: `Room not found for Beds24 room ID: ${normalizedBooking.roomId}`,
-      };
+    if (roomType) {
+      roomTypeId = roomType.id;
+    } else {
+      // Fallback to individual room (legacy)
+      const room = await db('rooms')
+        .where({ beds24_room_id: normalizedBooking.roomId?.toString() })
+        .first();
+
+      if (!room) {
+        return {
+          success: false,
+          error: `Room type or room not found for Beds24 room ID: ${normalizedBooking.roomId}`,
+        };
+      }
+
+      roomId = room.id;
     }
 
-    // Map booking to PMS format
-    const reservationData = mapBeds24BookingToPms(normalizedBooking, room.id, guestId);
+    // Map booking to PMS format with correct entity type
+    const reservationData = mapBeds24BookingToPms(
+      normalizedBooking,
+      roomTypeId || roomId!,
+      guestId,
+      roomTypeId ? 'room_type' : 'room'
+    );
+
+    // Ensure we have the right ID set
+    if (roomTypeId) {
+      reservationData.room_type_id = roomTypeId;
+      reservationData.room_id = null;
+    } else if (roomId) {
+      reservationData.room_id = roomId;
+      reservationData.room_type_id = null;
+    }
 
     // Update reservation
     await db('reservations')
@@ -85,26 +115,28 @@ export async function handleBookingModified(booking: Beds24Booking | any): Promi
         .update({ guest_id: guestId });
     }
 
-    // Update room status
-    if (reservationData.status === 'Checked-in') {
-      await db('rooms').where({ id: room.id }).update({ status: 'Occupied' });
-    } else if (reservationData.status === 'Checked-out') {
-      await db('rooms').where({ id: room.id }).update({ status: 'Cleaning' });
-    } else if (reservationData.status === 'Cancelled') {
-      // Only update if room was occupied by this reservation
-      const roomStatus = await db('rooms').where({ id: room.id }).first();
-      if (roomStatus?.status === 'Occupied') {
-        // Check if this is the only active reservation
-        const activeReservations = await db('reservations')
-          .where({ room_id: room.id })
-          .whereIn('status', ['Confirmed', 'Checked-in'])
-          .whereNull('deleted_at')
-          .where('id', '!=', existing.id)
-          .count('* as count')
-          .first();
+    // Update room status (only for individual rooms, not room types)
+    if (roomId) {
+      if (reservationData.status === 'Checked-in') {
+        await db('rooms').where({ id: roomId }).update({ status: 'Occupied' });
+      } else if (reservationData.status === 'Checked-out') {
+        await db('rooms').where({ id: roomId }).update({ status: 'Cleaning' });
+      } else if (reservationData.status === 'Cancelled') {
+        // Only update if room was occupied by this reservation
+        const roomStatus = await db('rooms').where({ id: roomId }).first();
+        if (roomStatus?.status === 'Occupied') {
+          // Check if this is the only active reservation
+          const activeReservations = await db('reservations')
+            .where({ room_id: roomId })
+            .whereIn('status', ['Confirmed', 'Checked-in'])
+            .whereNull('deleted_at')
+            .where('id', '!=', existing.id)
+            .count('* as count')
+            .first();
 
-        if (Number(activeReservations?.count || 0) === 0) {
-          await db('rooms').where({ id: room.id }).update({ status: 'Available' });
+          if (Number(activeReservations?.count || 0) === 0) {
+            await db('rooms').where({ id: roomId }).update({ status: 'Available' });
+          }
         }
       }
     }

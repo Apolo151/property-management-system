@@ -256,15 +256,34 @@ export async function createReservationHandler(
     } = req.body;
 
     // Validation: require either room_id (legacy) or room_type_id (new)
-    if ((!room_id && !room_type_id) || !primary_guest_id || !check_in || !check_out) {
+    if ((!room_id && !room_type_id) || !check_in || !check_out) {
       res.status(400).json({
-        error: 'Either room_id or room_type_id, primary_guest_id, check_in, and check_out are required',
+        error: 'Either room_id or room_type_id, check_in, and check_out are required',
       } as any);
       return;
     }
 
-    const checkInDate = new Date(check_in);
-    const checkOutDate = new Date(check_out);
+    // Handle missing guest - use "Unknown Guest" if not provided
+    let finalGuestId = primary_guest_id;
+    if (!finalGuestId) {
+      // Find or create "Unknown Guest"
+      const { GuestMatchingService } = await import('../../integrations/beds24/services/guest_matching_service.js');
+      const guestMatchingService = new GuestMatchingService();
+      finalGuestId = await guestMatchingService.getUnknownGuestId();
+    }
+
+    // Validate date string format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(check_in) || !/^\d{4}-\d{2}-\d{2}$/.test(check_out)) {
+      res.status(400).json({
+        error: 'Invalid date format. Use YYYY-MM-DD',
+      } as any);
+      return;
+    }
+
+    // Create Date objects with explicit UTC for calculations only
+    // Append T00:00:00.000Z to force UTC interpretation and avoid timezone offset bugs
+    const checkInDate = new Date(check_in + 'T00:00:00.000Z');
+    const checkOutDate = new Date(check_out + 'T00:00:00.000Z');
 
     if (checkOutDate <= checkInDate) {
       res.status(400).json({
@@ -329,8 +348,8 @@ export async function createReservationHandler(
       }
     }
 
-    // Check if primary guest exists
-    const primaryGuest = await db('guests').where({ id: primary_guest_id }).first();
+    // Check if primary guest exists (using finalGuestId which may be Unknown Guest)
+    const primaryGuest = await db('guests').where({ id: finalGuestId }).first();
     if (!primaryGuest) {
       res.status(404).json({
         error: 'Primary guest not found',
@@ -351,9 +370,9 @@ export async function createReservationHandler(
           room_type_id: roomTypeId, // New: nullable
           assigned_unit_id: assigned_unit_id || null,
           units_requested: units_requested || 1,
-          primary_guest_id,
-          check_in: checkInDate.toISOString().split('T')[0],
-          check_out: checkOutDate.toISOString().split('T')[0],
+          primary_guest_id: finalGuestId,
+          check_in: check_in,  // Store string directly, no conversion to avoid timezone issues
+          check_out: check_out,  // Store string directly, no conversion to avoid timezone issues
           status,
           total_amount: totalAmount,
           source,
@@ -364,7 +383,7 @@ export async function createReservationHandler(
       // Create primary guest link
       await trx('reservation_guests').insert({
         reservation_id: newReservation.id,
-        guest_id: primary_guest_id,
+        guest_id: finalGuestId,
         guest_type: 'Primary',
       });
 
@@ -491,18 +510,33 @@ export async function updateReservationHandler(
       updated_at: new Date(),
     };
 
-    let checkInDate = existing.check_in ? new Date(existing.check_in) : null;
-    let checkOutDate = existing.check_out ? new Date(existing.check_out) : null;
+    // Keep dates as strings, only create Date objects with explicit UTC for validation
+    let checkInDate = existing.check_in ? new Date(existing.check_in + 'T00:00:00.000Z') : null;
+    let checkOutDate = existing.check_out ? new Date(existing.check_out + 'T00:00:00.000Z') : null;
     let roomId = existing.room_id;
 
     if (updates.check_in) {
-      checkInDate = new Date(updates.check_in);
-      updateData.check_in = checkInDate.toISOString().split('T')[0];
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(updates.check_in)) {
+        res.status(400).json({
+          error: 'Invalid check_in date format. Use YYYY-MM-DD',
+        } as any);
+        return;
+      }
+      checkInDate = new Date(updates.check_in + 'T00:00:00.000Z');
+      updateData.check_in = updates.check_in;  // Store string directly
     }
 
     if (updates.check_out) {
-      checkOutDate = new Date(updates.check_out);
-      updateData.check_out = checkOutDate.toISOString().split('T')[0];
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(updates.check_out)) {
+        res.status(400).json({
+          error: 'Invalid check_out date format. Use YYYY-MM-DD',
+        } as any);
+        return;
+      }
+      checkOutDate = new Date(updates.check_out + 'T00:00:00.000Z');
+      updateData.check_out = updates.check_out;  // Store string directly
     }
 
     if (updates.room_id) {
@@ -696,8 +730,17 @@ export async function checkAvailabilityHandler(
       return;
     }
 
-    const checkInDate = new Date(check_in as string);
-    const checkOutDate = new Date(check_out as string);
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(check_in as string) || !/^\d{4}-\d{2}-\d{2}$/.test(check_out as string)) {
+      res.status(400).json({
+        error: 'Invalid date format. Use YYYY-MM-DD',
+      });
+      return;
+    }
+
+    // Create Date objects with explicit UTC for validation only
+    const checkInDate = new Date((check_in as string) + 'T00:00:00.000Z');
+    const checkOutDate = new Date((check_out as string) + 'T00:00:00.000Z');
 
     if (checkOutDate <= checkInDate) {
       res.status(400).json({
@@ -706,12 +749,13 @@ export async function checkAvailabilityHandler(
       return;
     }
 
+    // Use string dates directly in queries to avoid timezone issues
     let query = db('rooms')
       .select('rooms.*')
       .leftJoin('reservations', function () {
         this.on('rooms.id', '=', 'reservations.room_id')
-          .andOn('reservations.check_in', '<', db.raw('?', [checkOutDate.toISOString().split('T')[0]]))
-          .andOn('reservations.check_out', '>', db.raw('?', [checkInDate.toISOString().split('T')[0]]))
+          .andOn('reservations.check_in', '<', db.raw('?', [check_out]))
+          .andOn('reservations.check_out', '>', db.raw('?', [check_in]))
           .andOn('reservations.status', '!=', db.raw('?', ['Cancelled']))
           .andOnNull('reservations.deleted_at');
       })

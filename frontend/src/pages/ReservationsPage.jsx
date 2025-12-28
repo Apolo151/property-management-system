@@ -50,6 +50,7 @@ const ReservationsPage = () => {
   const [selectedRoomType, setSelectedRoomType] = useState(null)
   const [availableRooms, setAvailableRooms] = useState([])
   const [selectedRoom, setSelectedRoom] = useState(null)
+  const [selectedUnit, setSelectedUnit] = useState(null) // Unit index (0-based) or null for auto-assign
   const [unitsRequested, setUnitsRequested] = useState(1)
   const [numGuests, setNumGuests] = useState(1)
   
@@ -63,6 +64,8 @@ const ReservationsPage = () => {
     checkOut: '',
     status: 'Confirmed',
   })
+  const [guestName, setGuestName] = useState('') // For creating new guest
+  const [guest2Name, setGuest2Name] = useState('') // For creating second guest
 
   // Fetch reservations, guests, and rooms on mount
   useEffect(() => {
@@ -272,13 +275,18 @@ const ReservationsPage = () => {
       
       // Room selection is optional (can use auto-assign)
       // Update reservation with selected data
+      // If unit is selected, set assignedUnitId as ${roomTypeId}-unit-${unitIndex} (0-based)
+      const assignedUnitId = selectedUnit !== null && selectedRoomType?.room_type_id
+        ? `${selectedRoomType.room_type_id}-unit-${selectedUnit}`
+        : undefined
+      
       setNewReservation({
         ...newReservation,
         checkIn,
         checkOut,
         roomId: selectedRoom?.id,
         roomTypeId: selectedRoomType?.room_type_id,
-        assignedUnitId: selectedRoom ? `${selectedRoomType?.room_type_id}-unit-${selectedRoom.id}` : undefined,
+        assignedUnitId,
       })
       
       setBookingStep(2)
@@ -292,9 +300,9 @@ const ReservationsPage = () => {
   }
 
   const handleAddReservation = async () => {
-    // Validation
-    if (!newReservation.guestId || (!newReservation.roomId && !newReservation.roomTypeId) || !newReservation.checkIn || !newReservation.checkOut) {
-      toast.error('Please fill in all required fields')
+    // Validation - guest is now optional
+    if ((!newReservation.roomId && !newReservation.roomTypeId) || !newReservation.checkIn || !newReservation.checkOut) {
+      toast.error('Please fill in all required fields (room type, check-in, and check-out)')
       return
     }
 
@@ -306,14 +314,43 @@ const ReservationsPage = () => {
       return
     }
 
-    // Find guests
-    const guest = guests.find((g) => String(g.id) === String(newReservation.guestId))
-    const guest2 = newReservation.guest2Id ? guests.find((g) => String(g.id) === String(newReservation.guest2Id)) : null
+    // Handle guest creation or selection
+    let guestId = newReservation.guestId
+    let guest2Id = newReservation.guest2Id
 
-    if (!guest) {
-      toast.error('Primary guest not found')
-      return
+    // If guest name is provided but no guest is selected, create a new guest
+    if (!guestId && guestName && guestName.trim()) {
+      try {
+        const newGuest = await createGuest({
+          name: guestName.trim(),
+          email: '',
+          phone: '',
+        })
+        guestId = newGuest.id
+        toast.success(`Created new guest: ${newGuest.name}`)
+      } catch (error) {
+        toast.error(error.message || 'Failed to create guest')
+        return
+      }
     }
+
+    // If second guest name is provided but no guest is selected, create a new guest
+    if (!guest2Id && guest2Name && guest2Name.trim()) {
+      try {
+        const newGuest = await createGuest({
+          name: guest2Name.trim(),
+          email: '',
+          phone: '',
+        })
+        guest2Id = newGuest.id
+        toast.success(`Created new guest: ${newGuest.name}`)
+      } catch (error) {
+        toast.error(error.message || 'Failed to create second guest')
+        return
+      }
+    }
+
+    // If no guest is provided, backend will use "Unknown Guest" automatically
 
     // Validate second guest for double rooms
     if (selectedRoom?.type === 'Double' && !newReservation.guest2Id) {
@@ -356,13 +393,14 @@ const ReservationsPage = () => {
 
     try {
       // Create reservation via API
+      // Only include guestId if we have one (either selected or created)
       await createReservation({
         roomId: newReservation.roomId,
         roomTypeId: newReservation.roomTypeId,
         assignedUnitId: newReservation.assignedUnitId,
         unitsRequested: unitsRequested,
-        guestId: String(guest.id),
-        guest2Id: guest2 ? String(guest2.id) : undefined,
+        guestId: guestId ? String(guestId) : undefined,
+        guest2Id: guest2Id ? String(guest2Id) : undefined,
         checkIn: newReservation.checkIn,
         checkOut: newReservation.checkOut,
         status: newReservation.status,
@@ -376,6 +414,7 @@ const ReservationsPage = () => {
       setCheckOut(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
       setSelectedRoomType(null)
       setSelectedRoom(null)
+      setSelectedUnit(null)
       setAvailableRoomTypes([])
       setAvailableRooms([])
       setUnitsRequested(1)
@@ -390,6 +429,8 @@ const ReservationsPage = () => {
         checkOut: '',
         status: 'Confirmed',
       })
+      setGuestName('')
+      setGuest2Name('')
       toast.success('Reservation created successfully!')
     } catch (error) {
       toast.error(error.message || 'Failed to create reservation')
@@ -403,32 +444,32 @@ const ReservationsPage = () => {
     setCheckOut(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
     setSelectedRoomType(null)
     setSelectedRoom(null)
+    setSelectedUnit(null)
     setAvailableRoomTypes([])
     setAvailableRooms([])
     setUnitsRequested(1)
     setNumGuests(1)
-    setNewReservation({
-      guestId: '',
-      guest2Id: '',
-      roomId: '',
-      roomTypeId: '',
-      assignedUnitId: '',
-      checkIn: '',
-      checkOut: '',
-      status: 'Confirmed',
-    })
-  }
+      setNewReservation({
+        guestId: '',
+        guest2Id: '',
+        roomId: '',
+        roomTypeId: '',
+        assignedUnitId: '',
+        checkIn: '',
+        checkOut: '',
+        status: 'Confirmed',
+      })
+      setGuestName('')
+      setGuest2Name('')
+    }
 
-  // Reset selected room when room type changes
+  // Reset selected unit when room type changes
   useEffect(() => {
     if (selectedRoomType) {
-      // Clear selected room when room type changes to allow fresh selection
-      const currentRoomTypeId = selectedRoomType?.room_type_id
-      if (selectedRoom && selectedRoom.roomType !== currentRoomTypeId) {
-        setSelectedRoom(null)
-      }
+      // Clear selected unit when room type changes to allow fresh selection
+      setSelectedUnit(null)
     }
-  }, [selectedRoomType, selectedRoom])
+  }, [selectedRoomType])
 
   const statusOptions = [
     { value: 'Confirmed', label: 'Confirmed' },
@@ -771,73 +812,111 @@ const ReservationsPage = () => {
                 )}
               </div>
 
-              {/* Room Selection (Optional - shown when room type is selected) */}
+              {/* Unit Selection (Optional - shown when room type is selected) */}
               {selectedRoomType && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Specific Room (Optional)
+                    Select Specific Unit (Optional)
                   </label>
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-3">
                     <p className="text-sm text-blue-800">
-                      You can select a specific room or continue with auto-assignment (system will assign best available room).
+                      You can select a specific unit (1-{selectedRoomType.total_units}) or continue with auto-assignment (system will assign best available unit).
                     </p>
                   </div>
-                  {availableRooms.length > 0 ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                      <div
-                        onClick={() => setSelectedRoom(null)}
-                        className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                          !selectedRoom
-                            ? 'border-primary-600 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Auto-assign (Recommended)</span>
-                          <span className="text-sm text-gray-600">System will assign best available room</span>
+                  {(() => {
+                    // Calculate which units are available by checking existing reservations
+                    const totalUnits = selectedRoomType.total_units || 1
+                    const units = []
+                    
+                    // Check each unit for availability
+                    for (let unitIndex = 0; unitIndex < totalUnits; unitIndex++) {
+                      const unitId = `${selectedRoomType.room_type_id}-unit-${unitIndex}`
+                      const unitNumber = unitIndex + 1
+                      
+                      // Check if this unit is reserved during the selected dates
+                      const isReserved = reservations.some((res) => {
+                        if (res.status === 'Cancelled' || res.roomTypeId !== selectedRoomType.room_type_id) {
+                          return false
+                        }
+                        if (res.assignedUnitId === unitId) {
+                          // This unit is specifically assigned
+                          const resCheckIn = parseISO(res.checkIn)
+                          const resCheckOut = parseISO(res.checkOut)
+                          const checkInDate = parseISO(checkIn)
+                          const checkOutDate = parseISO(checkOut)
+                          return (
+                            (checkInDate >= resCheckIn && checkInDate < resCheckOut) ||
+                            (checkOutDate > resCheckIn && checkOutDate <= resCheckOut) ||
+                            (checkInDate <= resCheckIn && checkOutDate >= resCheckOut)
+                          )
+                        }
+                        // If reservation has no assignedUnitId, it might be on unit 0 (first unit)
+                        // Only check unit 0 for unassigned reservations
+                        if (unitIndex === 0 && !res.assignedUnitId) {
+                          const resCheckIn = parseISO(res.checkIn)
+                          const resCheckOut = parseISO(res.checkOut)
+                          const checkInDate = parseISO(checkIn)
+                          const checkOutDate = parseISO(checkOut)
+                          return (
+                            (checkInDate >= resCheckIn && checkInDate < resCheckOut) ||
+                            (checkOutDate > resCheckIn && checkOutDate <= resCheckOut) ||
+                            (checkInDate <= resCheckIn && checkOutDate >= resCheckOut)
+                          )
+                        }
+                        return false
+                      })
+                      
+                      units.push({
+                        unitIndex,
+                        unitNumber,
+                        unitId,
+                        available: !isReserved,
+                      })
+                    }
+                    
+                    return (
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                        <div
+                          onClick={() => setSelectedUnit(null)}
+                          className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                            selectedUnit === null
+                              ? 'border-primary-600 bg-primary-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">Auto-assign (Recommended)</span>
+                            <span className="text-sm text-gray-600">System will assign best available unit</span>
+                          </div>
                         </div>
-                      </div>
-                      {availableRooms.map((room) => {
-                        const isSelected = selectedRoom?.id === room.id
-                        const nights = Math.ceil(
-                          (parseISO(checkOut).getTime() - parseISO(checkIn).getTime()) / (1000 * 60 * 60 * 24)
-                        )
-                        const totalPrice = room.pricePerNight * nights * unitsRequested
-
-                        return (
+                        {units.map((unit) => (
                           <div
-                            key={room.id}
-                            onClick={() => setSelectedRoom(room)}
+                            key={unit.unitIndex}
+                            onClick={() => unit.available && setSelectedUnit(unit.unitIndex)}
                             className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                              isSelected
+                              !unit.available
+                                ? 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
+                                : selectedUnit === unit.unitIndex
                                 ? 'border-primary-600 bg-primary-50'
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <span className="font-medium">{room.roomNumber}</span>
-                                <span className="text-sm text-gray-600 ml-2">- {room.type}</span>
+                                <span className="font-medium">Unit #{unit.unitNumber}</span>
+                                {!unit.available && (
+                                  <span className="text-sm text-red-600 ml-2">(Unavailable)</span>
+                                )}
                               </div>
-                              <div className="text-right">
-                                <div className="text-sm font-medium">${room.pricePerNight}/night</div>
-                                <div className="text-xs text-gray-600">${totalPrice.toFixed(2)} total</div>
-                              </div>
+                              {unit.available && (
+                                <span className="text-sm text-green-600 font-medium">Available</span>
+                              )}
                             </div>
-                            {room.features && room.features.length > 0 && (
-                              <div className="mt-2 text-xs text-gray-500">
-                                {room.features.join(', ')}
-                              </div>
-                            )}
                           </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-gray-500 border rounded-lg text-sm">
-                      No specific rooms available. Auto-assignment will be used.
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
 
@@ -867,10 +946,16 @@ const ReservationsPage = () => {
                     <span className="text-gray-600">Room Type:</span>
                     <span className="font-medium">{selectedRoomType?.room_type_name}</span>
                   </div>
-                  {selectedRoom && (
+                  {selectedUnit !== null && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Room:</span>
-                      <span className="font-medium">{selectedRoom.roomNumber}</span>
+                      <span className="text-gray-600">Unit:</span>
+                      <span className="font-medium">#{selectedUnit + 1}</span>
+                    </div>
+                  )}
+                  {selectedUnit === null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Unit:</span>
+                      <span className="font-medium text-gray-500">Auto-assign</span>
                     </div>
                   )}
                   <div className="flex justify-between">
@@ -911,10 +996,33 @@ const ReservationsPage = () => {
               {(selectedRoom?.type === 'Double' || selectedRoomType?.room_type?.toLowerCase() === 'double') && (
                 <GuestSelect
                   value={newReservation.guest2Id}
-                  onChange={(guest2Id) => setNewReservation({ ...newReservation, guest2Id })}
+                  onChange={(guest2Id) => {
+                    setNewReservation({ ...newReservation, guest2Id })
+                    if (guest2Id) {
+                      setGuest2Name('')
+                    }
+                  }}
                   guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
                   label="Second Guest (Optional)"
-                  placeholder="Search for a second guest by name, email, or phone..."
+                  placeholder="Search for a second guest or type a name to create new..."
+                  required={false}
+                  onCreateGuest={async (name) => {
+                    try {
+                      const newGuest = await createGuest({
+                        name: name.trim(),
+                        email: '',
+                        phone: '',
+                      })
+                      setNewReservation({ ...newReservation, guest2Id: newGuest.id })
+                      setGuest2Name('')
+                      await fetchGuests() // Refresh guests list
+                      toast.success(`Created new guest: ${newGuest.name}`)
+                    } catch (error) {
+                      toast.error(error.message || 'Failed to create guest')
+                    }
+                  }}
+                  guestName={guest2Name}
+                  onGuestNameChange={setGuest2Name}
                 />
               )}
 
@@ -944,7 +1052,6 @@ const ReservationsPage = () => {
                 <button
                   onClick={handleAddReservation}
                   className="btn btn-primary"
-                  disabled={!newReservation.guestId}
                 >
                   Create Reservation
                 </button>

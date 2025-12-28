@@ -266,7 +266,11 @@ export const api = {
         check_out: checkOut,
         ...filters,
       };
-      const queryString = new URLSearchParams(params).toString();
+      // Filter out undefined values to avoid URLSearchParams converting them to "undefined" strings
+      const cleanParams = Object.fromEntries(
+        Object.entries(params).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+      );
+      const queryString = new URLSearchParams(cleanParams).toString();
       return request(`/v1/room-types/available?${queryString}`);
     },
   },

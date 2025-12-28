@@ -66,7 +66,9 @@ export class PullSyncService {
     if (Array.isArray(response)) {
       console.log(`Received ${response.length} bookings as array`);
       if (response.length > 0) {
-        console.log('Sample booking structure:', JSON.stringify(response[0], null, 2).substring(0, 500));
+        const sample = response[0];
+        console.log('Sample booking structure:', JSON.stringify(sample, null, 2).substring(0, 500));
+        console.log(`Sample booking unitId: ${(sample as any).unitId || (sample as any).unit_id || 'NOT PRESENT'}`);
       }
       return response;
     }
@@ -148,7 +150,7 @@ export class PullSyncService {
           continue;
         }
 
-        console.log(`Processing booking ${booking.id} for room ${booking.roomId}`);
+        console.log(`Processing booking ${booking.id} for room ${booking.roomId}, unitId: ${booking.unitId || 'not set'}`);
 
         // Find or create guest - handle missing guest data gracefully
         let guestId: string;
@@ -207,6 +209,13 @@ export class PullSyncService {
           guestId,
           roomTypeId ? 'room_type' : 'room'
         );
+
+        // Debug logging for unitId mapping
+        if (roomTypeId && booking.unitId) {
+          console.log(`Booking ${booking.id}: unitId=${booking.unitId}, roomTypeId=${roomTypeId}, assigned_unit_id=${reservationData.assigned_unit_id || 'NOT SET'}`);
+        } else if (roomTypeId && !booking.unitId) {
+          console.log(`Booking ${booking.id}: roomTypeId=${roomTypeId} but unitId is missing. Raw booking keys: ${Object.keys(rawBooking).join(', ')}`);
+        }
 
         // Ensure we have the right ID set
         if (roomTypeId) {

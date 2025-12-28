@@ -68,19 +68,49 @@ export function mapBeds24SourceToPms(source?: string): string {
 export function convertBookingToBeds24ApiFormat(
   booking: Beds24BookingCreateRequest | Beds24BookingUpdateRequest
 ): any {
-  // Ensure dates are in YYYY-MM-DD format (not ISO with time)
-  const formatDate = (dateStr: string): string => {
-    if (!dateStr) return dateStr;
-    // If it's already YYYY-MM-DD, return as is
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return dateStr;
+  /**
+   * Ensure dates are in YYYY-MM-DD format for Beds24 API.
+   * 
+   * With the pg-types DATE parser override in database.ts, PostgreSQL DATE
+   * columns now return strings directly (e.g., "2025-12-31") instead of
+   * Date objects, avoiding all timezone conversion issues.
+   * 
+   * This function still handles Date objects for backwards compatibility
+   * and defensive programming, using LOCAL time methods since postgres-date
+   * creates dates in local time when parsing date-only strings.
+   */
+  const formatDate = (date?: string | Date): string | undefined => {
+    if (!date) return undefined;
+    
+    // If it's already a YYYY-MM-DD string, return as is (most common case now)
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date;
     }
-    // If it's ISO format, extract just the date part
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      throw new Error(`Invalid date format: ${dateStr}`);
+    
+    // If it's a Date object (legacy/fallback), use LOCAL methods
+    // because postgres-date creates dates in local time for date-only values
+    if (date instanceof Date) {
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid Date object`);
+      }
+      // Use LOCAL methods (not UTC) since the Date was created with local time
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
-    return date.toISOString().split('T')[0];
+    
+    // If it's a string in other format (ISO with time, etc.), extract date part
+    if (typeof date === 'string') {
+      // Try to extract YYYY-MM-DD from the beginning
+      const match = date.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) {
+        return match[1];
+      }
+      throw new Error(`Invalid date format: ${date}`);
+    }
+    
+    return undefined;
   };
 
   const apiBooking: any = {
@@ -98,6 +128,7 @@ export function convertBookingToBeds24ApiFormat(
   if (booking.externalId) apiBooking.externalId = booking.externalId;
   if (booking.specialRequests) apiBooking.specialRequests = booking.specialRequests;
   if (booking.numberOfGuests) apiBooking.numberOfGuests = booking.numberOfGuests;
+  if (booking.unitId) apiBooking.unitId = booking.unitId; // Beds24 unit identifier (1-based)
   if (booking.guest) {
     apiBooking.firstName = booking.guest.firstName;
     apiBooking.lastName = booking.guest.lastName;
@@ -141,6 +172,16 @@ export function mapPmsReservationToBeds24(
     numberOfGuests: 1, // TODO: Get from reservation_guests table if available
   };
 
+  // Extract unit ID from assigned_unit_id if present
+  // Format: "room-type-uuid-unit-2" where 2 is 0-based index
+  if (reservation.assigned_unit_id) {
+    const unitMatch = reservation.assigned_unit_id.match(/-unit-(\d+)$/);
+    if (unitMatch && unitMatch[1]) {
+      const unitIndex = parseInt(unitMatch[1], 10); // 0-based index from PMS
+      baseBooking.unitId = unitIndex + 1; // Convert to 1-based for Beds24 API
+    }
+  }
+
   if (reservation.special_requests) {
     baseBooking.specialRequests = reservation.special_requests;
   }
@@ -183,6 +224,7 @@ export function mapBeds24BookingToPms(
 ): {
   room_id?: string | null;
   room_type_id?: string | null;
+  assigned_unit_id?: string | null;
   primary_guest_id: string;
   check_in: string;
   check_out: string;
@@ -203,6 +245,7 @@ export function mapBeds24BookingToPms(
     beds24_booking_id: string;
     special_requests?: string;
     units_requested?: number;
+    assigned_unit_id?: string | null;
   } = {
     primary_guest_id: guestId,
     check_in: booking.arrivalDate,
@@ -216,6 +259,18 @@ export function mapBeds24BookingToPms(
 
   if (booking.specialRequests) {
     baseData.special_requests = booking.specialRequests;
+  }
+
+  // Map Beds24 unitId (1-based) to PMS assigned_unit_id (0-based)
+  // Only set assigned_unit_id for room types when unitId is provided
+  if (entityType === 'room_type' && booking.unitId) {
+    // Convert 1-based (Beds24) to 0-based (PMS)
+    // unitId: 1 -> unitIndex: 0, unitId: 2 -> unitIndex: 1, etc.
+    const unitIndex = booking.unitId - 1;
+    if (unitIndex >= 0) {
+      // Format: ${roomTypeId}-unit-${unitIndex}
+      baseData.assigned_unit_id = `${entityId}-unit-${unitIndex}`;
+    }
   }
 
   if (entityType === 'room_type') {

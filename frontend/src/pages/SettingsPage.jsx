@@ -220,7 +220,7 @@ const SettingsPage = () => {
 
   const handleTriggerInitialSync = async () => {
     const confirmed = await confirmation({
-      title: 'Trigger Initial Sync',
+      title: 'Trigger Sync',
       message: 'This will sync all rooms and reservations from Beds24. This may take several minutes. Continue?',
       variant: 'warning',
     })
@@ -240,11 +240,11 @@ const SettingsPage = () => {
       if (config.syncStatus === 'running') {
         // Status will auto-update via polling
       } else {
-        toast.info('Initial sync started in background. This may take several minutes. Check back later.')
+        toast.info('Sync started in background. This may take several minutes. Check back later.')
       }
     } catch (err) {
-      setBeds24Error(err.message || 'Failed to start initial sync')
-      console.error('Error triggering initial sync:', err)
+      setBeds24Error(err.message || 'Failed to start sync')
+      console.error('Error triggering sync:', err)
     } finally {
       setBeds24Loading(false)
     }
@@ -700,7 +700,7 @@ const SettingsPage = () => {
                     disabled={beds24Loading || beds24Config?.syncStatus === 'running'}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {beds24Config?.syncStatus === 'running' ? 'Syncing...' : beds24Loading ? 'Starting...' : 'Run Initial Sync'}
+                    {beds24Config?.syncStatus === 'running' ? 'Syncing...' : beds24Loading ? 'Starting...' : 'Run Sync'}
                   </button>
                   <button
                     onClick={async () => {

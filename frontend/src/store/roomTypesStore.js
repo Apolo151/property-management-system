@@ -148,9 +148,10 @@ const useRoomTypesStore = create((set, get) => ({
   getAvailableRoomTypes: async (checkIn, checkOut, filters = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const available = await api.roomTypes.getAvailable(checkIn, checkOut, filters);
-      // Availability response has a different structure (room_type_id, room_type_name, available_units, etc.)
-      // Keep it as-is since it's not a regular room type response
+      const response = await api.roomTypes.getAvailable(checkIn, checkOut, filters);
+      // Backend returns { check_in, check_out, room_types: [...] }
+      // Extract the room_types array
+      const available = response.room_types || [];
       set({ isLoading: false });
       return available;
     } catch (error) {

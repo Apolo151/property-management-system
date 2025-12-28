@@ -51,20 +51,50 @@ export async function handleBookingCreated(booking: Beds24Booking | any): Promis
       );
     }
 
-    // Find room by beds24_room_id
-    const room = await db('rooms')
+    // Find room type by beds24_room_id (preferred) or fallback to individual room
+    let roomTypeId: string | null = null;
+    let roomId: string | null = null;
+
+    // Try to find room type first (new Beds24-style with unitId support)
+    const roomType = await db('room_types')
       .where({ beds24_room_id: normalizedBooking.roomId?.toString() })
+      .whereNull('deleted_at')
       .first();
 
-    if (!room) {
-      return {
-        success: false,
-        error: `Room not found for Beds24 room ID: ${normalizedBooking.roomId}`,
-      };
+    if (roomType) {
+      roomTypeId = roomType.id;
+    } else {
+      // Fallback to individual room (legacy)
+      const room = await db('rooms')
+        .where({ beds24_room_id: normalizedBooking.roomId?.toString() })
+        .first();
+
+      if (!room) {
+        return {
+          success: false,
+          error: `Room type or room not found for Beds24 room ID: ${normalizedBooking.roomId}`,
+        };
+      }
+
+      roomId = room.id;
     }
 
-    // Map booking to PMS format
-    const reservationData = mapBeds24BookingToPms(normalizedBooking, room.id, guestId);
+    // Map booking to PMS format with correct entity type
+    const reservationData = mapBeds24BookingToPms(
+      normalizedBooking,
+      roomTypeId || roomId!,
+      guestId,
+      roomTypeId ? 'room_type' : 'room'
+    );
+
+    // Ensure we have the right ID set
+    if (roomTypeId) {
+      reservationData.room_type_id = roomTypeId;
+      reservationData.room_id = null;
+    } else if (roomId) {
+      reservationData.room_id = roomId;
+      reservationData.room_type_id = null;
+    }
 
     // Create reservation
     const [reservation] = await db('reservations')
@@ -81,9 +111,9 @@ export async function handleBookingCreated(booking: Beds24Booking | any): Promis
       guest_type: 'Primary',
     });
 
-    // Update room status if checked in
-    if (reservationData.status === 'Checked-in') {
-      await db('rooms').where({ id: room.id }).update({ status: 'Occupied' });
+    // Update room status if checked in (only for individual rooms, not room types)
+    if (reservationData.status === 'Checked-in' && roomId) {
+      await db('rooms').where({ id: roomId }).update({ status: 'Occupied' });
     }
 
     return {
