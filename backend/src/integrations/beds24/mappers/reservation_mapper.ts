@@ -68,11 +68,26 @@ export function mapBeds24SourceToPms(source?: string): string {
 export function convertBookingToBeds24ApiFormat(
   booking: Beds24BookingCreateRequest | Beds24BookingUpdateRequest
 ): any {
+  // Ensure dates are in YYYY-MM-DD format (not ISO with time)
+  const formatDate = (dateStr: string): string => {
+    if (!dateStr) return dateStr;
+    // If it's already YYYY-MM-DD, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    // If it's ISO format, extract just the date part
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date format: ${dateStr}`);
+    }
+    return date.toISOString().split('T')[0];
+  };
+
   const apiBooking: any = {
     propertyId: booking.propertyId,
     roomId: booking.roomId,
-    arrival: booking.arrivalDate, // Convert arrivalDate → arrival
-    departure: booking.departureDate, // Convert departureDate → departure
+    arrival: formatDate(booking.arrivalDate), // Convert arrivalDate → arrival, ensure YYYY-MM-DD
+    departure: formatDate(booking.departureDate), // Convert departureDate → departure, ensure YYYY-MM-DD
     status: booking.status,
     price: booking.price,
   };
