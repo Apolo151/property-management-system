@@ -206,21 +206,174 @@ export class ReservationPushService {
         beds24BookingId = updated.id!;
       } else {
         // Create new booking
+        // Beds24 API expects request body to be an array for POST requests
         const createOptions: { method: 'POST'; body: any; idempotencyKey?: string } = {
           method: 'POST',
-          body: apiBooking,
+          body: [apiBooking], // Wrap in array as Beds24 API requires
         };
         if (options.idempotencyKey) {
           createOptions.idempotencyKey = options.idempotencyKey;
         }
-        const created = await this.client.makeRequest<Beds24Booking>('/bookings', createOptions);
-        beds24BookingId = created.id!;
+
+        const created = await this.client.makeRequest<any>('/bookings', createOptions);
+
+        // DEBUG: Log the raw response from Beds24Client
+        console.log('[ReservationPushService] Raw Beds24 response:', {
+          reservationId,
+          responseType: typeof created,
+          isArray: Array.isArray(created),
+          hasNew: created && typeof created === 'object' && 'new' in created,
+          hasData: created && typeof created === 'object' && 'data' in created,
+          hasId: created && typeof created === 'object' && 'id' in created,
+          keys: created && typeof created === 'object' ? Object.keys(created) : [],
+          responsePreview: JSON.stringify(created, null, 2).substring(0, 500),
+        });
+
+        // Handle different response formats from Beds24 API
+        let bookingResult: any = null;
+
+        // Case 1: Direct array response
+        if (Array.isArray(created)) {
+          if (created.length === 0) {
+            throw new Error(
+              `Beds24 API returned empty array for booking creation. ` +
+              `This may indicate a validation error. Reservation ID: ${reservationId}`
+            );
+          }
+          const firstElement = created[0];
+          // If array element has Beds24 new booking format, extract from it
+          if (firstElement && typeof firstElement === 'object' && firstElement.new && 
+              typeof firstElement.new === 'object' && firstElement.new.id !== undefined && 
+              firstElement.new.id !== null) {
+            console.log('[ReservationPushService] Matched Case 1: Array with new booking format', {
+              reservationId,
+              newBookingId: firstElement.new.id,
+            });
+            bookingResult = firstElement.new;
+          }
+          // If array element has info array, try that
+          else if (firstElement && typeof firstElement === 'object' && 
+                   Array.isArray(firstElement.info) && firstElement.info.length > 0 && 
+                   firstElement.info[0] && typeof firstElement.info[0] === 'object' &&
+                   firstElement.info[0].id !== undefined && firstElement.info[0].id !== null) {
+            console.log('[ReservationPushService] Matched Case 1: Array with info format', {
+              reservationId,
+              infoBookingId: firstElement.info[0].id,
+            });
+            bookingResult = firstElement.info[0];
+          }
+          // Otherwise, use the first element as-is
+          else {
+            bookingResult = firstElement;
+          }
+        }
+        // Case 2: Wrapped response { data: [...] }
+        else if (created && typeof created === 'object' && Array.isArray(created.data)) {
+          if (created.data.length === 0) {
+            throw new Error(
+              `Beds24 API returned empty data array for booking creation. ` +
+              `This may indicate a validation error. Reservation ID: ${reservationId}`
+            );
+          }
+          bookingResult = created.data[0];
+        }
+        // Case 3: Beds24 new booking response { success: true, new: { id: ... } }
+        // Check this FIRST for Beds24-specific format before generic cases
+        else if (created && typeof created === 'object' && !Array.isArray(created) && 
+                 created.new && 
+                 typeof created.new === 'object' && 
+                 created.new.id !== undefined && 
+                 created.new.id !== null) {
+          console.log('[ReservationPushService] Matched Case 3: Beds24 new booking format', {
+            reservationId,
+            newBookingId: created.new.id,
+            newObjectKeys: Object.keys(created.new),
+          });
+          bookingResult = created.new;
+        }
+        // Case 4: Fallback to info array if new is not available { info: [{ id: ... }] }
+        else if (created && typeof created === 'object' && !Array.isArray(created) &&
+                 Array.isArray(created.info) && 
+                 created.info.length > 0 && 
+                 created.info[0] && 
+                 typeof created.info[0] === 'object' &&
+                 created.info[0].id !== undefined && 
+                 created.info[0].id !== null) {
+          console.log('[ReservationPushService] Matched Case 4: Beds24 info array format', {
+            reservationId,
+            infoBookingId: created.info[0].id,
+          });
+          bookingResult = created.info[0];
+        }
+        // Case 5: Wrapped single object { data: {...} }
+        else if (created && typeof created === 'object' && created.data && created.data.id !== undefined) {
+          bookingResult = created.data;
+        }
+        // Case 6: Single object response (generic fallback - only if NOT Beds24 wrapper)
+        else if (created && typeof created === 'object' && !Array.isArray(created) && 
+                 created.id !== undefined && 
+                 created.id !== null &&
+                 !('success' in created) && 
+                 !('new' in created) && 
+                 !('info' in created)) {
+          bookingResult = created;
+        }
+        // Unknown format
+        else {
+          console.error('[ReservationPushService] Unexpected Beds24 response format:', {
+            reservationId,
+            responseType: typeof created,
+            isArray: Array.isArray(created),
+            response: JSON.stringify(created, null, 2).substring(0, 1000),
+          });
+          throw new Error(
+            `Unexpected response format from Beds24 API. ` +
+            `Expected array or object with id, got: ${typeof created}. ` +
+            `Reservation ID: ${reservationId}`
+          );
+        }
+
+        // DEBUG: Log what bookingResult is after parsing
+        console.log('[ReservationPushService] After parsing, bookingResult:', {
+          reservationId,
+          bookingResultType: typeof bookingResult,
+          bookingResultIsNull: bookingResult === null,
+          hasId: bookingResult && 'id' in bookingResult,
+          idValue: bookingResult?.id,
+          bookingResultPreview: bookingResult ? JSON.stringify(bookingResult, null, 2).substring(0, 500) : 'null',
+        });
+
+        // Validate that booking result has an id
+        if (!bookingResult || bookingResult.id === undefined || bookingResult.id === null) {
+          console.error('[ReservationPushService] Beds24 booking response missing id:', {
+            reservationId,
+            bookingResult: JSON.stringify(bookingResult, null, 2).substring(0, 1000),
+            createdResponse: JSON.stringify(created, null, 2).substring(0, 1000),
+          });
+          throw new Error(
+            `Beds24 API response missing booking id. ` +
+            `This may indicate the booking was not created successfully. ` +
+            `Reservation ID: ${reservationId}`
+          );
+        }
+
+        // Extract booking ID (handle both number and string)
+        beds24BookingId = typeof bookingResult.id === 'number' 
+          ? bookingResult.id 
+          : parseInt(String(bookingResult.id), 10);
+
+        if (isNaN(beds24BookingId)) {
+          throw new Error(
+            `Invalid booking id format from Beds24: ${bookingResult.id}. ` +
+            `Reservation ID: ${reservationId}`
+          );
+        }
 
         // Update reservation with Beds24 booking ID
         await db('reservations')
           .where({ id: reservationId })
           .update({
-            beds24_booking_id: beds24BookingId.toString(),
+            beds24_booking_id: beds24BookingId.toString(), // Now safe - beds24BookingId is guaranteed to be a number
             updated_at: new Date(),
           });
       }
