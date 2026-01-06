@@ -52,3 +52,4 @@ export interface GetAuditLogsQuery {
   sort_order?: 'asc' | 'desc';
 }
 
+

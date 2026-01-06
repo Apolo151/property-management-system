@@ -33,3 +33,4 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('audit_logs');
 }
 
+
