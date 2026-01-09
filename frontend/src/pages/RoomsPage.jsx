@@ -11,17 +11,32 @@ import { useToast } from '../hooks/useToast'
 
 const RoomsPage = () => {
   const { roomTypes, fetchRoomTypes, isLoading: roomTypesLoading } = useRoomTypesStore()
-  const { housekeeping, fetchHousekeeping, updateHousekeepingStatus, isLoading: housekeepingLoading } = useRoomsStore()
+  const { rooms, housekeeping, fetchRooms, fetchHousekeeping, updateHousekeepingStatus, isLoading: housekeepingLoading } = useRoomsStore()
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(false)
+  const [roomsLoading, setRoomsLoading] = useState(false)
   const toast = useToast()
 
-  // Fetch room types, housekeeping, and staff on mount
+  // Fetch room types, rooms, housekeeping, and staff on mount
   useEffect(() => {
     fetchRoomTypes()
+    fetchRoomsData()
     fetchHousekeeping()
     fetchStaff()
   }, [fetchRoomTypes, fetchHousekeeping])
+
+  // Fetch rooms with loading state
+  const fetchRoomsData = async () => {
+    try {
+      setRoomsLoading(true)
+      await fetchRooms()
+    } catch (error) {
+      console.error('Error fetching rooms:', error)
+      toast.error('Failed to load rooms')
+    } finally {
+      setRoomsLoading(false)
+    }
+  }
 
   // Fetch staff members
   const fetchStaff = async () => {
@@ -46,43 +61,37 @@ const RoomsPage = () => {
     }
   }
 
-  // Generate flat list of all individual room units from room types
-  const allRooms = useMemo(() => {
-    const rooms = []
-    roomTypes.forEach((roomType) => {
-      // Create one row for each unit in the room type
-      for (let i = 0; i < roomType.qty; i++) {
-        rooms.push({
-          id: `${roomType.id}-unit-${i}`, // Unit ID format
-          roomTypeId: roomType.id,
-          roomTypeName: roomType.name,
-          roomType: roomType.roomType,
-          unitIndex: i,
-          unitNumber: i + 1,
-          totalUnits: roomType.qty,
-          pricePerNight: roomType.pricePerNight,
-          floor: roomType.floor,
-          maxPeople: roomType.maxPeople,
-          features: roomType.features || [],
-        })
+  // Enrich rooms with room type information
+  const enrichedRooms = useMemo(() => {
+    return rooms.map((room) => {
+      // Find the matching room type by room_type field (lowercase)
+      const matchingRoomType = roomTypes.find(
+        (rt) => rt.roomType && rt.roomType.toLowerCase() === room.roomType
+      )
+      
+      return {
+        ...room,
+        roomTypeName: matchingRoomType?.name || `${room.type} Room`,
+        maxPeople: matchingRoomType?.maxPeople || room.maxPeople,
       }
     })
-    return rooms
-  }, [roomTypes])
+  }, [rooms, roomTypes])
   const [activeTab, setActiveTab] = useState('rooms')
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [housekeepingFilter, setHousekeepingFilter] = useState('')
 
   const filteredRooms = useMemo(() => {
-    return allRooms.filter((room) => {
-      const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
-      const matchesSearch = roomDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase())
+    return enrichedRooms.filter((room) => {
+      const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           room.type.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesType = !typeFilter || room.roomType === typeFilter
-      return matchesSearch && matchesType
+      const matchesStatus = !statusFilter || room.status === statusFilter
+      return matchesSearch && matchesType && matchesStatus
     })
-  }, [searchTerm, typeFilter, allRooms])
+  }, [searchTerm, typeFilter, statusFilter, enrichedRooms])
 
   // Get unique room types for filter
   const roomTypeOptions = useMemo(() => {
@@ -94,8 +103,8 @@ const RoomsPage = () => {
   }, [roomTypes])
 
   const filteredHousekeeping = useMemo(() => {
-    return allRooms.map((room) => {
-      // Find housekeeping record for this unit (using unit ID format)
+    return enrichedRooms.map((room) => {
+      // Find housekeeping record for this room
       const hk = housekeeping.find((h) => h.roomId === room.id)
       
       // If no housekeeping record exists, create a default one for display
@@ -115,8 +124,7 @@ const RoomsPage = () => {
         ? staff.find(s => s.id === housekeepingData.assignedStaff)
         : null
 
-      const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
-      const matchesSearch = roomDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = !housekeepingFilter || housekeepingData.status === housekeepingFilter
 
@@ -129,7 +137,7 @@ const RoomsPage = () => {
         room,
       }
     }).filter(Boolean)
-  }, [housekeeping, allRooms, searchTerm, housekeepingFilter, staff])
+  }, [housekeeping, enrichedRooms, searchTerm, housekeepingFilter, staff])
 
   return (
     <div>
@@ -171,11 +179,11 @@ const RoomsPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Search by room name or type..."
+            placeholder="Search by room number or type..."
             label="Search"
           />
           <FilterSelect
@@ -184,6 +192,18 @@ const RoomsPage = () => {
             options={roomTypeOptions}
             placeholder="All Room Types"
             label="Room Type"
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: 'Available', label: 'Available' },
+              { value: 'Occupied', label: 'Occupied' },
+              { value: 'Cleaning', label: 'Cleaning' },
+              { value: 'Out of Service', label: 'Out of Service' },
+            ]}
+            placeholder="All Statuses"
+            label="Status"
           />
         </div>
       </div>
@@ -195,13 +215,16 @@ const RoomsPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Room
+                  Room Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Room Type
+                  Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Unit
+                  Room Type Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Price/Night
@@ -222,15 +245,17 @@ const RoomsPage = () => {
                 <tr key={room.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {room.roomTypeName} #{room.unitNumber}
+                      {room.roomNumber}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 capitalize">{room.roomType}</div>
-                    <div className="text-xs text-gray-500">{room.totalUnits} total units</div>
+                    <div className="text-sm text-gray-900">{room.type}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">Unit {room.unitNumber} of {room.totalUnits}</div>
+                    <div className="text-sm text-gray-900">{room.roomTypeName}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <StatusBadge status={room.status} type="room" />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">${room.pricePerNight?.toFixed(2) || '0.00'}</div>
@@ -250,17 +275,17 @@ const RoomsPage = () => {
               ))}
             </tbody>
           </table>
-          {(roomTypesLoading || housekeepingLoading) && filteredRooms.length === 0 && (
+          {(roomsLoading || roomTypesLoading || housekeepingLoading) && filteredRooms.length === 0 && (
             <div className="text-center py-12 text-gray-500">Loading rooms...</div>
           )}
-          {!roomTypesLoading && !housekeepingLoading && filteredRooms.length === 0 && (
-            <div className="text-center py-12 text-gray-500">No rooms found. Please add room types in the Room Types section.</div>
+          {!roomsLoading && !roomTypesLoading && !housekeepingLoading && filteredRooms.length === 0 && (
+            <div className="text-center py-12 text-gray-500">No rooms found. Rooms will appear here after syncing from QloApps.</div>
           )}
         </div>
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        Showing {filteredRooms.length} of {allRooms.length} room units
+        Showing {filteredRooms.length} of {enrichedRooms.length} rooms
       </div>
         </>
       )}
@@ -319,15 +344,14 @@ const RoomsPage = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredHousekeeping.map((item) => {
                     const { room, ...hk } = item
-                    const roomDisplayName = `${room.roomTypeName} #${room.unitNumber}`
 
                     return (
                       <tr key={room.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {roomDisplayName}
+                          {room.roomNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
-                          {room.roomType}
+                          {room.type}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge

@@ -76,6 +76,9 @@ export const QLOAPPS_CONFIG = {
   /** Maximum customers to process per sync */
   CUSTOMER_BATCH_SIZE: 50,
 
+  /** Maximum hotel rooms to process per sync */
+  HOTEL_ROOMS_BATCH_SIZE: 50,
+
   // ============================================================================
   // Date Ranges
   // ============================================================================
@@ -177,6 +180,8 @@ export const QLOAPPS_CONFIG = {
     HOTEL_BOOKING_DETAIL: '/api/hotel_booking_detail',
     /** Room information/inventory */
     HOTEL_ROOM_INFORMATION: '/api/hotel_room_information',
+    /** Hotel rooms (individual room instances) */
+    HOTEL_ROOMS: '/api/hotel_rooms',
   } as const,
 
   // ============================================================================

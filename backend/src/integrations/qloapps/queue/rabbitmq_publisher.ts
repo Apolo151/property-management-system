@@ -15,6 +15,8 @@ import {
   type QloAppsOutboundReservationMessage,
   type QloAppsOutboundAvailabilityMessage,
   type QloAppsOutboundRateMessage,
+  type QloAppsOutboundGuestMessage,
+  type QloAppsOutboundRoomTypeMessage,
 } from './rabbitmq_topology.js';
 
 // ============================================================================
@@ -279,6 +281,63 @@ class QloAppsPublisher {
   }
 
   /**
+   * Queue a guest to be created in QloApps
+   */
+  async queueGuestCreate(
+    configId: string,
+    guestId: string,
+    options: { priority?: number } = {}
+  ): Promise<string> {
+    const message: Omit<QloAppsOutboundGuestMessage, 'messageId' | 'timestamp' | 'retryCount'> = {
+      eventType: 'guest.create',
+      configId,
+      guestId,
+    };
+
+    return this.publish(QLOAPPS_ROUTING_KEYS.GUEST_CREATE, message, {
+      priority: options.priority ?? 6,
+    });
+  }
+
+  /**
+   * Queue a guest update to be pushed to QloApps
+   */
+  async queueGuestUpdate(
+    configId: string,
+    guestId: string,
+    options: { priority?: number } = {}
+  ): Promise<string> {
+    const message: Omit<QloAppsOutboundGuestMessage, 'messageId' | 'timestamp' | 'retryCount'> = {
+      eventType: 'guest.update',
+      configId,
+      guestId,
+    };
+
+    return this.publish(QLOAPPS_ROUTING_KEYS.GUEST_UPDATE, message, {
+      priority: options.priority ?? 5,
+    });
+  }
+
+  /**
+   * Queue a room type update to be pushed to QloApps
+   */
+  async queueRoomTypeUpdate(
+    configId: string,
+    roomTypeId: string,
+    options: { priority?: number } = {}
+  ): Promise<string> {
+    const message: Omit<QloAppsOutboundRoomTypeMessage, 'messageId' | 'timestamp' | 'retryCount'> = {
+      eventType: 'room_type.update',
+      configId,
+      roomTypeId,
+    };
+
+    return this.publish(QLOAPPS_ROUTING_KEYS.ROOM_TYPE_UPDATE, message, {
+      priority: options.priority ?? 5,
+    });
+  }
+
+  /**
    * Close the publisher connection
    */
   async close(): Promise<void> {
@@ -357,4 +416,30 @@ export function queueQloAppsRateSync(
   dateTo: string
 ): Promise<string> {
   return qloAppsPublisher.queueRateUpdate(configId, roomTypeId, dateFrom, dateTo);
+}
+
+/**
+ * Queue a guest to be pushed to QloApps
+ */
+export function queueQloAppsGuestSync(
+  configId: string,
+  guestId: string,
+  action: 'create' | 'update'
+): Promise<string> {
+  switch (action) {
+    case 'create':
+      return qloAppsPublisher.queueGuestCreate(configId, guestId);
+    case 'update':
+      return qloAppsPublisher.queueGuestUpdate(configId, guestId);
+  }
+}
+
+/**
+ * Queue a room type to be pushed to QloApps
+ */
+export function queueQloAppsRoomTypeSync(
+  configId: string,
+  roomTypeId: string
+): Promise<string> {
+  return qloAppsPublisher.queueRoomTypeUpdate(configId, roomTypeId);
 }

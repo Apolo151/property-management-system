@@ -40,6 +40,9 @@ export const QLOAPPS_ROUTING_KEYS = {
   RESERVATION_CREATE: 'pms.qloapps.reservation.create',
   RESERVATION_UPDATE: 'pms.qloapps.reservation.update',
   RESERVATION_CANCEL: 'pms.qloapps.reservation.cancel',
+  GUEST_CREATE: 'pms.qloapps.guest.create',
+  GUEST_UPDATE: 'pms.qloapps.guest.update',
+  ROOM_TYPE_UPDATE: 'pms.qloapps.room_type.update',
   AVAILABILITY_UPDATE: 'pms.qloapps.availability.update',
   RATE_UPDATE: 'pms.qloapps.rate.update',
   OUTBOUND_PATTERN: 'pms.qloapps.#',
@@ -100,10 +103,30 @@ export interface QloAppsOutboundRateMessage extends QloAppsQueueMessage {
   configId: string;
 }
 
+/**
+ * Outbound guest sync message
+ */
+export interface QloAppsOutboundGuestMessage extends QloAppsQueueMessage {
+  eventType: 'guest.create' | 'guest.update';
+  guestId: string;
+  configId: string;
+}
+
+/**
+ * Outbound room type sync message
+ */
+export interface QloAppsOutboundRoomTypeMessage extends QloAppsQueueMessage {
+  eventType: 'room_type.update';
+  roomTypeId: string;
+  configId: string;
+}
+
 export type QloAppsOutboundMessage =
   | QloAppsOutboundReservationMessage
   | QloAppsOutboundAvailabilityMessage
-  | QloAppsOutboundRateMessage;
+  | QloAppsOutboundRateMessage
+  | QloAppsOutboundGuestMessage
+  | QloAppsOutboundRoomTypeMessage;
 
 // ============================================================================
 // Topology Setup

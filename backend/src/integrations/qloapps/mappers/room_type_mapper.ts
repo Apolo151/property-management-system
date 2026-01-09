@@ -81,10 +81,12 @@ export function mapQloAppsRoomTypeToPms(
     ? parseFloat(qloAppsRoomType.price) 
     : (qloAppsRoomType.price || 0);
   
-  // Ensure quantity is a number
-  const qty = typeof qloAppsRoomType.quantity === 'string'
-    ? parseInt(qloAppsRoomType.quantity, 10)
-    : (qloAppsRoomType.quantity || 1);
+  // Calculate quantity from hotel_rooms array length (preferred) or fallback to quantity field
+  // The hotel_rooms association contains the actual individual room instances
+  const qty = qloAppsRoomType.associations?.hotel_rooms?.length || 
+              (typeof qloAppsRoomType.quantity === 'string'
+                ? parseInt(qloAppsRoomType.quantity, 10)
+                : (qloAppsRoomType.quantity || 1));
 
   const result: CreateRoomTypeRequest = {
     name: qloAppsRoomType.name,

@@ -96,6 +96,29 @@ export interface QloAppsRoomType {
   /** Room features/amenities */
   features?: QloAppsRoomFeature[];
 
+  /** Associations (when using display=full) */
+  associations?: {
+    /** Hotel rooms (individual room instances) */
+    hotel_rooms?: Array<{ id: number }>;
+    /** Room type features */
+    room_type_features?: Array<{ id: number }>;
+    /** Images */
+    images?: Array<{ id: number }>;
+    /** Services */
+    services?: Array<{ id: number; price?: string | null; id_tax_rules_group?: number | null }>;
+    /** Categories */
+    categories?: Array<{ id: number }>;
+    /** Advance payments */
+    advance_payments?: Array<{
+      id: number;
+      payment_type: number;
+      tax_include: number;
+      value: string;
+      active: number;
+      calculate_from: number;
+    }>;
+  };
+
   /** Date added */
   date_add?: string;
 
@@ -129,6 +152,78 @@ export interface QloAppsRoomTypeCreateRequest {
  */
 export interface QloAppsRoomTypeUpdateRequest extends Partial<QloAppsRoomTypeCreateRequest> {
   id: number;
+}
+
+// ============================================================================
+// Individual Room Types
+// ============================================================================
+
+/**
+ * QloApps individual room instance
+ * Represents a specific physical room (e.g., GR-101, GR-102)
+ */
+export interface QloAppsRoom {
+  /** Room ID */
+  id: number;
+
+  /** Product/room type ID this room belongs to */
+  id_product: number;
+
+  /** Hotel ID */
+  id_hotel: number;
+
+  /** Room number (e.g., "GR-101") */
+  room_num: string;
+
+  /** Room status ID (1=Available, 2=Occupied, 3=Cleaning, 4=Out of Service) */
+  id_status: number;
+
+  /** Floor name (e.g., "First", "Second", "Ground") */
+  floor: string;
+
+  /** Optional comment/notes about the room */
+  comment?: string;
+
+  /** Date added */
+  date_add?: string;
+
+  /** Date last updated */
+  date_upd?: string;
+}
+
+/**
+ * Request to create an individual room
+ */
+export interface QloAppsRoomCreateRequest {
+  id_product: number;
+  id_hotel: number;
+  room_num: string;
+  id_status?: number;
+  floor?: string;
+  comment?: string;
+}
+
+/**
+ * Request to update an individual room
+ */
+export interface QloAppsRoomUpdateRequest extends Partial<QloAppsRoomCreateRequest> {
+  id: number;
+}
+
+/**
+ * Parameters for fetching hotel rooms
+ */
+export interface GetHotelRoomsParams {
+  /** Filter by hotel ID */
+  hotelId?: number;
+  /** Filter by product/room type ID */
+  productId?: number;
+  /** Filter by room status */
+  status?: number;
+  /** Limit number of results */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
 }
 
 // ============================================================================
@@ -505,6 +600,15 @@ export interface QloAppsBookingCreateRequest {
   /** Currency code */
   currency: string;
 
+  /** QloApps property/hotel identifier (mapped from config) */
+  id_property?: number;
+
+  /** Booking check-in date (YYYY-MM-DD) */
+  date_from?: string;
+
+  /** Booking check-out date (YYYY-MM-DD) */
+  date_to?: string;
+
   /** Booking status (default: 1 = new) */
   booking_status?: QloAppsBookingStatusCode;
 
@@ -534,11 +638,11 @@ export interface QloAppsBookingRoomTypeRequest {
   /** Room type ID */
   id_room_type: number;
 
-  /** Check-in date (YYYY-MM-DD) */
-  date_from: string;
+  /** Check-in date (YYYY-MM-DD HH:mm:ss) */
+  checkin_date: string;
 
-  /** Check-out date (YYYY-MM-DD) */
-  date_to: string;
+  /** Check-out date (YYYY-MM-DD HH:mm:ss) */
+  checkout_date: string;
 
   /** Number of rooms */
   number_of_rooms: number;

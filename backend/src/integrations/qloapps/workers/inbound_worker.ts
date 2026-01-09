@@ -273,7 +273,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     // For full sync, use the new 3-phase sync
     if (syncType === 'full') {
       console.log(`[QloApps Inbound] 🎯 Mode: FULL SYNC`);
-      console.log(`[QloApps Inbound] 📋 3-Phase Process: Room Types → Customers → Reservations`);
+      console.log(`[QloApps Inbound] 📋 4-Phase Process: Room Types → Rooms → Customers → Reservations`);
 
       console.log(`[QloApps Inbound] 🚀 Phase 1: Executing full sync...`);
       const fullSyncStart = Date.now();
@@ -329,9 +329,9 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
       };
     }
 
-    // For incremental sync, sync room types, customers, then bookings
+    // For incremental sync, sync room types, rooms, customers, then bookings
     console.log(`[QloApps Inbound] 🎯 Mode: INCREMENTAL SYNC`);
-    console.log(`[QloApps Inbound] 📋 3-Phase Process: Room Types → Customers → Bookings`);
+    console.log(`[QloApps Inbound] 📋 4-Phase Process: Room Types → Rooms → Customers → Bookings`);
 
     // Step 1: Sync room types first to ensure mappings exist
     console.log(`[QloApps Inbound] 🏨 Step 1: Syncing room types...`);
@@ -345,8 +345,23 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Inbound] ✓ Room types synced in ${roomTypeDuration}ms`);
     console.log(`[QloApps Inbound]   Processed: ${roomTypesProcessed}, Synced: ${roomTypesSynced}, Failed: ${roomTypesFailed}`);
 
-    // Step 2: Sync customers to ensure guest mappings exist
-    console.log(`[QloApps Inbound] 👥 Step 2: Syncing customers...`);
+    // Step 2: Sync individual rooms
+    console.log(`[QloApps Inbound] 🚪 Step 2: Syncing individual rooms...`);
+    const roomStart = Date.now();
+    const roomResults = await syncService.roomSyncService.pullRooms({
+      createIfMissing: true,
+      updateExisting: false,
+    });
+    const roomDuration = Date.now() - roomStart;
+    const roomsProcessed = roomResults.length;
+    const roomsSynced = roomResults.filter(r => r.success && (r.action === 'created' || r.action === 'mapped')).length;
+    const roomsFailed = roomResults.filter(r => !r.success).length;
+
+    console.log(`[QloApps Inbound] ✓ Rooms synced in ${roomDuration}ms`);
+    console.log(`[QloApps Inbound]   Processed: ${roomsProcessed}, Synced: ${roomsSynced}, Failed: ${roomsFailed}`);
+
+    // Step 3: Sync customers to ensure guest mappings exist
+    console.log(`[QloApps Inbound] 👥 Step 3: Syncing customers...`);
     const customerStart = Date.now();
     const customerResults = await syncService.customerSyncService.pullCustomers({
       updateExisting: false,
@@ -359,7 +374,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Inbound] ✓ Customers synced in ${customerDuration}ms`);
     console.log(`[QloApps Inbound]   Processed: ${customersProcessed}, Synced: ${customersSynced}, Failed: ${customersFailed}`);
 
-    // Step 3: Sync bookings
+    // Step 4: Sync bookings
     const options: Parameters<typeof syncService.pullBookings>[0] = {};
 
     // Calculate date range: from last month to coming year
@@ -382,7 +397,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     }
 
     // Pull bookings from QloApps
-    console.log(`[QloApps Inbound] 🔄 Step 3: Fetching bookings from QloApps API...`);
+    console.log(`[QloApps Inbound] 🔄 Step 4: Fetching bookings from QloApps API...`);
     console.log(`[QloApps Inbound]   Date Range: ${options.dateFrom || 'All'} to ${options.dateTo || 'All'}`);
     if (options.modifiedSince) {
       console.log(`[QloApps Inbound]   Modified Since: ${options.modifiedSince.toISOString()}`);

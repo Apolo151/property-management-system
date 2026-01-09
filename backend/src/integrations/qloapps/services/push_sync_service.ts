@@ -60,12 +60,24 @@ export interface PushSyncOptions {
 export class QloAppsPushSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private currency: string = 'USD';
+  private propertyId: string;
+  private hotelId: number;
+  private currency: string;
 
-  constructor(client: QloAppsClient, configId: string, currency: string = 'USD') {
+  constructor(
+    client: QloAppsClient, 
+    configId: string, 
+    propertyId: string,
+    hotelId: number,
+    currency?: string
+  ) {
     this.client = client;
     this.configId = configId;
-    this.currency = currency;
+    this.propertyId = propertyId;
+    this.hotelId = hotelId;
+    // Use explicit currency if provided, otherwise fall back to env or USD
+    const defaultCurrency = process.env.QLOAPPS_DEFAULT_CURRENCY ?? 'USD';
+    this.currency = (currency ?? defaultCurrency).toUpperCase();
   }
 
   /**
@@ -81,13 +93,20 @@ export class QloAppsPushSyncService {
     }
 
     const apiKey = decrypt(config.api_key_encrypted);
+    const hotelId = parseInt(config.qloapps_hotel_id, 10);
+    
     const client = new QloAppsClient({
       baseUrl: config.base_url,
       apiKey,
-      hotelId: parseInt(config.qloapps_hotel_id, 10),
+      hotelId,
     });
 
-    return new QloAppsPushSyncService(client, configId);
+    return new QloAppsPushSyncService(
+      client, 
+      configId,
+      config.property_id,
+      hotelId
+    );
   }
 
   /**
@@ -267,6 +286,26 @@ export class QloAppsPushSyncService {
       qloAppsRoomTypeId,
       this.currency
     );
+
+    // Ensure id_property is set from QloApps config (hotelId)
+    // This helps QloApps associate the booking with the correct property
+    (bookingRequest as QloAppsBookingCreateRequest).id_property = this.hotelId;
+
+    // Log the outbound booking payload (trimmed if very large)
+    try {
+      const payloadJson = JSON.stringify(bookingRequest);
+      const maxLength = 4000; // prevent log flooding
+      const trimmed =
+        payloadJson.length > maxLength
+          ? payloadJson.slice(0, maxLength) + '...<truncated>'
+          : payloadJson;
+      console.log(`[QloApps Push] Booking payload for reservation ${reservation.id}: ${trimmed}`);
+    } catch (err) {
+      console.warn(
+        `[QloApps Push] Failed to serialize booking payload for reservation ${reservation.id}:`,
+        err
+      );
+    }
 
     try {
       // Create booking in QloApps - returns the booking ID directly

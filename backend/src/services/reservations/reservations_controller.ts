@@ -548,7 +548,7 @@ export async function createReservationHandler(
     }).catch((err) => console.error('Audit log failed:', err));
 
     // Queue sync to active channel manager (non-blocking, fire-and-forget)
-    // This ensures reservations created in PMS are synced to the channel manager
+    // This ensures reservations created in PMS are synced to the channel manager (QloApps)
     queueReservationSync(reservation.id, 'create', source).catch((err) => {
       console.error(
         `[ReservationController] Failed to queue sync for reservation ${reservation.id}:`,
@@ -694,6 +694,13 @@ export async function updateReservationHandler(
       }
     }
 
+    // Queue QloApps sync (non-blocking)
+    import('../../integrations/qloapps/hooks/sync_hooks.js')
+      .then(({ queueQloAppsReservationSyncHook }) => 
+        queueQloAppsReservationSyncHook(id, 'update')
+      )
+      .catch((err) => console.error('QloApps sync hook failed:', err));
+
     // Fetch updated reservation
     const updated = await db('reservations')
       .select(
@@ -801,6 +808,13 @@ export async function deleteReservationHandler(
         console.error('Failed to queue room availability sync:', err);
       });
     }
+
+    // Queue QloApps sync for cancellation (non-blocking)
+    import('../../integrations/qloapps/hooks/sync_hooks.js')
+      .then(({ queueQloAppsReservationCancelHook }) => 
+        queueQloAppsReservationCancelHook(id)
+      )
+      .catch((err) => console.error('QloApps cancel sync hook failed:', err));
 
     res.status(204).send();
 

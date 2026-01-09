@@ -19,6 +19,7 @@ const RoomTypesPage = () => {
   const [roomTypeFilter, setRoomTypeFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoomType, setEditingRoomType] = useState(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
   const [newRoomType, setNewRoomType] = useState({
     name: '',
     room_type: 'double',
@@ -222,6 +223,21 @@ const RoomTypesPage = () => {
     });
   };
 
+  const toggleDescription = (roomTypeId) => {
+    const newExpanded = new Set(expandedDescriptions);
+    if (newExpanded.has(roomTypeId)) {
+      newExpanded.delete(roomTypeId);
+    } else {
+      newExpanded.add(roomTypeId);
+    }
+    setExpandedDescriptions(newExpanded);
+  };
+
+  const truncateText = (text, maxLength = 100) => {
+    if (!text || text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + '...';
+  };
+
   if (isLoading && roomTypes.length === 0) {
     return (
       <div>
@@ -243,27 +259,43 @@ const RoomTypesPage = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Room Types</h1>
-          <p className="text-gray-600 mt-2">Manage room types with quantity (Beds24-style)</p>
+          <p className="text-gray-600 mt-2">Manage room types with quantity (synced from QloApps)</p>
         </div>
-        <button onClick={() => {
-          setEditingRoomType(null);
-          setNewRoomType({
-            name: '',
-            room_type: 'double',
-            qty: 1,
-            price_per_night: '',
-            floor: '',
-            max_people: '',
-            min_stay: '',
-            max_stay: '',
-            features: [],
-            description: '',
-            unit_allocation: 'perBooking',
-          });
-          setIsModalOpen(true);
-        }} className="btn btn-primary">
-          + Add Room Type
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              try {
+                await initialize();
+                toast.success('Room types refreshed!');
+              } catch (error) {
+                toast.error('Failed to refresh room types');
+              }
+            }}
+            className="btn btn-secondary"
+            disabled={isLoading}
+          >
+            🔄 Refresh
+          </button>
+          <button onClick={() => {
+            setEditingRoomType(null);
+            setNewRoomType({
+              name: '',
+              room_type: 'double',
+              qty: 1,
+              price_per_night: '',
+              floor: '',
+              max_people: '',
+              min_stay: '',
+              max_stay: '',
+              features: [],
+              description: '',
+              unit_allocation: 'perBooking',
+            });
+            setIsModalOpen(true);
+          }} className="btn btn-primary">
+            + Add Room Type
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -283,6 +315,23 @@ const RoomTypesPage = () => {
             ]}
             placeholder="Filter by room type"
           />
+        </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3 flex-1">
+            <p className="text-sm text-blue-700">
+              <strong>Note:</strong> Room quantities are automatically synced from QloApps based on individual room instances. 
+              Click the <strong>Refresh</strong> button after syncing to see updated quantities.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -323,12 +372,28 @@ const RoomTypesPage = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRoomTypes.map((roomType) => (
+                filteredRoomTypes.map((roomType) => {
+                  const isExpanded = expandedDescriptions.has(roomType.id);
+                  const hasLongDescription = roomType.description && roomType.description.length > 100;
+                  
+                  return (
                   <tr key={roomType.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{roomType.name}</div>
                       {roomType.description && (
-                        <div className="text-sm text-gray-500">{roomType.description}</div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          <div className={hasLongDescription && !isExpanded ? 'line-clamp-2' : ''}>
+                            {isExpanded ? roomType.description : truncateText(roomType.description)}
+                          </div>
+                          {hasLongDescription && (
+                            <button
+                              onClick={() => toggleDescription(roomType.id)}
+                              className="text-blue-600 hover:text-blue-800 text-xs mt-1"
+                            >
+                              {isExpanded ? 'Show less' : 'Show more'}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -337,7 +402,13 @@ const RoomTypesPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {roomType.qty} units
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-lg">{roomType.qty}</span>
+                        <span className="text-gray-500">units</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        From QloApps
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       ${roomType.pricePerNight.toFixed(2)}
@@ -363,7 +434,8 @@ const RoomTypesPage = () => {
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

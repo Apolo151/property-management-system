@@ -155,6 +155,13 @@ export async function createGuestHandler(
       email: newGuest.email,
       phone: newGuest.phone,
     }).catch((err) => console.error('Audit log failed:', err));
+
+    // Queue QloApps sync (non-blocking)
+    import('../../integrations/qloapps/hooks/sync_hooks.js')
+      .then(({ queueQloAppsGuestSyncHook }) => 
+        queueQloAppsGuestSyncHook(newGuest.id, 'create')
+      )
+      .catch((err) => console.error('QloApps guest sync hook failed:', err));
   } catch (error) {
     next(error);
   }
@@ -260,6 +267,20 @@ export async function updateGuestHandler(
       email: updated.email,
       phone: updated.phone,
     }).catch((err) => console.error('Audit log failed:', err));
+
+    // Queue QloApps sync (non-blocking) - only if significant fields changed
+    const significantFieldsChanged = 
+      updates.name !== undefined || 
+      updates.email !== undefined || 
+      updates.phone !== undefined;
+    
+    if (significantFieldsChanged) {
+      import('../../integrations/qloapps/hooks/sync_hooks.js')
+        .then(({ queueQloAppsGuestSyncHook }) => 
+          queueQloAppsGuestSyncHook(id, 'update')
+        )
+        .catch((err) => console.error('QloApps guest sync hook failed:', err));
+    }
   } catch (error) {
     next(error);
   }

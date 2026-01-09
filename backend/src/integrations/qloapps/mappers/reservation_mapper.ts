@@ -185,11 +185,14 @@ export function mapPmsReservationToQloApps(
     child_ages: [], // We don't track child ages in PMS
   }];
 
-  // Build room type request
+  // Build room type request using QloApps datetime format (YYYY-MM-DD HH:mm:ss)
+  const checkinDateTime = `${formatDateForQloApps(reservation.check_in)} 00:00:00`;
+  const checkoutDateTime = `${formatDateForQloApps(reservation.check_out)} 00:00:00`;
+
   const roomType: QloAppsBookingRoomTypeRequest = {
     id_room_type: qloAppsRoomTypeId,
-    date_from: formatDateForQloApps(reservation.check_in),
-    date_to: formatDateForQloApps(reservation.check_out),
+    checkin_date: checkinDateTime,
+    checkout_date: checkoutDateTime,
     number_of_rooms: numberOfRooms,
     occupancy,
   };
@@ -197,7 +200,6 @@ export function mapPmsReservationToQloApps(
   // Build customer details
   const customerDetail = mapPmsGuestToQloAppsBookingCustomer(guest);
 
-  // Build the booking request
   const bookingRequest: QloAppsBookingCreateRequest = {
     currency,
     booking_status: mapPmsStatusToQloApps(reservation.status as LegacyReservationStatus),

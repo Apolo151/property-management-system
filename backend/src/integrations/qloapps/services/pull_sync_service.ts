@@ -14,6 +14,7 @@ import type {
 } from '../qloapps_types.js';
 import { QloAppsGuestMatchingService } from './guest_matching_service.js';
 import { QloAppsRoomTypeSyncService } from './room_type_sync_service.js';
+import { QloAppsRoomSyncService } from './room_sync_service.js';
 import { QloAppsCustomerSyncService } from './customer_sync_service.js';
 import {
   mapQloAppsBookingToPms,
@@ -53,11 +54,16 @@ export interface PullSyncOptions {
 }
 
 /**
- * Result of a full 3-phase sync
+ * Result of a full 4-phase sync
  */
 export interface FullSyncResult {
   success: boolean;
   roomTypes: {
+    processed: number;
+    synced: number;
+    failed: number;
+  };
+  rooms: {
     processed: number;
     synced: number;
     failed: number;
@@ -91,6 +97,7 @@ export class QloAppsPullSyncService {
   private hotelId: number;
   private guestMatchingService: QloAppsGuestMatchingService;
   private roomTypeSyncService: QloAppsRoomTypeSyncService;
+  private roomSyncService: QloAppsRoomSyncService;
   private customerSyncService: QloAppsCustomerSyncService;
 
   constructor(client: QloAppsClient, configId: string, propertyId: string, hotelId: number) {
@@ -100,6 +107,7 @@ export class QloAppsPullSyncService {
     this.hotelId = hotelId;
     this.guestMatchingService = new QloAppsGuestMatchingService();
     this.roomTypeSyncService = new QloAppsRoomTypeSyncService(client, configId, propertyId, hotelId);
+    this.roomSyncService = new QloAppsRoomSyncService(client, configId, propertyId, hotelId);
     this.customerSyncService = new QloAppsCustomerSyncService(client, configId, propertyId, hotelId);
   }
 
@@ -201,7 +209,7 @@ export class QloAppsPullSyncService {
   async pullFullSync(options: PullSyncOptions = {}): Promise<FullSyncResult> {
     const startTime = Date.now();
     console.log('[QloApps Pull] ========================================');
-    console.log('[QloApps Pull] Starting 3-phase full sync...');
+    console.log('[QloApps Pull] Starting 4-phase full sync...');
 
     // Set broader date range for full sync: from last month to coming year
     const now = new Date();
@@ -232,8 +240,23 @@ export class QloAppsPullSyncService {
       console.log(`[QloApps Pull]   Synced: ${roomTypesSynced}`);
       console.log(`[QloApps Pull]   Failed: ${roomTypesFailed}`);
 
-      // Phase 2: Customers
-      console.log('[QloApps Pull] 👥 PHASE 2: Syncing Customers...');
+      // Phase 2: Individual Rooms
+      console.log('[QloApps Pull] 🚪 PHASE 2: Syncing Individual Rooms...');
+      const roomResults = await this.roomSyncService.pullRooms({
+        createIfMissing: true,
+        updateExisting: false,
+      });
+      const roomsProcessed = roomResults.length;
+      const roomsSynced = roomResults.filter(r => r.success && (r.action === 'created' || r.action === 'mapped')).length;
+      const roomsFailed = roomResults.filter(r => !r.success).length;
+      
+      console.log('[QloApps Pull] ✓ Rooms Phase Complete:');
+      console.log(`[QloApps Pull]   Processed: ${roomsProcessed}`);
+      console.log(`[QloApps Pull]   Synced: ${roomsSynced}`);
+      console.log(`[QloApps Pull]   Failed: ${roomsFailed}`);
+
+      // Phase 3: Customers
+      console.log('[QloApps Pull] 👥 PHASE 3: Syncing Customers...');
       const customerResults = await this.customerSyncService.pullCustomers({
         updateExisting: false,
       });
@@ -246,8 +269,8 @@ export class QloAppsPullSyncService {
       console.log(`[QloApps Pull]   Synced: ${customersSynced}`);
       console.log(`[QloApps Pull]   Failed: ${customersFailed}`);
 
-      // Phase 3: Reservations/Bookings
-      console.log('[QloApps Pull] 📅 PHASE 3: Syncing Reservations...');
+      // Phase 4: Reservations/Bookings
+      console.log('[QloApps Pull] 📅 PHASE 4: Syncing Reservations...');
       const bookings = await this.pullBookings(options);
       const bookingResults = await this.syncBookingsToPms(bookings);
       
@@ -263,10 +286,10 @@ export class QloAppsPullSyncService {
       console.log(`[QloApps Pull]   Failed: ${reservationsFailed}`);
 
       const durationMs = Date.now() - startTime;
-      const success = roomTypesFailed === 0 && customersFailed === 0 && reservationsFailed === 0;
+      const success = roomTypesFailed === 0 && roomsFailed === 0 && customersFailed === 0 && reservationsFailed === 0;
 
       console.log('[QloApps Pull] ========================================');
-      console.log(`[QloApps Pull] 3-Phase Sync ${success ? 'COMPLETED' : 'COMPLETED WITH ERRORS'}`);
+      console.log(`[QloApps Pull] 4-Phase Sync ${success ? 'COMPLETED' : 'COMPLETED WITH ERRORS'}`);
       console.log(`[QloApps Pull] Duration: ${(durationMs / 1000).toFixed(2)}s`);
       console.log('[QloApps Pull] ========================================');
 
@@ -276,6 +299,11 @@ export class QloAppsPullSyncService {
           processed: roomTypesProcessed,
           synced: roomTypesSynced,
           failed: roomTypesFailed,
+        },
+        rooms: {
+          processed: roomsProcessed,
+          synced: roomsSynced,
+          failed: roomsFailed,
         },
         customers: {
           processed: customersProcessed,
@@ -294,12 +322,13 @@ export class QloAppsPullSyncService {
       const durationMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      console.error('[QloApps Pull] ❌ 3-Phase Sync Failed:', errorMessage);
+      console.error('[QloApps Pull] ❌ 4-Phase Sync Failed:', errorMessage);
       console.log('[QloApps Pull] ========================================');
 
       return {
         success: false,
         roomTypes: { processed: 0, synced: 0, failed: 0 },
+        rooms: { processed: 0, synced: 0, failed: 0 },
         customers: { processed: 0, synced: 0, failed: 0 },
         reservations: { processed: 0, created: 0, updated: 0, failed: 0 },
         durationMs,

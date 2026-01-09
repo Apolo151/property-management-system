@@ -15,6 +15,13 @@ import type {
   ConnectionTestResult,
 } from '../types.js';
 import db from '../../../config/database.js';
+import { QloAppsClient } from '../../qloapps/qloapps_client.js';
+import { decrypt } from '../../../utils/encryption.js';
+import {
+  queueQloAppsReservationSyncHook,
+  queueQloAppsAvailabilitySyncHook,
+  queueQloAppsRateSyncHook,
+} from '../../qloapps/hooks/sync_hooks.js';
 
 export class QloAppsChannelStrategy implements IChannelManagerStrategy {
   private propertyId = '00000000-0000-0000-0000-000000000001';
@@ -37,6 +44,38 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
       .first();
 
     return config?.sync_enabled === true;
+  }
+
+  /**
+   * Check if outbound reservation sync is enabled
+   */
+  private async isOutboundReservationSyncEnabled(): Promise<boolean> {
+    const config = await db('qloapps_config')
+      .where({ property_id: this.propertyId })
+      .first();
+
+    if (!config) {
+      console.warn(
+        `[QloAppsStrategy] QloApps config not found for property ${this.propertyId}, outbound reservation sync disabled`
+      );
+      return false;
+    }
+
+    if (!config.sync_enabled) {
+      console.warn(
+        `[QloAppsStrategy] Global sync disabled for property ${this.propertyId}, outbound reservation sync disabled`
+      );
+      return false;
+    }
+
+    if (!config.sync_reservations_outbound) {
+      console.warn(
+        `[QloAppsStrategy] Outbound reservation sync disabled for property ${this.propertyId}`
+      );
+      return false;
+    }
+
+    return true;
   }
 
   async testConnection(): Promise<ConnectionTestResult> {
@@ -67,10 +106,6 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
         baseUrl: config.base_url,
         hotelId: config.qloapps_hotel_id,
       });
-
-      // Try to import and use QloApps client
-      const { QloAppsClient } = await import('../../qloapps/qloapps_client.js');
-      const { decrypt } = await import('../../../utils/encryption.js');
 
       const apiKey = decrypt(config.api_key_encrypted);
       const client = new QloAppsClient({
@@ -103,8 +138,8 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
     const startTime = Date.now();
 
     try {
-      // Check if enabled first
-      if (!(await this.isEnabled())) {
+      // Check if outbound reservation sync is enabled first
+      if (!(await this.isOutboundReservationSyncEnabled())) {
         return {
           success: true,
           operationType: 'reservation',
@@ -112,11 +147,6 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
           duration: Date.now() - startTime,
         };
       }
-
-      // Delegate to existing QloApps hooks
-      const { queueQloAppsReservationSyncHook } = await import(
-        '../../qloapps/hooks/sync_hooks.js'
-      );
 
       await queueQloAppsReservationSyncHook(input.reservationId, input.action);
 
@@ -151,11 +181,6 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
           duration: Date.now() - startTime,
         };
       }
-
-      // Delegate to existing QloApps hooks
-      const { queueQloAppsAvailabilitySyncHook } = await import(
-        '../../qloapps/hooks/sync_hooks.js'
-      );
 
       await queueQloAppsAvailabilitySyncHook(
         input.roomTypeId,
@@ -194,11 +219,6 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
           duration: Date.now() - startTime,
         };
       }
-
-      // Delegate to existing QloApps hooks
-      const { queueQloAppsRateSyncHook } = await import(
-        '../../qloapps/hooks/sync_hooks.js'
-      );
 
       await queueQloAppsRateSyncHook(input.roomTypeId, input.dateFrom, input.dateTo);
 

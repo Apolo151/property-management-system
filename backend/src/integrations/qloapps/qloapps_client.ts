@@ -15,6 +15,7 @@ import { QLOAPPS_CONFIG } from './qloapps_config.js';
 import type {
   QloAppsConnectionConfig,
   QloAppsRoomType,
+  QloAppsRoom,
   QloAppsCustomer,
   QloAppsBooking,
   QloAppsBookingRaw,
@@ -24,6 +25,7 @@ import type {
   QloAppsCustomerUpdateRequest,
   GetBookingsParams,
   GetRoomTypesParams,
+  GetHotelRoomsParams,
   GetCustomersParams,
   QloAppsConnectionTestResult,
   QloAppsRequestOptions,
@@ -376,6 +378,65 @@ export class QloAppsClient {
       );
 
       return response.room_type || null;
+    } catch (error) {
+      if (error instanceof QloAppsError && error.statusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  // ==========================================================================
+  // Hotel Rooms API (Individual Room Instances)
+  // ==========================================================================
+
+  /**
+   * Get hotel rooms (individual room instances like GR-101, GR-102)
+   * @param params Filter parameters
+   * @returns Array of hotel rooms
+   */
+  async getHotelRooms(params?: GetHotelRoomsParams): Promise<QloAppsRoom[]> {
+    const query: Record<string, string | number | undefined> = {
+      display: 'full',
+    };
+
+    if (params?.hotelId) {
+      query['filter[id_hotel]'] = params.hotelId;
+    }
+    if (params?.productId) {
+      query['filter[id_product]'] = params.productId;
+    }
+    if (params?.status !== undefined) {
+      query['filter[id_status]'] = params.status;
+    }
+    if (params?.limit) {
+      query.limit = params.limit;
+    }
+    if (params?.offset) {
+      query.offset = params.offset;
+    }
+
+    const response = await this.makeRequest<{ rooms?: QloAppsRoom[] }>(
+      QLOAPPS_CONFIG.ENDPOINTS.HOTEL_ROOMS,
+      { method: 'GET', query }
+    );
+
+    return response.rooms || [];
+  }
+
+  /**
+   * Get a specific hotel room by ID
+   * @param id Hotel room ID
+   * @returns Hotel room or null if not found
+   */
+  async getHotelRoom(id: number): Promise<QloAppsRoom | null> {
+    try {
+      const response = await this.makeRequest<{ room?: QloAppsRoom }>(
+        `${QLOAPPS_CONFIG.ENDPOINTS.HOTEL_ROOMS}/${id}`,
+        { method: 'GET', query: { display: 'full' } }
+      );
+
+      return response.room || null;
     } catch (error) {
       if (error instanceof QloAppsError && error.statusCode === 404) {
         return null;

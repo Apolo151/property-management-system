@@ -166,6 +166,15 @@ export async function createRoomTypeHandler(
       qty: roomType.qty,
       price_per_night: roomType.price_per_night,
     }).catch((err) => console.error('Audit log failed:', err));
+
+    // Queue QloApps sync (non-blocking)
+    // Note: Room types are typically synced FROM QloApps TO PMS, not the other way
+    // This hook is included for completeness but may trigger skipped actions
+    import('../../integrations/qloapps/hooks/sync_hooks.js')
+      .then(({ queueQloAppsRoomTypeSyncHook }) => 
+        queueQloAppsRoomTypeSyncHook(roomType.id)
+      )
+      .catch((err) => console.error('QloApps room type sync hook failed:', err));
   } catch (error) {
     next(error);
   }
@@ -266,6 +275,21 @@ export async function updateRoomTypeHandler(
       qty: roomType.qty,
       price_per_night: roomType.price_per_night,
     }).catch((err) => console.error('Audit log failed:', err));
+
+    // Queue QloApps sync (non-blocking) - only for price/capacity changes
+    const significantFieldsChanged = 
+      data.price_per_night !== undefined || 
+      data.max_adult !== undefined || 
+      data.max_children !== undefined ||
+      data.max_people !== undefined;
+    
+    if (significantFieldsChanged) {
+      import('../../integrations/qloapps/hooks/sync_hooks.js')
+        .then(({ queueQloAppsRoomTypeSyncHook }) => 
+          queueQloAppsRoomTypeSyncHook(id)
+        )
+        .catch((err) => console.error('QloApps room type sync hook failed:', err));
+    }
   } catch (error) {
     next(error);
   }
