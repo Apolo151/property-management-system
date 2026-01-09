@@ -58,10 +58,12 @@ export interface RateSyncOptions {
 export class QloAppsRateSyncService {
   private client: QloAppsClient;
   private configId: string;
+  private propertyId: string;
 
-  constructor(client: QloAppsClient, configId: string) {
+  constructor(client: QloAppsClient, configId: string, propertyId: string) {
     this.client = client;
     this.configId = configId;
+    this.propertyId = propertyId;
   }
 
   /**
@@ -83,7 +85,7 @@ export class QloAppsRateSyncService {
       hotelId: parseInt(config.qloapps_hotel_id, 10),
     });
 
-    return new QloAppsRateSyncService(client, configId);
+    return new QloAppsRateSyncService(client, configId, config.property_id);
   }
 
   /**

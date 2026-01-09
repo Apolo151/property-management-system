@@ -51,6 +51,10 @@ export interface PullSyncOptions {
   limit?: number;
   /** Whether to do a full sync (ignore lastModified) */
   fullSync?: boolean;
+  /** Start date for date range filtering (ISO string or Date) */
+  dateFrom?: string | Date | undefined;
+  /** End date for date range filtering (ISO string or Date) */
+  dateTo?: string | Date | undefined;
 }
 
 /**
@@ -219,8 +223,12 @@ export class QloAppsPullSyncService {
     comingYear.setFullYear(now.getFullYear() + 1);
 
     // Override or set date filters for broader sync range
-    options.dateFrom = options.dateFrom || lastMonth.toISOString().split('T')[0];
-    options.dateTo = options.dateTo || comingYear.toISOString().split('T')[0];
+    if (!options.dateFrom) {
+      options.dateFrom = lastMonth.toISOString().split('T')[0];
+    }
+    if (!options.dateTo) {
+      options.dateTo = comingYear.toISOString().split('T')[0];
+    }
 
     console.log('[QloApps Pull] 📅 Full Sync Date Range:');
     console.log(`[QloApps Pull]   From: ${options.dateFrom} (last month)`);
@@ -391,8 +399,8 @@ export class QloAppsPullSyncService {
     }
 
     // Try to find existing customer mapping first
-    let guestId: string;
-    let matchSource: string;
+    let guestId: string | undefined;
+    let matchSource: string = 'unknown';
 
     // Check if we have a customer mapping for this booking's customer
     if (booking.id_customer > 0) {
@@ -421,7 +429,7 @@ export class QloAppsPullSyncService {
         if (customerDetail.email) {
           // Use email prefix as first name
           const emailPrefix = customerDetail.email.split('@')[0];
-          customerDetail.firstname = emailPrefix;
+          customerDetail.firstname = emailPrefix || 'Guest';
           customerDetail.lastname = 'Guest';
         } else {
           // Fallback for cases with no email
@@ -444,7 +452,7 @@ export class QloAppsPullSyncService {
           await this.customerSyncService.createMapping(
             booking.id_customer,
             guestId,
-            'booking' // matchType
+            'new' // matchType: 'new' will be converted to 'booking' in the service
           );
           console.log(`[QloApps Pull] Booking ${booking.id}: Created customer mapping ${booking.id_customer} -> ${guestId}`);
         } catch (mappingError) {

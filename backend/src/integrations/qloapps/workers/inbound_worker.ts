@@ -48,15 +48,15 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Inbound] 📋 Message Details:`);
     console.log(`[QloApps Inbound]   Message ID: ${(message as any).messageId || 'N/A'}`);
     console.log(`[QloApps Inbound]   Timestamp: ${(message as any).timestamp || new Date().toISOString()}`);
-    console.log(`[QloApps Inbound]   Retry Count: ${(message as any).retryCount || 0}`);
+    console.log(`[QloApps Inbound]   Retry Count: ${context.retryCount || 0}`);
 
     // Log RabbitMQ context
     console.log(`[QloApps Inbound] 📨 RabbitMQ Context:`);
-    console.log(`[QloApps Inbound]   Delivery Tag: ${context.deliveryTag || 'N/A'}`);
-    console.log(`[QloApps Inbound]   Redelivered: ${context.redelivered || false}`);
-    console.log(`[QloApps Inbound]   Exchange: ${context.exchange || 'N/A'}`);
-    console.log(`[QloApps Inbound]   Routing Key: ${context.routingKey || 'N/A'}`);
-    console.log(`[QloApps Inbound]   Consumer Tag: ${context.consumerTag || 'N/A'}`);
+    console.log(`[QloApps Inbound]   Delivery Tag: ${context.message.fields?.deliveryTag || 'N/A'}`);
+    console.log(`[QloApps Inbound]   Redelivered: ${context.message.fields?.redelivered || false}`);
+    console.log(`[QloApps Inbound]   Exchange: ${context.message.fields?.exchange || 'N/A'}`);
+    console.log(`[QloApps Inbound]   Routing Key: ${context.message.fields?.routingKey || 'N/A'}`);
+    console.log(`[QloApps Inbound]   Consumer Tag: ${context.message.fields?.consumerTag || 'N/A'}`);
 
     // Log message content
     console.log(`[QloApps Inbound] 📝 Message Content:`);
@@ -333,10 +333,34 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Inbound] 🎯 Mode: INCREMENTAL SYNC`);
     console.log(`[QloApps Inbound] 📋 4-Phase Process: Room Types → Rooms → Customers → Bookings`);
 
+    // Create sub-services for the phases
+    const { QloAppsRoomTypeSyncService } = await import('../services/room_type_sync_service.js');
+    const { QloAppsRoomSyncService } = await import('../services/room_sync_service.js');
+    const { QloAppsCustomerSyncService } = await import('../services/customer_sync_service.js');
+
+    const roomTypeSyncSvc = new QloAppsRoomTypeSyncService(
+      (syncService as any).client,
+      (syncService as any).configId,
+      (syncService as any).propertyId,
+      (syncService as any).hotelId
+    );
+    const roomSyncSvc = new QloAppsRoomSyncService(
+      (syncService as any).client,
+      (syncService as any).configId,
+      (syncService as any).propertyId,
+      (syncService as any).hotelId
+    );
+    const customerSyncSvc = new QloAppsCustomerSyncService(
+      (syncService as any).client,
+      (syncService as any).configId,
+      (syncService as any).propertyId,
+      (syncService as any).hotelId
+    );
+
     // Step 1: Sync room types first to ensure mappings exist
     console.log(`[QloApps Inbound] 🏨 Step 1: Syncing room types...`);
     const roomTypeStart = Date.now();
-    const roomTypeResults = await syncService.roomTypeSyncService.pullRoomTypes();
+    const roomTypeResults = await roomTypeSyncSvc.pullRoomTypes();
     const roomTypeDuration = Date.now() - roomTypeStart;
     const roomTypesProcessed = roomTypeResults.length;
     const roomTypesSynced = roomTypeResults.filter(r => r.success && (r.action === 'created' || r.action === 'mapped')).length;
@@ -348,7 +372,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     // Step 2: Sync individual rooms
     console.log(`[QloApps Inbound] 🚪 Step 2: Syncing individual rooms...`);
     const roomStart = Date.now();
-    const roomResults = await syncService.roomSyncService.pullRooms({
+    const roomResults = await roomSyncSvc.pullRooms({
       createIfMissing: true,
       updateExisting: false,
     });
@@ -363,7 +387,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     // Step 3: Sync customers to ensure guest mappings exist
     console.log(`[QloApps Inbound] 👥 Step 3: Syncing customers...`);
     const customerStart = Date.now();
-    const customerResults = await syncService.customerSyncService.pullCustomers({
+    const customerResults = await customerSyncSvc.pullCustomers({
       updateExisting: false,
     });
     const customerDuration = Date.now() - customerStart;
@@ -509,7 +533,15 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
 
     // Sync room types first to ensure mappings exist (in case new room types were added)
     console.log(`[QloApps Inbound] 🏨 Pre-check: Syncing room types...`);
-    const roomTypeResults = await syncService.roomTypeSyncService.pullRoomTypes();
+    
+    const { QloAppsRoomTypeSyncService: RoomTypeSyncService } = await import('../services/room_type_sync_service.js');
+    const roomTypeSyncSvc = new RoomTypeSyncService(
+      (syncService as any).client,
+      (syncService as any).configId,
+      (syncService as any).propertyId,
+      (syncService as any).hotelId
+    );
+    const roomTypeResults = await roomTypeSyncSvc.pullRoomTypes();
     const roomTypesSynced = roomTypeResults.filter(r => r.success && (r.action === 'created' || r.action === 'mapped')).length;
     if (roomTypesSynced > 0) {
       console.log(`[QloApps Inbound] ✓ Synced ${roomTypesSynced} new room types`);

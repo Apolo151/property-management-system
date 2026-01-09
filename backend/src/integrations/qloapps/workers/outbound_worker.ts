@@ -96,13 +96,13 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Outbound]   Timestamp: ${(message as any).timestamp || new Date().toISOString()}`);
     console.log(`[QloApps Outbound]   Retry Count: ${(message as any).retryCount || 0}`);
 
-    // Log RabbitMQ context
+    // Log RabbitMQ context (only log properties that exist on QloAppsMessageContext)
     console.log(`[QloApps Outbound] 📨 RabbitMQ Context:`);
-    console.log(`[QloApps Outbound]   Delivery Tag: ${context.deliveryTag || 'N/A'}`);
-    console.log(`[QloApps Outbound]   Redelivered: ${context.redelivered || false}`);
-    console.log(`[QloApps Outbound]   Exchange: ${context.exchange || 'N/A'}`);
-    console.log(`[QloApps Outbound]   Routing Key: ${context.routingKey || 'N/A'}`);
-    console.log(`[QloApps Outbound]   Consumer Tag: ${context.consumerTag || 'N/A'}`);
+    console.log(
+      `[QloApps Outbound]   Delivery Tag: ${(context as any).deliveryTag || 'N/A'}`
+    );
+    console.log(`[QloApps Outbound]   Redelivered: ${(context as any).redelivered || false}`);
+    // Exchange, Routing Key, Consumer Tag are not present on QloAppsMessageContext type
 
     // Log message content
     console.log(`[QloApps Outbound] 📝 Message Content:`);
@@ -259,11 +259,21 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     const reservation = reservations[0];
     console.log(`[QloApps Outbound] 📝 Reservation Details:`);
-    console.log(`[QloApps Outbound]   Guest ID: ${reservation.guestId}`);
-    console.log(`[QloApps Outbound]   Room Type ID: ${reservation.roomTypeId}`);
-    console.log(`[QloApps Outbound]   Check-in: ${reservation.checkInDate}`);
-    console.log(`[QloApps Outbound]   Check-out: ${reservation.checkOutDate}`);
-    console.log(`[QloApps Outbound]   Status: ${reservation.status}`);
+    // Defensive: check reservation is defined and use correct property names (snake_case)
+    if (reservation) {
+      // ReservationResponse uses these property names (see reservations_types.ts).
+      // Prefer primary_guest_id, fall back to secondary_guest_id if present.
+      const guestId = (reservation as any).guest_id ?? reservation.primary_guest_id ?? reservation.secondary_guest_id ?? 'N/A';
+      const roomTypeId = (reservation as any).room_type_id ?? reservation.room_type_id ?? 'N/A';
+      const checkIn = (reservation as any).check_in_date ?? reservation.check_in ?? 'N/A';
+      const checkOut = (reservation as any).check_out_date ?? reservation.check_out ?? 'N/A';
+
+      console.log(`[QloApps Outbound]   Guest ID: ${guestId}`);
+      console.log(`[QloApps Outbound]   Room Type ID: ${roomTypeId}`);
+      console.log(`[QloApps Outbound]   Check-in: ${checkIn}`);
+      console.log(`[QloApps Outbound]   Check-out: ${checkOut}`);
+      console.log(`[QloApps Outbound]   Status: ${reservation.status}`);
+    }
 
     console.log(`[QloApps Outbound] 🚀 Pushing to QloApps...`);
     const pushStart = Date.now();
@@ -391,6 +401,16 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     const handlerStart = Date.now();
 
+    // Get config for property ID
+    const config = await db('qloapps_config')
+      .where({ id: configId })
+      .first();
+    
+    if (!config) {
+      console.error(`[QloApps Outbound] ❌ Configuration not found: ${configId}`);
+      return;
+    }
+
     // Get room type mapping
     console.log(`[QloApps Outbound] 🔍 Query: SELECT * FROM qloapps_room_type_mappings WHERE local_room_type_id = '${roomTypeId}' AND is_active = true`);
     const mappingStart = Date.now();
@@ -414,7 +434,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     console.log(`[QloApps Outbound] 🚀 Syncing availability...`);
     const syncStart = Date.now();
-    const availabilityService = new QloAppsAvailabilitySyncService(client, configId);
+    const availabilityService = new QloAppsAvailabilitySyncService(client, configId, config.property_id);
     const result = await availabilityService.syncRoomTypeAvailability(
       roomTypeId,
       parseInt(mapping.qloapps_product_id, 10),
@@ -468,6 +488,16 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     const handlerStart = Date.now();
 
+    // Get config for property ID
+    const config = await db('qloapps_config')
+      .where({ id: configId })
+      .first();
+    
+    if (!config) {
+      console.error(`[QloApps Outbound] ❌ Configuration not found: ${configId}`);
+      return;
+    }
+
     // Get room type mapping
     console.log(`[QloApps Outbound] 🔍 Query: SELECT * FROM qloapps_room_type_mappings WHERE local_room_type_id = '${roomTypeId}' AND is_active = true`);
     const mappingStart = Date.now();
@@ -491,7 +521,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     console.log(`[QloApps Outbound] 🚀 Syncing rates...`);
     const syncStart = Date.now();
-    const rateService = new QloAppsRateSyncService(client, configId);
+    const rateService = new QloAppsRateSyncService(client, configId, config.property_id);
     const result = await rateService.syncRoomTypeRates(
       roomTypeId,
       parseInt(mapping.qloapps_product_id, 10),

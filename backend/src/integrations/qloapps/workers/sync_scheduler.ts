@@ -255,21 +255,42 @@ async function runSyncForConfig(config: {
           });
       }
 
-      return {
+      const returnResult: { success: boolean; itemsProcessed: number; itemsCreated: number; itemsUpdated: number; itemsFailed: number; error?: string } = {
         success: result.success,
         itemsProcessed: result.reservations.processed,
         itemsCreated: result.reservations.created,
         itemsUpdated: result.reservations.updated,
         itemsFailed: result.reservations.failed,
-        error: result.error,
       };
+      
+      if (result.error) {
+        returnResult.error = result.error;
+      }
+
+      return returnResult;
     } else {
       // Incremental sync - still do 3-phase (room types, customers, bookings) to ensure mappings exist
       console.log(`[QloApps Sync] 🔄 Incremental sync for config ${config.id}...`);
       
       // Phase 1: Sync room types (to catch any new ones)
       console.log(`[QloApps Sync] 🏨 Phase 1: Syncing room types...`);
-      const roomTypeResults = await syncService.roomTypeSyncService.pullRoomTypes();
+      const { QloAppsRoomTypeSyncService: RoomTypeSyncService } = await import('../services/room_type_sync_service.js');
+      const { QloAppsCustomerSyncService: CustomerSyncService } = await import('../services/customer_sync_service.js');
+      
+      const roomTypeSyncSvc = new RoomTypeSyncService(
+        (syncService as any).client,
+        (syncService as any).configId,
+        (syncService as any).propertyId,
+        (syncService as any).hotelId
+      );
+      const customerSyncSvc = new CustomerSyncService(
+        (syncService as any).client,
+        (syncService as any).configId,
+        (syncService as any).propertyId,
+        (syncService as any).hotelId
+      );
+
+      const roomTypeResults = await roomTypeSyncSvc.pullRoomTypes();
       const roomTypesSynced = roomTypeResults.filter(r => r.success && (r.action === 'created' || r.action === 'mapped')).length;
       if (roomTypesSynced > 0) {
         console.log(`[QloApps Sync] ✓ Synced ${roomTypesSynced} new room types`);
@@ -277,7 +298,7 @@ async function runSyncForConfig(config: {
 
       // Phase 2: Sync customers (to catch any new ones)
       console.log(`[QloApps Sync] 👥 Phase 2: Syncing customers...`);
-      const customerResults = await syncService.customerSyncService.pullCustomers({ updateExisting: false });
+      const customerResults = await customerSyncSvc.pullCustomers({ updateExisting: false });
       const customersSynced = customerResults.filter(r => r.success && (r.action === 'created' || r.action === 'matched')).length;
       if (customersSynced > 0) {
         console.log(`[QloApps Sync] ✓ Synced ${customersSynced} new customers`);
@@ -350,14 +371,19 @@ async function runSyncForConfig(config: {
           });
       }
 
-      return {
+      const result: { success: boolean; itemsProcessed: number; itemsCreated: number; itemsUpdated: number; itemsFailed: number; error?: string } = {
         success: failed < bookings.length,
         itemsProcessed: bookings.length,
         itemsCreated: created,
         itemsUpdated: updated,
         itemsFailed: failed,
-        error: failed > 0 ? `${failed} bookings failed to sync` : undefined,
       };
+      
+      if (failed > 0) {
+        result.error = `${failed} bookings failed to sync`;
+      }
+
+      return result;
     }
 
   } catch (error) {

@@ -57,15 +57,21 @@ export function mapQloAppsRoomToPms(
   qloAppsRoom: QloAppsRoom,
   roomType: RoomType
 ): CreateRoomRequest {
-  return {
+  const description = qloAppsRoom.comment || roomType.description;
+  const result: CreateRoomRequest = {
     room_number: qloAppsRoom.room_num,
     type: deriveRoomTypeFromName(roomType.name),
     status: mapQloAppsStatusToPmsRoomStatus(qloAppsRoom.id_status),
     price_per_night: roomType.price_per_night,
     floor: parseFloorString(qloAppsRoom.floor),
     features: roomType.features || [],
-    description: qloAppsRoom.comment || roomType.description,
   };
+  
+  if (description) {
+    result.description = description;
+  }
+  
+  return result;
 }
 
 /**

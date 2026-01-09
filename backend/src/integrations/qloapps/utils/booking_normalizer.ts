@@ -29,8 +29,8 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
       date_from: raw.date_from || '',
       date_to: raw.date_to || '',
       number_of_rooms: 1, // Assume 1 room per booking in this endpoint
-      id_room: raw.id_room,
-      room_name: raw.room_num,
+      ...(raw.id_room !== undefined && { id_room: raw.id_room }),
+      ...(raw.room_num && { room_name: raw.room_num }),
       room_type_name: raw.room_type_name,
       occupancy: [{
         adults: raw.adults || 1,
@@ -49,15 +49,15 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
       // Extract name from email prefix (before @)
       const emailPrefix = raw.email.split('@')[0];
       // Clean up common email patterns (dots, underscores, numbers)
-      const cleanedName = emailPrefix.replace(/[._-]/g, ' ').replace(/\d+/g, '').trim();
+      const cleanedName = (emailPrefix || '').replace(/[._-]/g, ' ').replace(/\d+/g, '').trim();
       
       if (cleanedName) {
         const nameParts = cleanedName.split(/\s+/);
         if (nameParts.length > 1) {
-          firstname = nameParts[0];
-          lastname = nameParts.slice(1).join(' ');
+          firstname = nameParts[0] || 'Booking';
+          lastname = nameParts.slice(1).join(' ') || 'Guest';
         } else {
-          firstname = cleanedName;
+          firstname = cleanedName || 'Booking';
           lastname = 'Guest';
         }
       } else {
@@ -72,15 +72,15 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
     }
 
     customer_detail = {
-      firstname: firstname,
-      lastname: lastname,
+      firstname: firstname || 'Booking',
+      lastname: lastname || 'Guest',
       email: raw.email || '',
       phone: raw.phone || '',
       address: '', // Not available in room_bookings
-      city: raw.city,
-      country_code: raw.country,
-      state_code: raw.state,
-      zip: raw.zipcode
+      ...(raw.city && { city: raw.city }),
+      ...(raw.country && { country_code: raw.country }),
+      ...(raw.state && { state_code: raw.state }),
+      ...(raw.zipcode && { zip: raw.zipcode })
     };
   }
   // Fallback to associations structure (for other endpoints)
@@ -122,15 +122,15 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
       if (customer_detail.email) {
         // Extract name from email prefix
         const emailPrefix = customer_detail.email.split('@')[0];
-        const cleanedName = emailPrefix.replace(/[._-]/g, ' ').replace(/\d+/g, '').trim();
+        const cleanedName = (emailPrefix || '').replace(/[._-]/g, ' ').replace(/\d+/g, '').trim();
         
         if (cleanedName) {
           const nameParts = cleanedName.split(/\s+/);
           if (nameParts.length > 1) {
-            customer_detail.firstname = nameParts[0];
-            customer_detail.lastname = nameParts.slice(1).join(' ');
+            customer_detail.firstname = nameParts[0] || 'Booking';
+            customer_detail.lastname = nameParts.slice(1).join(' ') || 'Guest';
           } else {
-            customer_detail.firstname = cleanedName;
+            customer_detail.firstname = cleanedName || 'Booking';
             customer_detail.lastname = 'Guest';
           }
         } else {
@@ -144,7 +144,8 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
       }
     } else if (!customer_detail.firstname) {
       // Has lastname but no firstname
-      customer_detail.firstname = customer_detail.email ? customer_detail.email.split('@')[0] : 'Guest';
+      const emailPart = customer_detail.email ? customer_detail.email.split('@')[0] : 'Guest';
+      customer_detail.firstname = (emailPart || '').substring(0, 20) || 'Guest';
     } else if (!customer_detail.lastname) {
       // Has firstname but no lastname
       customer_detail.lastname = 'Guest';
@@ -163,8 +164,8 @@ export function normalizeQloAppsBooking(raw: QloAppsBookingRaw): QloAppsBooking 
     source: 'qloapps',
     room_types: room_types,
     customer_detail: customer_detail!,
-    date_add: raw.date_add,
-    date_upd: raw.date_upd,
+    ...(raw.date_add && { date_add: raw.date_add }),
+    ...(raw.date_upd && { date_upd: raw.date_upd }),
   };
 
   return normalized;
