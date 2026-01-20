@@ -1,0 +1,234 @@
+services:
+  # ===================
+  # Main Application
+  # ===================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - SYNC_INTERVAL_MS=${SYNC_INTERVAL_MS:-60000}
+      - SYNC_ENABLED=${SYNC_ENABLED:-true}
+      - QLO_API_URL=${QLO_API_URL:-}
+      - QLO_API_KEY=${QLO_API_KEY:-}
+      - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
+      - BEDS24_API_KEY=${BEDS24_API_KEY:-}
+      - BEDS24_PROP_KEY=${BEDS24_PROP_KEY:-}
+      - BEDS24_API_URL=${BEDS24_API_URL:-https://api.beds24.com/v2}
+      - BEDS24_WEBHOOK_SECRET=${BEDS24_WEBHOOK_SECRET:-}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      rabbitmq:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
+  # ===================
+  # Workers
+  # ===================
+  worker-inbound:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run worker:qloapps-inbound
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      rabbitmq:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    profiles:
+      - workers
+    networks:
+      - hotel-network
+
+  worker-outbound:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run worker:qloapps-outbound
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      rabbitmq:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    profiles:
+      - workers
+    networks:
+      - hotel-network
+
+  worker-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run worker:qloapps-scheduler
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      rabbitmq:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    profiles:
+      - workers
+    networks:
+      - hotel-network
+
+  # ===================
+  # Infrastructure
+  # ===================
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-hotel_pms_dev}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-hotel_pms_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+    networks:
+      - hotel-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    profiles:
+      - infra
+    networks:
+      - hotel-network
+
+  # ===================
+  # Database Migration Runner
+  # ===================
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run db:migrate
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - hotel-network
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run db:seed
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - hotel-network
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  hotel-network:
+    driver: bridge
