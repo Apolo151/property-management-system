@@ -32,6 +32,7 @@ const MainLayout = ({ children, onLogout }) => {
     { name: 'Rooms', path: '/rooms', icon: '🛏️' },
     { name: 'Room Types', path: '/room-types', icon: '🏨' },
     { name: 'Reservations', path: '/reservations', icon: '📅' },
+    { name: 'Check-ins', path: '/check-ins', icon: '🔑' },
     { name: 'Calendar', path: '/calendar', icon: '🗓️' },
     { name: 'Availability', path: '/availability', icon: '🔍' },
     { name: 'Timeline', path: '/timeline', icon: '📊' },

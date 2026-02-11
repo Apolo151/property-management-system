@@ -6,24 +6,29 @@ import FilterSelect from '../components/FilterSelect'
 import Modal from '../components/Modal'
 import useRoomTypesStore from '../store/roomTypesStore'
 import useRoomsStore from '../store/roomsStore'
+import useCheckInsStore from '../store/checkInsStore'
 import { api } from '../utils/api'
 import { useToast } from '../hooks/useToast'
 
 const RoomsPage = () => {
   const { roomTypes, fetchRoomTypes, isLoading: roomTypesLoading } = useRoomTypesStore()
   const { rooms, housekeeping, fetchRooms, fetchHousekeeping, updateHousekeepingStatus, isLoading: housekeepingLoading } = useRoomsStore()
+  const { checkIns, fetchCheckIns, getCheckInByRoom } = useCheckInsStore()
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(false)
   const [roomsLoading, setRoomsLoading] = useState(false)
+  const [selectedRoomCheckIn, setSelectedRoomCheckIn] = useState(null)
+  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
   const toast = useToast()
 
-  // Fetch room types, rooms, housekeeping, and staff on mount
+  // Fetch room types, rooms, housekeeping, check-ins, and staff on mount
   useEffect(() => {
     fetchRoomTypes()
     fetchRoomsData()
     fetchHousekeeping()
+    fetchCheckIns()
     fetchStaff()
-  }, [fetchRoomTypes, fetchHousekeeping])
+  }, [fetchRoomTypes, fetchHousekeeping, fetchCheckIns])
 
   // Fetch rooms with loading state
   const fetchRoomsData = async () => {
@@ -61,7 +66,7 @@ const RoomsPage = () => {
     }
   }
 
-  // Enrich rooms with room type information
+  // Enrich rooms with room type and check-in information
   const enrichedRooms = useMemo(() => {
     return rooms.map((room) => {
       // Find the matching room type by room_type field (lowercase)
@@ -69,13 +74,18 @@ const RoomsPage = () => {
         (rt) => rt.roomType && rt.roomType.toLowerCase() === room.roomType
       )
       
+      // Find active check-in for this room
+      const checkIn = getCheckInByRoom(room.id)
+      
       return {
         ...room,
         roomTypeName: matchingRoomType?.name || `${room.type} Room`,
         maxPeople: matchingRoomType?.maxPeople || room.maxPeople,
+        checkIn: checkIn || null,
+        guestName: checkIn?.guest_name || null,
       }
     })
-  }, [rooms, roomTypes])
+  }, [rooms, roomTypes, checkIns, getCheckInByRoom])
   const [activeTab, setActiveTab] = useState('rooms')
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -227,6 +237,9 @@ const RoomsPage = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Guest
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Price/Night
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -256,6 +269,24 @@ const RoomsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <StatusBadge status={room.status} type="room" />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {room.checkIn && room.guestName ? (
+                      <div>
+                        <button
+                          onClick={() => {
+                            setSelectedRoomCheckIn(room.checkIn);
+                            setIsCheckInModalOpen(true);
+                          }}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-900"
+                        >
+                          {room.guestName}
+                        </button>
+                        <div className="text-xs text-gray-500">Checked-in</div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-400">-</div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">${room.pricePerNight?.toFixed(2) || '0.00'}</div>
@@ -452,6 +483,79 @@ const RoomsPage = () => {
             <div className="text-center py-12 text-gray-500">No rooms found</div>
           )}
         </>
+      )}
+
+      {/* Check-in Details Modal */}
+      {isCheckInModalOpen && selectedRoomCheckIn && (
+        <Modal
+          isOpen={isCheckInModalOpen}
+          onClose={() => {
+            setIsCheckInModalOpen(false);
+            setSelectedRoomCheckIn(null);
+          }}
+          title="Check-in Details"
+        >
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Guest Information</h3>
+              <p className="mt-1 text-sm text-gray-900">{selectedRoomCheckIn.guest_name}</p>
+              {selectedRoomCheckIn.guest_email && (
+                <p className="text-sm text-gray-500">{selectedRoomCheckIn.guest_email}</p>
+              )}
+              {selectedRoomCheckIn.guest_phone && (
+                <p className="text-sm text-gray-500">{selectedRoomCheckIn.guest_phone}</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Room Information</h3>
+              <p className="mt-1 text-sm text-gray-900">
+                Room {selectedRoomCheckIn.room_number}
+              </p>
+              {selectedRoomCheckIn.room_type_name && (
+                <p className="text-sm text-gray-500">{selectedRoomCheckIn.room_type_name}</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Check-in Details</h3>
+              <p className="mt-1 text-sm text-gray-900">
+                Check-in: {selectedRoomCheckIn.check_in_time ? format(parseISO(selectedRoomCheckIn.check_in_time), 'MMM dd, yyyy HH:mm') : 'N/A'}
+              </p>
+              <p className="text-sm text-gray-900">
+                Expected Checkout: {selectedRoomCheckIn.expected_checkout_time ? format(parseISO(selectedRoomCheckIn.expected_checkout_time), 'MMM dd, yyyy') : 'N/A'}
+              </p>
+            </div>
+
+            {selectedRoomCheckIn.notes && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">Notes</h3>
+                <p className="mt-1 text-sm text-gray-900">{selectedRoomCheckIn.notes}</p>
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Status</h3>
+              <div className="mt-1">
+                <StatusBadge
+                  status={selectedRoomCheckIn.status === 'checked_in' ? 'Checked In' : 'Checked Out'}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={() => {
+                setIsCheckInModalOpen(false);
+                setSelectedRoomCheckIn(null);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

@@ -474,8 +474,16 @@ export async function createReservationHandler(
         });
       }
 
-      // Update room status if status is Checked-in (legacy: only for individual rooms)
+      // ⚠️ LEGACY: Update room status if status is Checked-in (backward compatibility)
+      // DEPRECATION WARNING: This direct status update is maintained for backward compatibility
+      // with existing workflows. For new implementations, use the Check-ins API instead:
+      //   POST /api/v1/reservations/:id/check-in
+      // The Check-ins API provides:
+      // - Proper separation of booking intent vs actual stay
+      // - Room assignment audit trail
+      // - Support for room changes during stay
       if (status === 'Checked-in' && roomId) {
+        console.warn(`[Reservation] Using legacy check-in flow for reservation ${newReservation.id}. Consider using Check-ins API instead.`);
         await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
         await trx('housekeeping')
           .where({ room_id: roomId })
@@ -662,16 +670,23 @@ export async function updateReservationHandler(
     await db.transaction(async (trx) => {
       await trx('reservations').where({ id }).update(updateData);
 
-      // Update room status based on reservation status
+      // ⚠️ LEGACY: Update room status based on reservation status (backward compatibility)
+      // DEPRECATION WARNING: This direct status update is maintained for backward compatibility.
+      // For new implementations, use the Check-ins API instead:
+      //   - Check-in: POST /api/v1/reservations/:id/check-in
+      //   - Check-out: PATCH /api/v1/check-ins/:id/checkout
+      //   - Room change: POST /api/v1/check-ins/:id/change-room
       if (updates.status) {
         const room = await trx('rooms').where({ id: roomId }).first();
         if (room) {
           if (updates.status === 'Checked-in') {
+            console.warn(`[Reservation] Using legacy check-in flow for reservation ${id}. Consider using Check-ins API instead.`);
             await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
             await trx('housekeeping')
               .where({ room_id: roomId })
               .update({ status: 'Dirty', updated_at: new Date() });
           } else if (updates.status === 'Checked-out') {
+            console.warn(`[Reservation] Using legacy check-out flow for reservation ${id}. Consider using Check-ins API instead.`);
             await trx('rooms').where({ id: roomId }).update({ status: 'Cleaning' });
             await trx('housekeeping')
               .where({ room_id: roomId })

@@ -557,6 +557,129 @@ export async function queueQloAppsGuestSyncHook(
 }
 
 // ============================================================================
+// Check-in Sync Hooks
+// ============================================================================
+
+/**
+ * Get check-in's property ID from reservation
+ */
+async function getCheckInPropertyId(checkInId: string): Promise<string | null> {
+  const checkIn = await db('check_ins')
+    .where({ id: checkInId })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!checkIn?.reservation_id) {
+    return getDefaultPropertyId();
+  }
+
+  return getReservationPropertyId(checkIn.reservation_id);
+}
+
+/**
+ * Queue reservation sync after check-in
+ * Updates QloApps booking status to reflect the check-in
+ *
+ * @param checkInId - The PMS check-in ID
+ * @param action - The action type: checkin, checkout, or room_change
+ */
+export async function queueQloAppsCheckInSyncHook(
+  checkInId: string,
+  action: 'checkin' | 'checkout' | 'room_change' = 'checkin'
+): Promise<void> {
+  try {
+    // Get reservation ID from check-in
+    const checkIn = await db('check_ins')
+      .where({ id: checkInId })
+      .whereNull('deleted_at')
+      .first();
+
+    if (!checkIn || !checkIn.reservation_id) {
+      console.warn(
+        `[QloApps SyncHook] Check-in ${checkInId} not found or has no reservation`
+      );
+      return;
+    }
+
+    const reservationId = checkIn.reservation_id;
+
+    // Get property ID from reservation
+    const hotelId = (await getReservationPropertyId(reservationId)) ?? getDefaultPropertyId();
+
+    // Check if reservation outbound sync is enabled
+    if (!(await isQloAppsReservationSyncEnabled(hotelId))) {
+      return; // Sync disabled, skip
+    }
+
+    // Get config ID
+    const configId = await getQloAppsConfigId(hotelId);
+    if (!configId) {
+      console.warn(
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
+      );
+      return;
+    }
+
+    // Check if reservation originated from QloApps
+    const reservation = await db('reservations')
+      .where({ id: reservationId })
+      .whereNull('deleted_at')
+      .first();
+
+    if (!reservation) {
+      console.warn(
+        `[QloApps SyncHook] Reservation ${reservationId} not found`
+      );
+      return;
+    }
+
+    if (reservation.source === 'QloApps') {
+      console.log(
+        `[QloApps SyncHook] Skipping sync for QloApps-originated reservation ${reservationId} (check-in: ${action})`
+      );
+      return;
+    }
+
+    // Queue reservation update to sync check-in status
+    // The mapper will handle converting check-in status to QloApps COMPLETED status
+    const messageId = await qloAppsPublisher.queueReservationUpdate(
+      configId,
+      reservationId
+    );
+
+    console.log(
+      `[QloApps SyncHook] Queued reservation.update for check-in ${action} on ${reservationId} (message: ${messageId})`
+    );
+  } catch (error) {
+    // Log but don't throw - sync is non-blocking
+    console.error(
+      `[QloApps SyncHook] Error in check-in sync hook for ${checkInId}:`,
+      error
+    );
+  }
+}
+
+/**
+ * Queue reservation sync after checkout
+ * Convenience function that calls queueQloAppsCheckInSyncHook with checkout action
+ */
+export async function queueQloAppsCheckOutSyncHook(
+  checkInId: string
+): Promise<void> {
+  return queueQloAppsCheckInSyncHook(checkInId, 'checkout');
+}
+
+/**
+ * Queue reservation sync after room change
+ * Convenience function that calls queueQloAppsCheckInSyncHook with room_change action
+ */
+export async function queueQloAppsRoomChangeSyncHook(
+  checkInId: string
+): Promise<void> {
+  return queueQloAppsCheckInSyncHook(checkInId, 'room_change');
+}
+
+// ============================================================================
 // Bulk Sync Hooks
 // ============================================================================
 

@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import RoomsPage from './pages/RoomsPage'
 import RoomTypesPage from './pages/RoomTypesPage'
 import ReservationsPage from './pages/ReservationsPage'
+import CheckInsPage from './pages/CheckInsPage'
 import CalendarPage from './pages/CalendarPage'
 import AvailabilityPage from './pages/AvailabilityPage'
 import BookingTimeline from './components/BookingTimeline'
@@ -153,6 +154,7 @@ function App() {
                   <Route path="/rooms" element={<RoomsPage />} />
                   <Route path="/room-types" element={<RoomTypesPage />} />
                   <Route path="/reservations" element={<ReservationsPage />} />
+                  <Route path="/check-ins" element={<CheckInsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/availability" element={<AvailabilityPage />} />
                   <Route path="/timeline" element={<BookingTimeline />} />

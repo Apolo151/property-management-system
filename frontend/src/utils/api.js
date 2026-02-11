@@ -580,6 +580,44 @@ export const api = {
     update: (id, hotelData) => request(`/v1/hotels/${id}`, { method: 'PUT', body: hotelData }),
     delete: (id) => request(`/v1/hotels/${id}`, { method: 'DELETE' }),
   },
+
+  // Check-ins endpoints
+  checkIns: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return request(`/v1/check-ins${queryString ? `?${queryString}` : ''}`);
+    },
+
+    getById: (id) => request(`/v1/check-ins/${id}`),
+
+    create: (checkInData) =>
+      request('/v1/check-ins', {
+        method: 'POST',
+        body: checkInData,
+      }),
+
+    checkout: (id, checkoutData = {}) =>
+      request(`/v1/check-ins/${id}/checkout`, {
+        method: 'PATCH',
+        body: checkoutData,
+      }),
+
+    changeRoom: (id, roomChangeData) =>
+      request(`/v1/check-ins/${id}/change-room`, {
+        method: 'POST',
+        body: roomChangeData,
+      }),
+
+    // Convenience methods for check-in from reservation
+    getEligibleRooms: (reservationId) =>
+      request(`/v1/reservations/${reservationId}/eligible-rooms`),
+
+    checkInFromReservation: (reservationId, checkInData) =>
+      request(`/v1/reservations/${reservationId}/check-in`, {
+        method: 'POST',
+        body: checkInData,
+      }),
+  },
 };
 
 export { ApiError };

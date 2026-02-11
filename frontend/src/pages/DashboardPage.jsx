@@ -4,6 +4,7 @@ import { api } from '../utils/api.js'
 import useReservationsStore from '../store/reservationsStore.js'
 import useInvoicesStore from '../store/invoicesStore.js'
 import useExpensesStore from '../store/expensesStore.js'
+import useCheckInsStore from '../store/checkInsStore.js'
 import { format, eachDayOfInterval, addDays, getMonth, getYear } from 'date-fns'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
@@ -11,6 +12,7 @@ const DashboardPage = () => {
   const { reservations, fetchReservations, loading: reservationsLoading } = useReservationsStore()
   const { invoices, fetchInvoices, loading: invoicesLoading } = useInvoicesStore()
   const { expenses, fetchExpenses, loading: expensesLoading } = useExpensesStore()
+  const { checkIns, fetchCheckIns, activeCheckIns, loading: checkInsLoading } = useCheckInsStore()
   
   const [roomTypes, setRoomTypes] = useState([])
   const [reportStats, setReportStats] = useState(null)
@@ -29,6 +31,7 @@ const DashboardPage = () => {
           fetchReservations(),
           fetchInvoices(),
           fetchExpenses(),
+          fetchCheckIns(),
           api.reports.getStats()
         ])
         
@@ -44,8 +47,8 @@ const DashboardPage = () => {
         }
         
         // Set report stats if successful
-        if (results[4].status === 'fulfilled') {
-          setReportStats(results[4].value)
+        if (results[5].status === 'fulfilled') {
+          setReportStats(results[5].value)
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err)
@@ -56,33 +59,36 @@ const DashboardPage = () => {
     }
 
     fetchDashboardData()
-  }, [fetchReservations, fetchInvoices, fetchExpenses])
+  }, [fetchReservations, fetchInvoices, fetchExpenses, fetchCheckIns])
 
-  const loading = statsLoading || reservationsLoading || invoicesLoading || expensesLoading
+  const loading = statsLoading || reservationsLoading || invoicesLoading || expensesLoading || checkInsLoading
 
-  // Calculate stats from backend data
+  // Calculate stats from backend data and check-ins
   const stats = useMemo(() => {
     // Calculate total rooms from room types (sum of qty for each room type)
     const totalRooms = roomTypes.reduce((sum, rt) => sum + (parseInt(rt.qty) || 1), 0)
     
-    // Calculate occupied rooms from current checked-in reservations
+    // Calculate occupied rooms from active check-ins
+    const occupiedRooms = activeCheckIns.length
+    
+    const availableRooms = Math.max(0, totalRooms - occupiedRooms)
+
+    // Calculate today's check-ins and check-outs
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split('T')[0]
     
-    // Count reservations that are currently checked-in
-    const occupiedRooms = reservations.filter((res) => {
-      if (res.status !== 'Checked-in' || !res.checkIn || !res.checkOut) return false
-      try {
-        const checkIn = res.checkIn.split('T')[0]
-        const checkOut = res.checkOut.split('T')[0]
-        return checkIn <= todayStr && checkOut > todayStr
-      } catch (e) {
-        return false
-      }
+    const todaysCheckInsCount = checkIns.filter((ci) => {
+      if (!ci.check_in_time) return false
+      const checkInDate = ci.check_in_time.split('T')[0]
+      return checkInDate === todayStr
     }).length
-    
-    const availableRooms = Math.max(0, totalRooms - occupiedRooms)
+
+    const todaysCheckOutsCount = checkIns.filter((ci) => {
+      if (!ci.actual_checkout_time) return false
+      const checkOutDate = ci.actual_checkout_time.split('T')[0]
+      return checkOutDate === todayStr
+    }).length
 
     // Calculate today's revenue from invoices issued today
     const todaysRevenue = invoices
@@ -96,11 +102,12 @@ const DashboardPage = () => {
       totalRooms,
       occupiedRooms,
       availableRooms,
-      todaysCheckIns: reportStats?.reservations?.today_check_ins || 0,
-      todaysCheckOuts: reportStats?.reservations?.today_check_outs || 0,
+      activeCheckIns: activeCheckIns.length,
+      todaysCheckIns: todaysCheckInsCount,
+      todaysCheckOuts: todaysCheckOutsCount,
       todaysRevenue,
     }
-  }, [roomTypes, reportStats, invoices, reservations])
+  }, [roomTypes, reportStats, invoices, checkIns, activeCheckIns])
 
   // Financial calculations from backend stats (always use backend data)
   const financialStats = useMemo(() => {
@@ -294,6 +301,11 @@ const DashboardPage = () => {
           title="Available Rooms"
           value={stats.availableRooms}
           icon={<span className="text-2xl">🟢</span>}
+        />
+        <StatCard
+          title="Active Check-ins"
+          value={stats.activeCheckIns}
+          icon={<span className="text-2xl">🔑</span>}
         />
         <StatCard
           title="Today's Check-ins"

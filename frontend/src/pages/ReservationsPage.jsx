@@ -5,6 +5,7 @@ import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import Modal from '../components/Modal'
 import GuestSelect from '../components/GuestSelect'
+import CheckInModal from '../components/CheckInModal'
 import useReservationsStore from '../store/reservationsStore'
 import useRoomsStore from '../store/roomsStore'
 import useRoomTypesStore from '../store/roomTypesStore'
@@ -66,6 +67,10 @@ const ReservationsPage = () => {
   })
   const [guestName, setGuestName] = useState('') // For creating new guest
   const [guest2Name, setGuest2Name] = useState('') // For creating second guest
+  
+  // Check-in modal state
+  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
+  const [selectedReservationForCheckIn, setSelectedReservationForCheckIn] = useState(null)
 
   // Fetch reservations, guests, rooms, and invoices on mount
   useEffect(() => {
@@ -230,6 +235,18 @@ const ReservationsPage = () => {
   // Check if an invoice already exists for a reservation
   const hasInvoice = (reservationId) => {
     return invoices.some((inv) => String(inv.reservationId) === String(reservationId))
+  }
+
+  const handleOpenCheckIn = (reservation) => {
+    setSelectedReservationForCheckIn(reservation)
+    setIsCheckInModalOpen(true)
+  }
+
+  const handleCloseCheckIn = () => {
+    setIsCheckInModalOpen(false)
+    setSelectedReservationForCheckIn(null)
+    // Refresh reservations to show updated status
+    fetchReservations()
   }
 
   const handleCreateInvoice = async (reservation) => {
@@ -656,7 +673,15 @@ const ReservationsPage = () => {
                       ${reservation.totalAmount?.toLocaleString() || '0'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
+                    {reservation.status === 'Confirmed' && (
+                      <button
+                        onClick={() => handleOpenCheckIn(reservation)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Check In
+                      </button>
+                    )}
                     {hasInvoice(reservation.id) ? (
                       <span className="text-gray-400 cursor-not-allowed" title="Invoice already exists">
                         Invoice Created
@@ -1080,6 +1105,13 @@ const ReservationsPage = () => {
           )}
         </div>
       </Modal>
+
+      {/* Check-in Modal */}
+      <CheckInModal
+        isOpen={isCheckInModalOpen}
+        onClose={handleCloseCheckIn}
+        reservation={selectedReservationForCheckIn}
+      />
     </div>
   )
 }
