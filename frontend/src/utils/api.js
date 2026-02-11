@@ -77,9 +77,13 @@ async function request(endpoint, options = {}) {
   const isAuthEndpoint = endpoint.startsWith('/auth/login') || 
                          endpoint.startsWith('/auth/register') || 
                          endpoint.startsWith('/auth/refresh');
+  
+  // Skip hotel header for auth and hotels endpoints
+  const skipHotelHeader = isAuthEndpoint || endpoint.startsWith('/v1/hotels');
 
   const url = `${API_BASE_URL}${endpoint}`;
   let token = localStorage.getItem('token');
+  const activeHotelId = localStorage.getItem('activeHotelId');
 
   // If we're refreshing and this is not an auth endpoint, queue the request
   if (isRefreshing && !isAuthEndpoint) {
@@ -92,6 +96,7 @@ async function request(endpoint, options = {}) {
     headers: {
       'Content-Type': 'application/json',
       ...(token && !isAuthEndpoint && { Authorization: `Bearer ${token}` }),
+      ...(activeHotelId && !skipHotelHeader && { 'X-Hotel-Id': activeHotelId }),
       ...options.headers,
     },
     ...options,
@@ -565,6 +570,15 @@ export const api = {
       }),
     
     getSyncStatus: () => request('/v1/qloapps/sync/status'),
+  },
+
+  // Hotels endpoints
+  hotels: {
+    getAll: () => request('/v1/hotels'),
+    getById: (id) => request(`/v1/hotels/${id}`),
+    create: (hotelData) => request('/v1/hotels', { method: 'POST', body: hotelData }),
+    update: (id, hotelData) => request(`/v1/hotels/${id}`, { method: 'PUT', body: hotelData }),
+    delete: (id) => request(`/v1/hotels/${id}`, { method: 'DELETE' }),
   },
 };
 

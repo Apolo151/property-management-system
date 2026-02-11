@@ -8,6 +8,8 @@ const useAuthStore = create((set, get) => ({
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  hotels: [],
+  activeHotelId: null,
 
   // Login
   login: async (email, password) => {
@@ -17,10 +19,22 @@ const useAuthStore = create((set, get) => ({
       localStorage.setItem('token', response.token);
       localStorage.setItem('refreshToken', response.refreshToken);
       localStorage.setItem('user', JSON.stringify(response.user));
+      
+      // Store hotels and activeHotelId
+      const hotels = response.hotels || [];
+      const activeHotelId = response.activeHotelId || (hotels.length > 0 ? hotels[0].id : null);
+      
+      if (activeHotelId) {
+        localStorage.setItem('activeHotelId', activeHotelId);
+      }
+      localStorage.setItem('hotels', JSON.stringify(hotels));
+      
       set({
         user: response.user,
         token: response.token,
         refreshToken: response.refreshToken,
+        hotels,
+        activeHotelId,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -69,10 +83,14 @@ const useAuthStore = create((set, get) => ({
       refreshToken: null,
       isAuthenticated: false,
       error: null,
+      hotels: [],
+      activeHotelId: null,
     });
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('hotels');
+    localStorage.removeItem('activeHotelId');
   },
 
   // Refresh token
@@ -109,8 +127,16 @@ const useAuthStore = create((set, get) => ({
   getCurrentUser: async () => {
     try {
       const response = await api.auth.me();
+      
+      // Update hotels if provided
+      const hotels = response.hotels || [];
+      if (hotels.length > 0) {
+        localStorage.setItem('hotels', JSON.stringify(hotels));
+      }
+      
       set({
         user: response.user,
+        hotels,
         isAuthenticated: true,
       });
       localStorage.setItem('user', JSON.stringify(response.user));
@@ -119,6 +145,30 @@ const useAuthStore = create((set, get) => ({
       get().logout();
       return null;
     }
+  },
+
+  // Switch hotel
+  switchHotel: (hotelId) => {
+    const { hotels } = get();
+    
+    // Validate hotel exists in user's hotels list
+    const hotel = hotels.find(h => h.id === hotelId);
+    if (!hotel) {
+      console.error('Hotel not found in user\'s hotels list');
+      return false;
+    }
+    
+    // Update state and localStorage
+    localStorage.setItem('activeHotelId', hotelId);
+    set({ activeHotelId: hotelId });
+    
+    return true;
+  },
+
+  // Get active hotel
+  getActiveHotel: () => {
+    const { hotels, activeHotelId } = get();
+    return hotels.find(h => h.id === activeHotelId) || null;
   },
 
   // Check if token is expired or about to expire (within 2 minutes)
@@ -168,14 +218,26 @@ const useAuthStore = create((set, get) => ({
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refreshToken');
     const userStr = localStorage.getItem('user');
+    const hotelsStr = localStorage.getItem('hotels');
+    let activeHotelId = localStorage.getItem('activeHotelId');
 
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
+        const hotels = hotelsStr ? JSON.parse(hotelsStr) : [];
+        
+        // If no activeHotelId but user has hotels, set the first one
+        if (!activeHotelId && hotels.length > 0) {
+          activeHotelId = hotels[0].id;
+          localStorage.setItem('activeHotelId', activeHotelId);
+        }
+        
         set({
           user,
           token,
           refreshToken,
+          hotels,
+          activeHotelId,
           isAuthenticated: true,
         });
         

@@ -29,6 +29,28 @@ const SettingsPage = () => {
     last_name: '',
     role: 'VIEWER',
     is_active: true,
+    hotel_ids: [],
+  })
+  const [availableHotels, setAvailableHotels] = useState([])
+
+  // Hotels management state
+  const [hotels, setHotels] = useState([])
+  const [hotelsLoading, setHotelsLoading] = useState(false)
+  const [hotelsError, setHotelsError] = useState(null)
+  const [showAddHotelForm, setShowAddHotelForm] = useState(false)
+  const [editingHotel, setEditingHotel] = useState(null)
+  const [newHotel, setNewHotel] = useState({
+    hotel_name: '',
+    hotel_address: '',
+    hotel_city: '',
+    hotel_country: '',
+    hotel_phone: '',
+    hotel_email: '',
+    currency: 'USD',
+    timezone: 'UTC',
+    check_in_time: '14:00',
+    check_out_time: '11:00',
+    tax_percentage: 0,
   })
 
   // Channel Manager state
@@ -74,6 +96,10 @@ const SettingsPage = () => {
           setStaffError(null)
           const data = await api.users.getAll()
           setStaff(data)
+          
+          // Fetch available hotels for assignment
+          const hotelsData = await api.hotels.getAll()
+          setAvailableHotels(hotelsData)
         } catch (err) {
           setStaffError(err.message || 'Failed to load staff')
           console.error('Error fetching staff:', err)
@@ -203,6 +229,89 @@ const SettingsPage = () => {
     } catch (err) {
       setStaffError(err.message || 'Failed to delete staff member')
       console.error('Error deleting staff:', err)
+    }
+  }
+
+  // Hotels management handlers
+  useEffect(() => {
+    const fetchHotels = async () => {
+      if (activeTab === 'hotels' && (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN')) {
+        try {
+          setHotelsLoading(true)
+          setHotelsError(null)
+          const data = await api.hotels.getAll()
+          setHotels(data)
+        } catch (err) {
+          setHotelsError(err.message || 'Failed to load hotels')
+          console.error('Error fetching hotels:', err)
+        } finally {
+          setHotelsLoading(false)
+        }
+      }
+    }
+
+    fetchHotels()
+  }, [activeTab, user])
+
+  const handleAddHotel = async (e) => {
+    e.preventDefault()
+    try {
+      await api.hotels.create(newHotel)
+      toast.success('Hotel added successfully')
+      setShowAddHotelForm(false)
+      setNewHotel({
+        hotel_name: '',
+        hotel_address: '',
+        hotel_city: '',
+        hotel_country: '',
+        hotel_phone: '',
+        hotel_email: '',
+        currency: 'USD',
+        timezone: 'UTC',
+        check_in_time: '14:00',
+        check_out_time: '11:00',
+        tax_percentage: 0,
+      })
+      // Refresh hotels list
+      const data = await api.hotels.getAll()
+      setHotels(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to add hotel')
+    }
+  }
+
+  const handleUpdateHotel = async (e) => {
+    e.preventDefault()
+    if (!editingHotel) return
+
+    try {
+      await api.hotels.update(editingHotel.id, editingHotel)
+      toast.success('Hotel updated successfully')
+      setEditingHotel(null)
+      // Refresh hotels list
+      const data = await api.hotels.getAll()
+      setHotels(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to update hotel')
+    }
+  }
+
+  const handleDeleteHotel = async (id) => {
+    const confirmed = await confirmation({
+      title: 'Delete Hotel',
+      message: 'Are you sure you want to delete this hotel? This action cannot be undone.',
+      variant: 'danger',
+    })
+    if (!confirmed) return
+
+    try {
+      await api.hotels.delete(id)
+      toast.success('Hotel deleted successfully')
+      // Refresh hotels list
+      const data = await api.hotels.getAll()
+      setHotels(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete hotel')
     }
   }
 
@@ -543,6 +652,18 @@ const SettingsPage = () => {
           >
             Staff Management
           </button>
+          {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+            <button
+              onClick={() => setActiveTab('hotels')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'hotels'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Hotels
+            </button>
+          )}
           {user?.role === 'SUPER_ADMIN' && (
             <button
               onClick={() => setActiveTab('data')}
@@ -1111,6 +1232,9 @@ const SettingsPage = () => {
                             Role
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Hotels
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1137,6 +1261,26 @@ const SettingsPage = () => {
                                 {member.role.replace('_', ' ')}
                               </span>
                             </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">
+                                {member.role === 'SUPER_ADMIN' ? (
+                                  <span className="text-gray-500 italic">All Hotels</span>
+                                ) : member.hotel_ids && member.hotel_ids.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {member.hotel_ids.map(hotelId => {
+                                      const hotel = availableHotels.find(h => h.id === hotelId)
+                                      return hotel ? (
+                                        <span key={hotelId} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                                          {hotel.hotel_name}
+                                        </span>
+                                      ) : null
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">No hotels assigned</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -1156,7 +1300,11 @@ const SettingsPage = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <button
                                 onClick={() => {
-                                  setEditingStaff({ ...member, password: '' })
+                                  setEditingStaff({ 
+                                    ...member, 
+                                    password: '',
+                                    hotel_ids: member.hotel_ids || []
+                                  })
                                   setShowAddStaffForm(false)
                                 }}
                                 className="text-blue-600 hover:text-blue-900 mr-4"
@@ -1317,6 +1465,51 @@ const SettingsPage = () => {
                   </label>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign Hotels
+                  </label>
+                  <div className="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                    {availableHotels.length === 0 ? (
+                      <p className="text-sm text-gray-500">No hotels available</p>
+                    ) : (
+                      availableHotels.map((hotel) => {
+                        const hotelIds = editingStaff ? editingStaff.hotel_ids || [] : newStaff.hotel_ids
+                        const isChecked = hotelIds.includes(hotel.id)
+                        
+                        return (
+                          <div key={hotel.id} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`hotel-${hotel.id}`}
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const currentIds = editingStaff ? editingStaff.hotel_ids || [] : newStaff.hotel_ids
+                                const newIds = e.target.checked
+                                  ? [...currentIds, hotel.id]
+                                  : currentIds.filter(id => id !== hotel.id)
+                                
+                                if (editingStaff) {
+                                  setEditingStaff({ ...editingStaff, hotel_ids: newIds })
+                                } else {
+                                  setNewStaff({ ...newStaff, hotel_ids: newIds })
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor={`hotel-${hotel.id}`} className="ml-2 block text-sm text-gray-900">
+                              {hotel.hotel_name}
+                            </label>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select which hotels this staff member can access. SUPER_ADMIN users have access to all hotels automatically.
+                  </p>
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -1336,6 +1529,334 @@ const SettingsPage = () => {
                         last_name: '',
                         role: 'VIEWER',
                         is_active: true,
+                        hotel_ids: [],
+                      })
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hotels Management Tab - For ADMIN and SUPER_ADMIN */}
+      {activeTab === 'hotels' && (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        <div className="space-y-6">
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Hotels Management</h2>
+              {!showAddHotelForm && !editingHotel && (
+                <button
+                  onClick={() => setShowAddHotelForm(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add Hotel
+                </button>
+              )}
+            </div>
+
+            {hotelsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-gray-500">Loading hotels...</div>
+              </div>
+            ) : hotelsError ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                {hotelsError}
+              </div>
+            ) : !showAddHotelForm && !editingHotel && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        City
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Country
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Phone
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {hotels.map((hotel) => (
+                      <tr key={hotel.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{hotel.hotel_name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{hotel.hotel_city || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{hotel.hotel_country || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{hotel.hotel_phone || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{hotel.hotel_email || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => {
+                              setEditingHotel(hotel)
+                              setShowAddHotelForm(false)
+                            }}
+                            className="text-blue-600 hover:text-blue-900 mr-4"
+                          >
+                            Edit
+                          </button>
+                          {user?.role === 'SUPER_ADMIN' && (
+                            <button
+                              onClick={() => handleDeleteHotel(hotel.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Add/Edit Hotel Form */}
+          {(showAddHotelForm || editingHotel) && (
+            <div className="card">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                {editingHotel ? 'Edit Hotel' : 'Add New Hotel'}
+              </h2>
+
+              <form
+                onSubmit={editingHotel ? handleUpdateHotel : handleAddHotel}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hotel Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingHotel ? editingHotel.hotel_name : newHotel.hotel_name}
+                    onChange={(e) =>
+                      editingHotel
+                        ? setEditingHotel({ ...editingHotel, hotel_name: e.target.value })
+                        : setNewHotel({ ...newHotel, hotel_name: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    value={editingHotel ? editingHotel.hotel_address : newHotel.hotel_address}
+                    onChange={(e) =>
+                      editingHotel
+                        ? setEditingHotel({ ...editingHotel, hotel_address: e.target.value })
+                        : setNewHotel({ ...newHotel, hotel_address: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={editingHotel ? editingHotel.hotel_city : newHotel.hotel_city}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, hotel_city: e.target.value })
+                          : setNewHotel({ ...newHotel, hotel_city: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Country
+                    </label>
+                    <input
+                      type="text"
+                      value={editingHotel ? editingHotel.hotel_country : newHotel.hotel_country}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, hotel_country: e.target.value })
+                          : setNewHotel({ ...newHotel, hotel_country: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={editingHotel ? editingHotel.hotel_phone : newHotel.hotel_phone}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, hotel_phone: e.target.value })
+                          : setNewHotel({ ...newHotel, hotel_phone: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editingHotel ? editingHotel.hotel_email : newHotel.hotel_email}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, hotel_email: e.target.value })
+                          : setNewHotel({ ...newHotel, hotel_email: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Currency
+                    </label>
+                    <input
+                      type="text"
+                      value={editingHotel ? editingHotel.currency : newHotel.currency}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, currency: e.target.value })
+                          : setNewHotel({ ...newHotel, currency: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="USD"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Timezone
+                    </label>
+                    <input
+                      type="text"
+                      value={editingHotel ? editingHotel.timezone : newHotel.timezone}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, timezone: e.target.value })
+                          : setNewHotel({ ...newHotel, timezone: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="UTC"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Check-in Time
+                    </label>
+                    <input
+                      type="time"
+                      value={editingHotel ? editingHotel.check_in_time : newHotel.check_in_time}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, check_in_time: e.target.value })
+                          : setNewHotel({ ...newHotel, check_in_time: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Check-out Time
+                    </label>
+                    <input
+                      type="time"
+                      value={editingHotel ? editingHotel.check_out_time : newHotel.check_out_time}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, check_out_time: e.target.value })
+                          : setNewHotel({ ...newHotel, check_out_time: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax Percentage
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={editingHotel ? editingHotel.tax_percentage : newHotel.tax_percentage}
+                      onChange={(e) =>
+                        editingHotel
+                          ? setEditingHotel({ ...editingHotel, tax_percentage: parseFloat(e.target.value) })
+                          : setNewHotel({ ...newHotel, tax_percentage: parseFloat(e.target.value) })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    {editingHotel ? 'Update Hotel' : 'Add Hotel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddHotelForm(false)
+                      setEditingHotel(null)
+                      setNewHotel({
+                        hotel_name: '',
+                        hotel_address: '',
+                        hotel_city: '',
+                        hotel_country: '',
+                        hotel_phone: '',
+                        hotel_email: '',
+                        currency: 'USD',
+                        timezone: 'UTC',
+                        check_in_time: '14:00',
+                        check_out_time: '11:00',
+                        tax_percentage: 0,
                       })
                     }}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"

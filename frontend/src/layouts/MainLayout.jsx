@@ -1,16 +1,31 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import useStore from '../store/useStore'
+import useAuthStore from '../store/authStore'
 import Notifications from '../components/Notifications'
 
 const MainLayout = ({ children, onLogout }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { darkMode, toggleDarkMode } = useStore()
+  const { hotels, activeHotelId, switchHotel, getActiveHotel } = useAuthStore()
+  const [isHotelDropdownOpen, setIsHotelDropdownOpen] = useState(false)
 
   const handleLogout = () => {
     onLogout()
     navigate('/login')
   }
+
+  const handleHotelSwitch = (hotelId) => {
+    const success = switchHotel(hotelId)
+    if (success) {
+      setIsHotelDropdownOpen(false)
+      // Reload the page to refresh all data stores
+      window.location.reload()
+    }
+  }
+
+  const activeHotel = getActiveHotel()
 
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
@@ -39,6 +54,67 @@ const MainLayout = ({ children, onLogout }) => {
         <div className={`flex items-center justify-center h-16 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <h1 className={`text-xl font-bold ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>Hotel Manager</h1>
         </div>
+
+        {/* Hotel Switcher */}
+        {hotels.length > 0 && (
+          <div className={`px-4 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="relative">
+              <button
+                onClick={() => setIsHotelDropdownOpen(!isHotelDropdownOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                  darkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-lg">🏨</span>
+                  <span className="font-medium truncate">
+                    {activeHotel ? activeHotel.hotel_name : 'Select Hotel'}
+                  </span>
+                </div>
+                <span className="text-sm ml-2">{isHotelDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+              
+              {isHotelDropdownOpen && (
+                <div className={`absolute top-full left-0 right-0 mt-2 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto ${
+                  darkMode ? 'bg-gray-700' : 'bg-white'
+                }`}>
+                  {hotels.map((hotel) => (
+                    <button
+                      key={hotel.id}
+                      onClick={() => handleHotelSwitch(hotel.id)}
+                      className={`w-full text-left px-4 py-3 transition-colors ${
+                        hotel.id === activeHotelId
+                          ? darkMode
+                            ? 'bg-primary-900 text-primary-300'
+                            : 'bg-primary-50 text-primary-700'
+                          : darkMode
+                          ? 'hover:bg-gray-600 text-gray-200'
+                          : 'hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {hotel.id === activeHotelId && <span>✓</span>}
+                        <span className="truncate">{hotel.hotel_name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {hotels.length === 0 && (
+          <div className={`px-4 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`px-4 py-3 rounded-lg text-center ${
+              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+            }`}>
+              <p className="text-sm">No hotels assigned</p>
+            </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-2">
