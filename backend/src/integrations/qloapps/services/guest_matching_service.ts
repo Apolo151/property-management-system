@@ -407,11 +407,11 @@ export class QloAppsGuestMatchingService {
   async createOrUpdateMapping(
     pmsGuestId: string,
     qloAppsCustomerId: number,
-    propertyId: string
+    hotelId: string
   ): Promise<void> {
     const existing = await db('qloapps_customer_mappings')
       .where({
-        property_id: propertyId,
+        hotel_id: hotelId,
         local_guest_id: pmsGuestId,
       })
       .first();
@@ -426,7 +426,7 @@ export class QloAppsGuestMatchingService {
         });
     } else {
       await db('qloapps_customer_mappings').insert({
-        property_id: propertyId,
+        hotel_id: hotelId,
         local_guest_id: pmsGuestId,
         qloapps_customer_id: qloAppsCustomerId.toString(),
         sync_direction: 'bidirectional',
@@ -444,11 +444,11 @@ export class QloAppsGuestMatchingService {
    */
   async getGuestIdFromMapping(
     qloAppsCustomerId: number,
-    propertyId: string
+    hotelId: string
   ): Promise<string | null> {
     const mapping = await db('qloapps_customer_mappings')
       .where({
-        property_id: propertyId,
+        hotel_id: hotelId,
         qloapps_customer_id: qloAppsCustomerId.toString(),
       })
       .first();
@@ -461,11 +461,11 @@ export class QloAppsGuestMatchingService {
    */
   async getQloAppsCustomerIdFromMapping(
     pmsGuestId: string,
-    propertyId: string
+    hotelId: string
   ): Promise<number | null> {
     const mapping = await db('qloapps_customer_mappings')
       .where({
-        property_id: propertyId,
+        hotel_id: hotelId,
         local_guest_id: pmsGuestId,
       })
       .first();

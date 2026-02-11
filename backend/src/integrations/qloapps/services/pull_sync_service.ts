@@ -97,22 +97,22 @@ export interface FullSyncResult {
 export class QloAppsPullSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
   private guestMatchingService: QloAppsGuestMatchingService;
   private roomTypeSyncService: QloAppsRoomTypeSyncService;
   private roomSyncService: QloAppsRoomSyncService;
   private customerSyncService: QloAppsCustomerSyncService;
 
-  constructor(client: QloAppsClient, configId: string, propertyId: string, hotelId: number) {
+  constructor(client: QloAppsClient, configId: string, hotelId: string, hotelId: number) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
     this.guestMatchingService = new QloAppsGuestMatchingService();
-    this.roomTypeSyncService = new QloAppsRoomTypeSyncService(client, configId, propertyId, hotelId);
-    this.roomSyncService = new QloAppsRoomSyncService(client, configId, propertyId, hotelId);
-    this.customerSyncService = new QloAppsCustomerSyncService(client, configId, propertyId, hotelId);
+    this.roomTypeSyncService = new QloAppsRoomTypeSyncService(client, configId, hotelId, hotelId);
+    this.roomSyncService = new QloAppsRoomSyncService(client, configId, hotelId, hotelId);
+    this.customerSyncService = new QloAppsCustomerSyncService(client, configId, hotelId, hotelId);
   }
 
   /**
@@ -135,7 +135,7 @@ export class QloAppsPullSyncService {
       hotelId,
     });
 
-    return new QloAppsPullSyncService(client, configId, config.property_id, hotelId);
+    return new QloAppsPullSyncService(client, configId, config.hotel_id, hotelId);
   }
 
   /**
@@ -364,7 +364,7 @@ export class QloAppsPullSyncService {
     // Check if booking already exists in PMS
     const existingMapping = await db('qloapps_reservation_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_order_id: booking.id.toString(),
       })
       .first();
@@ -382,7 +382,7 @@ export class QloAppsPullSyncService {
 
     const roomTypeMapping = await db('qloapps_room_type_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_product_id: firstRoomType.id_room_type.toString(),
         is_active: true,
       })
@@ -406,7 +406,7 @@ export class QloAppsPullSyncService {
     if (booking.id_customer > 0) {
       const customerMapping = await db('qloapps_customer_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           qloapps_customer_id: booking.id_customer.toString(),
           is_active: true,
         })
@@ -524,7 +524,7 @@ export class QloAppsPullSyncService {
 
     // Create mapping record
     await db('qloapps_reservation_mappings').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       local_reservation_id: reservation.id,
       qloapps_order_id: booking.id.toString(),
       qloapps_hotel_id: this.hotelId.toString(),
@@ -605,7 +605,7 @@ export class QloAppsPullSyncService {
     // Update mapping record
     await db('qloapps_reservation_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_order_id: booking.id.toString(),
       })
       .update({
@@ -643,7 +643,7 @@ export class QloAppsPullSyncService {
         // Get last successful sync time
         const syncState = await db('qloapps_sync_state')
           .where({
-            property_id: this.propertyId,
+            hotel_id: this.hotelId,
             entity_type: 'reservation',
           })
           .first();
@@ -750,7 +750,7 @@ export class QloAppsPullSyncService {
   ): Promise<void> {
     const existing = await db('qloapps_sync_state')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
       })
       .first();
@@ -769,7 +769,7 @@ export class QloAppsPullSyncService {
         .update(updates);
     } else {
       await db('qloapps_sync_state').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
         ...updates,
       });
@@ -792,7 +792,7 @@ export class QloAppsPullSyncService {
     completedAt: Date;
   }): Promise<void> {
     await db('qloapps_sync_logs').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       sync_type: result.syncType,
       direction: 'pull',
       status: result.success ? 'success' : 'failed',

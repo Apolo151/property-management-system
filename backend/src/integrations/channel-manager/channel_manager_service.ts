@@ -67,7 +67,7 @@ class ChannelManagerService {
    */
   private async loadActiveChannelManager(): Promise<void> {
     try {
-      const settings = await db('hotel_settings')
+      const settings = await db('hotels')
         .where({ id: this.propertyId })
         .first();
 
@@ -79,13 +79,13 @@ class ChannelManagerService {
 
       // Otherwise, prefer QloApps if configured
       const qloAppsConfig = await db('qloapps_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.propertyId })
         .first();
 
       if (qloAppsConfig?.api_key_encrypted && qloAppsConfig?.sync_enabled) {
         this.activeChannelManager = 'qloapps';
         // Auto-set in database
-        await db('hotel_settings')
+        await db('hotels')
           .where({ id: this.propertyId })
           .update({ active_channel_manager: 'qloapps' });
         console.log('[ChannelManager] Auto-detected QloApps configuration, setting as active channel manager');
@@ -140,7 +140,7 @@ class ChannelManagerService {
     // If switching to Beds24, check if it's configured
     if (channelManager === 'beds24') {
       const beds24Config = await db('beds24_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.propertyId })
         .first();
 
       if (!beds24Config || !beds24Config.sync_enabled) {
@@ -149,7 +149,7 @@ class ChannelManagerService {
     }
 
     // Update database
-    await db('hotel_settings')
+    await db('hotels')
       .where({ id: this.propertyId })
       .update({ active_channel_manager: channelManager });
 
@@ -163,12 +163,12 @@ class ChannelManagerService {
   public async getStatus(): Promise<ChannelManagerStatus> {
     // Check Beds24 config
     const beds24Config = await db('beds24_config')
-      .where({ property_id: this.propertyId })
+      .where({ hotel_id: this.propertyId })
       .first();
 
     // Check QloApps config
     const qloAppsConfig = await db('qloapps_config')
-      .where({ property_id: this.propertyId })
+      .where({ hotel_id: this.propertyId })
       .first();
 
     return {

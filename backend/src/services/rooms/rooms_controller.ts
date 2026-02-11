@@ -87,8 +87,12 @@ export async function getRoomsHandler(
 ) {
   try {
     const { status, type, search } = req.query;
+    const hotelId = (req as any).hotelId;
 
-    let query = db('rooms').select('*').orderBy('room_number', 'asc');
+    let query = db('rooms')
+      .select('*')
+      .where('hotel_id', hotelId)
+      .orderBy('room_number', 'asc');
 
     if (status) {
       query = query.where('status', status as string);
@@ -124,8 +128,11 @@ export async function getRoomHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
-    const room = await db('rooms').where({ id }).first();
+    const room = await db('rooms')
+      .where({ id, hotel_id: hotelId })
+      .first();
 
     if (!room) {
       res.status(404).json({
@@ -196,8 +203,12 @@ export async function createRoomHandler(
       return;
     }
 
-    // Check if room number already exists
-    const existing = await db('rooms').where({ room_number }).first();
+    const hotelId = (req as any).hotelId;
+
+    // Check if room number already exists in this hotel
+    const existing = await db('rooms')
+      .where({ room_number, hotel_id: hotelId })
+      .first();
     if (existing) {
       res.status(409).json({
         error: 'Room with this number already exists',
@@ -246,6 +257,7 @@ export async function createRoomHandler(
     // Create room
     const [room] = await db('rooms')
       .insert({
+        hotel_id: hotelId,
         room_number,
         type,
         room_type,
@@ -283,6 +295,7 @@ export async function createRoomHandler(
 
     // Create housekeeping record for the room
     await db('housekeeping').insert({
+      hotel_id: hotelId,
       room_id: room.id,
       status: status === 'Cleaning' ? 'In Progress' : status === 'Occupied' ? 'Dirty' : 'Clean',
     });
@@ -309,9 +322,12 @@ export async function updateRoomHandler(
   try {
     const { id } = req.params;
     const updates = req.body;
+    const hotelId = (req as any).hotelId;
 
-    // Check if room exists
-    const existing = await db('rooms').where({ id }).first();
+    // Check if room exists in this hotel
+    const existing = await db('rooms')
+      .where({ id, hotel_id: hotelId })
+      .first();
     if (!existing) {
       res.status(404).json({
         error: 'Room not found',
@@ -319,9 +335,11 @@ export async function updateRoomHandler(
       return;
     }
 
-    // If room_number is being updated, check for duplicates
+    // If room_number is being updated, check for duplicates in this hotel
     if (updates.room_number && updates.room_number !== existing.room_number) {
-      const duplicate = await db('rooms').where({ room_number: updates.room_number }).first();
+      const duplicate = await db('rooms')
+        .where({ room_number: updates.room_number, hotel_id: hotelId })
+        .first();
       if (duplicate) {
         res.status(409).json({
           error: 'Room with this number already exists',
@@ -451,8 +469,11 @@ export async function deleteRoomHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
-    const room = await db('rooms').where({ id }).first();
+    const room = await db('rooms')
+      .where({ id, hotel_id: hotelId })
+      .first();
     if (!room) {
       res.status(404).json({
         error: 'Room not found',
@@ -462,7 +483,7 @@ export async function deleteRoomHandler(
 
     // Check if room has active reservations
     const activeReservations = await db('reservations')
-      .where({ room_id: id })
+      .where({ room_id: id, hotel_id: hotelId })
       .whereIn('status', ['Confirmed', 'Checked-in'])
       .whereNull('deleted_at')
       .first();
@@ -491,15 +512,20 @@ export async function getRoomHousekeepingHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     // Check if this is a unit ID (format: "roomTypeId-unit-index") or a room ID (UUID)
     const isUnitId = id.includes('-unit-');
     
     let housekeeping = null;
     if (isUnitId) {
-      housekeeping = await db('housekeeping').where({ unit_id: id }).first();
+      housekeeping = await db('housekeeping')
+        .where({ unit_id: id, hotel_id: hotelId })
+        .first();
     } else {
-      housekeeping = await db('housekeeping').where({ room_id: id }).first();
+      housekeeping = await db('housekeeping')
+        .where({ room_id: id, hotel_id: hotelId })
+        .first();
     }
 
     if (!housekeeping) {
@@ -508,6 +534,7 @@ export async function getRoomHousekeepingHandler(
         // For units, just create with default status
         const [newHousekeeping] = await db('housekeeping')
           .insert({
+            hotel_id: hotelId,
             unit_id: id,
             room_id: null,
             status: 'Clean',
@@ -517,8 +544,10 @@ export async function getRoomHousekeepingHandler(
         res.json(newHousekeeping as any);
         return;
       } else {
-        // For legacy rooms, check if room exists
-        const room = await db('rooms').where({ id }).first();
+        // For legacy rooms, check if room exists in this hotel
+        const room = await db('rooms')
+          .where({ id, hotel_id: hotelId })
+          .first();
         if (!room) {
           res.status(404).json({
             error: 'Room not found',
@@ -528,6 +557,7 @@ export async function getRoomHousekeepingHandler(
 
         const [newHousekeeping] = await db('housekeeping')
           .insert({
+            hotel_id: hotelId,
             room_id: id,
             unit_id: null,
             status: 'Clean',
@@ -554,6 +584,7 @@ export async function updateRoomHousekeepingHandler(
   try {
     const { id } = req.params;
     const { status, assigned_staff_id, assigned_staff_name, notes } = req.body;
+    const hotelId = (req as any).hotelId;
 
     if (!status) {
       res.status(400).json({
@@ -580,7 +611,10 @@ export async function updateRoomHousekeepingHandler(
       // This is a unit ID - housekeeping is local only, no Beds24 sync
       // Extract room type ID from unit ID
       const roomTypeId = id.split('-unit-')[0];
-      const roomType = await db('room_types').where({ id: roomTypeId }).whereNull('deleted_at').first();
+      const roomType = await db('room_types')
+        .where({ id: roomTypeId, hotel_id: hotelId })
+        .whereNull('deleted_at')
+        .first();
       
       if (!roomType) {
         res.status(404).json({
@@ -590,10 +624,14 @@ export async function updateRoomHousekeepingHandler(
       }
 
       // Check if housekeeping record exists for this unit
-      housekeeping = await db('housekeeping').where({ unit_id: id }).first();
+      housekeeping = await db('housekeeping')
+        .where({ unit_id: id, hotel_id: hotelId })
+        .first();
     } else {
-      // This is a legacy room ID (UUID) - check if room exists
-      room = await db('rooms').where({ id }).first();
+      // This is a legacy room ID (UUID) - check if room exists in this hotel
+      room = await db('rooms')
+        .where({ id, hotel_id: hotelId })
+        .first();
       if (!room) {
         res.status(404).json({
           error: 'Room not found',
@@ -602,7 +640,9 @@ export async function updateRoomHousekeepingHandler(
       }
 
       // Check if housekeeping record exists
-      housekeeping = await db('housekeeping').where({ room_id: id }).first();
+      housekeeping = await db('housekeeping')
+        .where({ room_id: id, hotel_id: hotelId })
+        .first();
     }
 
     const updateData: any = {
@@ -650,6 +690,7 @@ export async function updateRoomHousekeepingHandler(
       // Create new
       const insertData: any = {
         ...updateData,
+        hotel_id: hotelId,
       };
 
       if (isUnitId) {
@@ -687,9 +728,11 @@ export async function getAllHousekeepingHandler(
 ) {
   try {
     const { status, search } = req.query;
+    const hotelId = (req as any).hotelId;
 
     let query = db('housekeeping')
       .select('housekeeping.*')
+      .where('housekeeping.hotel_id', hotelId)
       .orderBy('housekeeping.created_at', 'desc');
 
     if (status) {

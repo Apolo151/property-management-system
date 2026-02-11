@@ -114,7 +114,7 @@ export function convertBookingToBeds24ApiFormat(
   };
 
   const apiBooking: any = {
-    propertyId: booking.propertyId,
+    hotelId: booking.hotelId,
     roomId: booking.roomId,
     arrival: formatDate(booking.arrivalDate), // Convert arrivalDate → arrival, ensure YYYY-MM-DD
     departure: formatDate(booking.departureDate), // Convert departureDate → departure, ensure YYYY-MM-DD
@@ -160,7 +160,7 @@ export function mapPmsReservationToBeds24(
   unitsRequested?: number // Optional: number of units for room type reservations
 ): Beds24BookingCreateRequest | Beds24BookingUpdateRequest {
   const baseBooking: Beds24Booking = {
-    propertyId: parseInt(beds24PropertyId, 10),
+    hotelId: parseInt(beds24PropertyId, 10),
     roomId: parseInt(beds24RoomId, 10),
     arrivalDate: reservation.check_in, // Already in YYYY-MM-DD format
     departureDate: reservation.check_out, // Already in YYYY-MM-DD format

@@ -22,7 +22,7 @@ export interface TokenDetails {
   scopes: string[];
   expiresIn: number;
   accountId?: number;
-  propertyIds?: number[];
+  hotelIds?: number[];
 }
 
 // ============================================================================
@@ -43,7 +43,7 @@ export interface Beds24Guest {
 export interface Beds24Booking {
   id?: number;
   masterId?: number;
-  propertyId: number;
+  hotelId: number;
   roomId: number;
   unitId?: number; // Beds24 unit identifier (1-based: 1 = first unit, 2 = second unit, etc.)
   arrivalDate: string; // YYYY-MM-DD
@@ -94,7 +94,7 @@ export interface Beds24CalendarRequest {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   roomId?: number[];
-  propertyId?: number[];
+  hotelId?: number[];
   includeNumAvail?: boolean;
   includeMinStay?: boolean;
   includeMaxStay?: boolean;
@@ -142,7 +142,7 @@ export interface Beds24Property {
 
 export interface Beds24Room {
   id: number;
-  propertyId: number;
+  hotelId: number;
   name: string;
   type?: string;
   maxGuests?: number;
@@ -199,7 +199,7 @@ export interface Beds24RateLimitInfo {
 
 export interface Beds24Config {
   id: string;
-  propertyId: string;
+  hotelId: string;
   refreshToken: string; // Decrypted
   accessToken?: string; // Decrypted
   tokenExpiresAt?: Date;

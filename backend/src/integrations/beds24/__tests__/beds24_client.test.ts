@@ -195,15 +195,15 @@ describe('Beds24Client', () => {
       await client.makeRequest('/bookings', {
         method: 'GET',
         query: {
-          propertyId: [1, 2],
+          hotelId: [1, 2],
           filter: 'new',
           includeGuests: true,
         },
       });
 
       const callUrl = (global.fetch as any).mock.calls[0][0];
-      expect(callUrl).toContain('propertyId=1');
-      expect(callUrl).toContain('propertyId=2');
+      expect(callUrl).toContain('hotelId=1');
+      expect(callUrl).toContain('hotelId=2');
       expect(callUrl).toContain('filter=new');
       expect(callUrl).toContain('includeGuests=true');
     });

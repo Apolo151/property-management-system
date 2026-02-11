@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireRole } from '../auth/auth_middleware.js';
+import { authenticateToken, requireRole, hotelContext } from '../auth/auth_middleware.js';
 import {
   getAuditLogsHandler,
   getAuditLogHandler,
@@ -7,11 +7,12 @@ import {
 
 const router = Router();
 
-// All audit log routes require authentication
+// All audit log routes require authentication and hotel context
 // Only ADMIN, MANAGER, and SUPER_ADMIN can view audit logs
 router.get(
   '/audit-logs',
   authenticateToken,
+  hotelContext,
   requireRole('SUPER_ADMIN', 'ADMIN', 'MANAGER'),
   getAuditLogsHandler,
 );
@@ -19,6 +20,7 @@ router.get(
 router.get(
   '/audit-logs/:id',
   authenticateToken,
+  hotelContext,
   requireRole('SUPER_ADMIN', 'ADMIN', 'MANAGER'),
   getAuditLogHandler,
 );

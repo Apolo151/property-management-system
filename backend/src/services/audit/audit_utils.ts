@@ -2,6 +2,10 @@ import type { Request } from 'express';
 import db from '../../config/database.js';
 import type { CreateAuditLogRequest } from './audit_types.js';
 
+// Default hotel ID for single-hotel installations (Phase 1)
+// TODO: In Phase 2, this will be replaced by hotelContext middleware
+const DEFAULT_HOTEL_ID = '00000000-0000-0000-0000-000000000001';
+
 /**
  * Create an audit log entry
  */
@@ -11,6 +15,7 @@ export async function createAuditLog(
   try {
     await db('audit_logs').insert({
       user_id: logData.user_id || null,
+      hotel_id: logData.hotel_id || DEFAULT_HOTEL_ID,
       action: logData.action,
       entity_type: logData.entity_type,
       entity_id: logData.entity_id,
@@ -53,10 +58,12 @@ export async function logCreate(
   afterState: Record<string, any>,
 ): Promise<void> {
   const userId = (req as any).user?.userId || null;
+  const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
   const { ip_address, user_agent } = getRequestMetadata(req);
 
   await createAuditLog({
     user_id: userId,
+    hotel_id: hotelId,
     action: `CREATE_${entityType.toUpperCase()}`,
     entity_type: entityType,
     entity_id: entityId,
@@ -77,10 +84,12 @@ export async function logUpdate(
   afterState: Record<string, any>,
 ): Promise<void> {
   const userId = (req as any).user?.userId || null;
+  const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
   const { ip_address, user_agent } = getRequestMetadata(req);
 
   await createAuditLog({
     user_id: userId,
+    hotel_id: hotelId,
     action: `UPDATE_${entityType.toUpperCase()}`,
     entity_type: entityType,
     entity_id: entityId,
@@ -101,10 +110,12 @@ export async function logDelete(
   beforeState: Record<string, any>,
 ): Promise<void> {
   const userId = (req as any).user?.userId || null;
+  const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
   const { ip_address, user_agent } = getRequestMetadata(req);
 
   await createAuditLog({
     user_id: userId,
+    hotel_id: hotelId,
     action: `DELETE_${entityType.toUpperCase()}`,
     entity_type: entityType,
     entity_id: entityId,
@@ -125,10 +136,12 @@ export async function logAction(
   details?: Record<string, any>,
 ): Promise<void> {
   const userId = (req as any).user?.userId || null;
+  const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
   const { ip_address, user_agent } = getRequestMetadata(req);
 
   await createAuditLog({
     user_id: userId,
+    hotel_id: hotelId,
     action,
     entity_type: entityType,
     entity_id: entityId,

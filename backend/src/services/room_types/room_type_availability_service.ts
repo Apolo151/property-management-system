@@ -59,12 +59,13 @@ export class RoomTypeAvailabilityService {
     }
 
     const totalUnits = roomType.qty;
+    const hotelId = roomType.hotel_id;
 
-    // Get all reservations for this room type in the date range
+    // Get all reservations for this room type in the date range (scoped by hotel)
     const endDateStr = endDate.toISOString().split('T')[0];
     const startDateStr = startDate.toISOString().split('T')[0];
     const reservations = await db('reservations')
-      .where({ room_type_id: roomTypeId })
+      .where({ room_type_id: roomTypeId, hotel_id: hotelId })
       .whereNotIn('status', ['Cancelled', 'Checked-out'])
       .whereNull('deleted_at')
       .where(function () {
@@ -143,6 +144,7 @@ export class RoomTypeAvailabilityService {
       roomType?: string;
       maxPeople?: number;
       unitsRequested?: number;
+      hotelId?: string;
     }
   ): Promise<RoomTypeAvailability[]> {
     const unitsRequested = filters?.unitsRequested || 1;
@@ -152,6 +154,11 @@ export class RoomTypeAvailabilityService {
       .select('*')
       .whereNull('deleted_at')
       .where('include_reports', true);
+
+    // Filter by hotel_id
+    if (filters?.hotelId) {
+      query = query.where('hotel_id', filters.hotelId);
+    }
 
     // Apply filters
     if (filters?.roomType) {

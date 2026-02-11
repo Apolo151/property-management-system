@@ -7,11 +7,11 @@ import db from '../../../config/database.js';
 export async function validateWebhookSignature(
   payload: string,
   signature: string,
-  propertyId: string = '00000000-0000-0000-0000-000000000001'
+  hotelId: string = '00000000-0000-0000-0000-000000000001'
 ): Promise<boolean> {
   // Load webhook secret from config
   const config = await db('beds24_config')
-    .where({ property_id: propertyId })
+    .where({ hotel_id: hotelId })
     .first();
 
   if (!config?.webhook_secret) {

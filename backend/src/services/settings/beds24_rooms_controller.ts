@@ -15,7 +15,7 @@ export async function getBeds24RoomsHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -28,7 +28,7 @@ export async function getBeds24RoomsHandler(
     const refreshToken = decrypt(config.refresh_token);
     const service = new RoomSyncService(refreshToken);
 
-    const rooms = await service.pullRooms(config.beds24_property_id);
+    const rooms = await service.pullRooms(config.beds24_hotel_id);
 
     res.json(rooms);
   } catch (error) {
@@ -46,7 +46,7 @@ export async function getUnmappedBeds24RoomsHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -59,7 +59,7 @@ export async function getUnmappedBeds24RoomsHandler(
     const refreshToken = decrypt(config.refresh_token);
     const service = new RoomSyncService(refreshToken);
 
-    const rooms = await service.getUnmappedBeds24Rooms(config.beds24_property_id);
+    const rooms = await service.getUnmappedBeds24Rooms(config.beds24_hotel_id);
 
     res.json(rooms);
   } catch (error) {
@@ -105,7 +105,7 @@ export async function mapRoomHandler(
     }
 
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -145,7 +145,7 @@ export async function unmapRoomHandler(
     const { roomId } = req.params;
 
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -176,7 +176,7 @@ export async function autoCreateRoomsHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -202,7 +202,7 @@ export async function autoCreateRoomsHandler(
       options.defaultFloor = req.body.defaultFloor;
     }
 
-    const result = await service.autoCreateRoomsFromBeds24(config.beds24_property_id, options);
+    const result = await service.autoCreateRoomsFromBeds24(config.beds24_hotel_id, options);
 
     res.json(result);
   } catch (error) {

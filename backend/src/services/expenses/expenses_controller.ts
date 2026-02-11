@@ -11,9 +11,11 @@ export async function getExpensesHandler(
 ) {
   try {
     const { category, search, start_date, end_date } = req.query;
+    const hotelId = (req as any).hotelId;
 
     let query = db('expenses')
       .select('*')
+      .where('hotel_id', hotelId)
       .whereNull('deleted_at')
       .orderBy('expense_date', 'desc')
       .orderBy('created_at', 'desc');
@@ -63,9 +65,10 @@ export async function getExpenseHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const expense = await db('expenses')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -134,9 +137,12 @@ export async function createExpenseHandler(
       return;
     }
 
+    const hotelId = (req as any).hotelId;
+
     // Create expense
     const [newExpense] = await db('expenses')
       .insert({
+        hotel_id: hotelId,
         category,
         amount,
         expense_date: new Date(expense_date).toISOString().split('T')[0],
@@ -176,10 +182,11 @@ export async function updateExpenseHandler(
   try {
     const { id } = req.params;
     const updates = req.body;
+    const hotelId = (req as any).hotelId;
 
-    // Check if expense exists
+    // Check if expense exists in this hotel
     const existing = await db('expenses')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -274,9 +281,10 @@ export async function deleteExpenseHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const expense = await db('expenses')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -313,8 +321,11 @@ export async function getExpenseStatsHandler(
 ) {
   try {
     const { start_date, end_date } = req.query;
+    const hotelId = (req as any).hotelId;
 
-    let query = db('expenses').whereNull('deleted_at');
+    let query = db('expenses')
+      .where('hotel_id', hotelId)
+      .whereNull('deleted_at');
 
     if (start_date) {
       query = query.where('expense_date', '>=', start_date as string);

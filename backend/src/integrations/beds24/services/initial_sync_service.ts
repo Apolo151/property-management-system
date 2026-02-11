@@ -10,12 +10,12 @@ import { decrypt } from '../../../utils/encryption.js';
 export class InitialSyncService {
   private refreshToken: string;
   private beds24PropertyId: string;
-  private propertyId: string;
+  private hotelId: string;
 
-  constructor(refreshToken: string, beds24PropertyId: string, propertyId: string) {
+  constructor(refreshToken: string, beds24PropertyId: string, hotelId: string) {
     this.refreshToken = refreshToken;
     this.beds24PropertyId = beds24PropertyId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
   }
 
   /**
@@ -44,7 +44,7 @@ export class InitialSyncService {
 
       // Phase 2: Set sync status to running
       await db('beds24_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.hotelId })
         .update({
           sync_status: 'running',
           sync_started_at: syncStartedAt,
@@ -62,7 +62,7 @@ export class InitialSyncService {
 
       // Update progress after room sync
       await db('beds24_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.hotelId })
         .update({
           sync_progress: JSON.stringify({
             rooms: {
@@ -106,7 +106,7 @@ export class InitialSyncService {
 
       // Update sync status and results
       await db('beds24_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.hotelId })
         .update({
           sync_status: 'completed',
           sync_completed_at: syncCompletedAt,
@@ -147,7 +147,7 @@ export class InitialSyncService {
 
       // Phase 2 & 5: Mark sync as failed and record error
       await db('beds24_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.hotelId })
         .update({
           sync_status: 'failed',
           sync_completed_at: new Date(),

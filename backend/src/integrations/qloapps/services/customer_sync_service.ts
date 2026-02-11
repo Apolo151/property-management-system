@@ -53,14 +53,14 @@ export interface CustomerSyncOptions {
 export class QloAppsCustomerSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
   private guestMatchingService: QloAppsGuestMatchingService;
 
-  constructor(client: QloAppsClient, configId: string, propertyId: string, hotelId: number) {
+  constructor(client: QloAppsClient, configId: string, hotelId: string, hotelId: number) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
     this.guestMatchingService = new QloAppsGuestMatchingService();
   }
@@ -87,7 +87,7 @@ export class QloAppsCustomerSyncService {
     return new QloAppsCustomerSyncService(
       client,
       configId,
-      config.property_id,
+      config.hotel_id,
       parseInt(config.qloapps_hotel_id, 10)
     );
   }
@@ -108,7 +108,7 @@ export class QloAppsCustomerSyncService {
   async getExistingMappings(): Promise<Map<number, string>> {
     const mappings = await db('qloapps_customer_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_hotel_id: this.hotelId.toString(),
       })
       .select('qloapps_customer_id', 'local_guest_id');
@@ -131,7 +131,7 @@ export class QloAppsCustomerSyncService {
     matchScore?: number
   ): Promise<void> {
     await db('qloapps_customer_mappings').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       local_guest_id: pmsGuestId,
       qloapps_customer_id: qloAppsCustomerId.toString(),
       qloapps_hotel_id: this.hotelId.toString(),
@@ -155,7 +155,7 @@ export class QloAppsCustomerSyncService {
   ): Promise<void> {
     await db('qloapps_customer_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_customer_id: qloAppsCustomerId.toString(),
         qloapps_hotel_id: this.hotelId.toString(),
       })

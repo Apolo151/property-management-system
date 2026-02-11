@@ -14,7 +14,7 @@ export function normalizeBooking(booking: any): Beds24Booking | null {
   const normalized: any = {
     id: booking.id || booking.bookingId || booking.booking_id,
     masterId: booking.masterId || booking.master_id,
-    propertyId: booking.propertyId || booking.property_id || booking.propertyId,
+    hotelId: booking.hotelId || booking.hotel_id || booking.hotelId,
     roomId: booking.roomId || booking.room_id || booking.roomId,
     unitId: booking.unitId || booking.unit_id || null, // Beds24 unit identifier (1-based)
     status: booking.status,

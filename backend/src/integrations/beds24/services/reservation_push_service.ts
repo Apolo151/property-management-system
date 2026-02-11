@@ -170,7 +170,7 @@ export class ReservationPushService {
       // Map to Beds24 format
       const beds24Booking = mapPmsReservationToBeds24(
         reservation,
-        config.beds24_property_id,
+        config.beds24_hotel_id,
         beds24RoomId,
         {
           name: guest.name,
@@ -542,9 +542,9 @@ export class ReservationPushService {
    * Load Beds24 configuration
    */
   private async loadBeds24Config() {
-    const propertyId = '00000000-0000-0000-0000-000000000001'; // Default property
+    const hotelId = '00000000-0000-0000-0000-000000000001'; // Default property
     const config = await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .first();
 
     if (!config) {

@@ -60,20 +60,20 @@ export interface PushSyncOptions {
 export class QloAppsPushSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
   private currency: string;
 
   constructor(
     client: QloAppsClient, 
     configId: string, 
-    propertyId: string,
+    hotelId: string,
     hotelId: number,
     currency?: string
   ) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
     // Use explicit currency if provided, otherwise fall back to env or USD
     const defaultCurrency = process.env.QLOAPPS_DEFAULT_CURRENCY ?? 'USD';
@@ -104,7 +104,7 @@ export class QloAppsPushSyncService {
     return new QloAppsPushSyncService(
       client, 
       configId,
-      config.property_id,
+      config.hotel_id,
       hotelId
     );
   }
@@ -196,7 +196,7 @@ export class QloAppsPushSyncService {
     // Check if reservation is already mapped
     const existingMapping = await db('qloapps_reservation_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_reservation_id: reservation.id,
       })
       .first();
@@ -214,7 +214,7 @@ export class QloAppsPushSyncService {
 
     const roomTypeMapping = await db('qloapps_room_type_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_room_type_id: roomTypeId,
         is_active: true,
       })
@@ -313,7 +313,7 @@ export class QloAppsPushSyncService {
 
       // Create mapping record
       await db('qloapps_reservation_mappings').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_reservation_id: reservation.id,
         qloapps_order_id: qloAppsBookingId.toString(),
         qloapps_hotel_id: this.hotelId.toString(),
@@ -364,7 +364,7 @@ export class QloAppsPushSyncService {
       // Update mapping record
       await db('qloapps_reservation_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           local_reservation_id: reservation.id,
         })
         .update({
@@ -412,7 +412,7 @@ export class QloAppsPushSyncService {
         // Get last successful sync time
         const syncState = await db('qloapps_sync_state')
           .where({
-            property_id: this.propertyId,
+            hotel_id: this.hotelId,
             entity_type: 'reservation_push',
           })
           .first();
@@ -519,7 +519,7 @@ export class QloAppsPushSyncService {
   ): Promise<void> {
     const existing = await db('qloapps_sync_state')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
       })
       .first();
@@ -538,7 +538,7 @@ export class QloAppsPushSyncService {
         .update(updates);
     } else {
       await db('qloapps_sync_state').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
         ...updates,
       });
@@ -561,7 +561,7 @@ export class QloAppsPushSyncService {
     completedAt: Date;
   }): Promise<void> {
     await db('qloapps_sync_logs').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       sync_type: result.syncType,
       direction: 'push',
       status: result.success ? 'success' : 'failed',

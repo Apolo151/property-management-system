@@ -92,7 +92,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
 
       console.log(`[QloApps Inbound] ✓ Configuration found (${configDuration}ms)`);
       console.log(`[QloApps Inbound]   Base URL: ${config.base_url}`);
-      console.log(`[QloApps Inbound]   Property ID: ${config.property_id}`);
+      console.log(`[QloApps Inbound]   Property ID: ${config.hotel_id}`);
       console.log(`[QloApps Inbound]   Hotel ID: ${config.qloapps_hotel_id}`);
       console.log(`[QloApps Inbound]   Sync Enabled: ${config.sync_enabled}`);
       console.log(`[QloApps Inbound]   Last Sync: ${config.last_successful_sync || 'Never'}`);
@@ -114,7 +114,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
 
       // Create sync service
       console.log(`[QloApps Inbound] 🔧 Creating pull sync service...`);
-      const syncService = new QloAppsPullSyncService(client, configId, config.property_id, config.qloapps_hotel_id);
+      const syncService = new QloAppsPullSyncService(client, configId, config.hotel_id, config.qloapps_hotel_id);
       console.log(`[QloApps Inbound] ✓ Pull sync service created`);
 
       // Process based on event type
@@ -341,19 +341,19 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     const roomTypeSyncSvc = new QloAppsRoomTypeSyncService(
       (syncService as any).client,
       (syncService as any).configId,
-      (syncService as any).propertyId,
+      (syncService as any).hotelId,
       (syncService as any).hotelId
     );
     const roomSyncSvc = new QloAppsRoomSyncService(
       (syncService as any).client,
       (syncService as any).configId,
-      (syncService as any).propertyId,
+      (syncService as any).hotelId,
       (syncService as any).hotelId
     );
     const customerSyncSvc = new QloAppsCustomerSyncService(
       (syncService as any).client,
       (syncService as any).configId,
-      (syncService as any).propertyId,
+      (syncService as any).hotelId,
       (syncService as any).hotelId
     );
 
@@ -538,7 +538,7 @@ export class QloAppsInboundWorker extends QloAppsBaseConsumer {
     const roomTypeSyncSvc = new RoomTypeSyncService(
       (syncService as any).client,
       (syncService as any).configId,
-      (syncService as any).propertyId,
+      (syncService as any).hotelId,
       (syncService as any).hotelId
     );
     const roomTypeResults = await roomTypeSyncSvc.pullRoomTypes();

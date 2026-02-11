@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireRole } from '../auth/auth_middleware.js';
+import { authenticateToken, requireRole, hotelContext } from '../auth/auth_middleware.js';
 import {
   getExpensesHandler,
   getExpenseHandler,
@@ -11,8 +11,9 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and hotel context
 router.use(authenticateToken);
+router.use(hotelContext);
 
 // Expense routes
 router.get('/expenses', getExpensesHandler);

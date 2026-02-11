@@ -36,7 +36,7 @@ export interface QloAppsConnectionConfig {
  */
 export interface QloAppsStoredConfig {
   id: string;
-  propertyId: string;
+  hotelId: string;
   baseUrl: string;
   apiKeyEncrypted: string;
   qloAppsHotelId: string;

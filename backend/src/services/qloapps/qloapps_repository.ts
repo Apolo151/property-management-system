@@ -8,8 +8,8 @@
 import db from '../../config/database.js';
 import { encrypt, decrypt } from '../../utils/encryption.js';
 
-// Default property ID for single-property installations
-const PROPERTY_ID = '00000000-0000-0000-0000-000000000001';
+// Default hotel ID for single-hotel installations
+const HOTEL_ID = '00000000-0000-0000-0000-000000000001';
 
 // =============================================================================
 // Configuration Types
@@ -17,7 +17,7 @@ const PROPERTY_ID = '00000000-0000-0000-0000-000000000001';
 
 export interface QloAppsConfigRecord {
   id: string;
-  property_id: string;
+  hotel_id: string;
   base_url: string;
   api_key_encrypted: string;
   qloapps_hotel_id: number;
@@ -73,7 +73,7 @@ export interface CustomerMappingRecord {
 
 export interface SyncStateRecord {
   id: string;
-  property_id: string;
+  hotel_id: string;
   sync_type: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   started_at: Date;
@@ -133,7 +133,7 @@ export class QloAppsConfigRepository {
    */
   async getConfig(): Promise<QloAppsConfigRecord | null> {
     const config = await db('qloapps_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: HOTEL_ID })
       .first();
 
     return config || null;
@@ -191,7 +191,7 @@ export class QloAppsConfigRepository {
     if (existing) {
       // Update existing config
       await db('qloapps_config')
-        .where({ property_id: PROPERTY_ID })
+        .where({ hotel_id: HOTEL_ID })
         .update({
           ...dbPayload,
           last_sync_error: null,
@@ -200,7 +200,7 @@ export class QloAppsConfigRepository {
     } else {
       // Insert new config
       await db('qloapps_config').insert({
-        property_id: PROPERTY_ID,
+        hotel_id: HOTEL_ID,
         ...dbPayload,
         created_at: now,
         updated_at: now,
@@ -250,7 +250,7 @@ export class QloAppsConfigRepository {
     }
 
     await db('qloapps_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: HOTEL_ID })
       .update(updateData);
 
     return this.getConfig();
@@ -261,7 +261,7 @@ export class QloAppsConfigRepository {
    */
   async recordSyncSuccess(): Promise<void> {
     await db('qloapps_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: HOTEL_ID })
       .update({
         last_successful_sync: new Date(),
         last_sync_error: null,
@@ -274,7 +274,7 @@ export class QloAppsConfigRepository {
    */
   async recordSyncFailure(errorMessage: string): Promise<void> {
     await db('qloapps_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: HOTEL_ID })
       .update({
         last_sync_error: errorMessage,
         updated_at: new Date(),
@@ -286,7 +286,7 @@ export class QloAppsConfigRepository {
    */
   async deleteConfig(): Promise<boolean> {
     const deleted = await db('qloapps_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: HOTEL_ID })
       .del();
 
     return deleted > 0;
@@ -728,7 +728,7 @@ export class SyncStateRepository {
     const now = new Date();
 
     const insertData: Record<string, unknown> = {
-      property_id: PROPERTY_ID,
+      hotel_id: HOTEL_ID,
       sync_type: syncType,
       status: 'running',
       started_at: now,

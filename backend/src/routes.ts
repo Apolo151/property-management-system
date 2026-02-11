@@ -3,6 +3,7 @@ import { Router } from 'express';
 
 import { healthCheckRoutes } from './services/health_check/health_check_routes.js';
 import { authRoutes } from './services/auth/auth_routes.js';
+import { hotelsRoutes } from './services/hotels/hotels_routes.js';
 import { roomsRoutes } from './services/rooms/rooms_routes.js';
 import roomTypesRoutes from './services/room_types/room_types_routes.js';
 import { reservationsRoutes } from './services/reservations/reservations_routes.js';
@@ -23,6 +24,7 @@ export const apiV1Router = Router();
 
 apiV1Router.use('/health-check', healthCheckRoutes);
 apiV1Router.use('/auth', authRoutes);
+apiV1Router.use('/v1/hotels', hotelsRoutes);
 apiV1Router.use('/v1', roomsRoutes);
 apiV1Router.use('/v1/room-types', roomTypesRoutes);
 apiV1Router.use('/v1', reservationsRoutes);

@@ -8,7 +8,7 @@ import type { Knex } from 'knex';
 
 export interface ChannelEvent {
   id: string;
-  property_id: string;
+  hotel_id: string;
   direction: 'inbound' | 'outbound';
   source: string;
   event_type: string;
@@ -28,7 +28,7 @@ export interface ChannelEvent {
 }
 
 export interface CreateChannelEventInput {
-  property_id?: string;
+  hotel_id?: string;
   direction: 'inbound' | 'outbound';
   source: string;
   event_type: string;
@@ -47,7 +47,7 @@ export interface UpdateChannelEventStatusInput {
 }
 
 export interface FailedEventFilters {
-  property_id?: string;
+  hotel_id?: string;
   direction?: 'inbound' | 'outbound';
   entity_type?: string;
   status?: string; // Filter by status (default: 'failed')
@@ -64,12 +64,12 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 export async function createChannelEvent(
   input: CreateChannelEventInput
 ): Promise<ChannelEvent> {
-  const propertyId = input.property_id || DEFAULT_PROPERTY_ID;
+  const hotelId = input.hotel_id || DEFAULT_PROPERTY_ID;
   const maxAttempts = input.max_attempts || DEFAULT_MAX_ATTEMPTS;
 
   const [event] = await db('channel_events')
     .insert({
-      property_id: propertyId,
+      hotel_id: hotelId,
       direction: input.direction,
       source: input.source,
       event_type: input.event_type,
@@ -246,9 +246,9 @@ export async function getFailedChannelEvents(
   let query = db('channel_events').where({ status });
   let countQuery = db('channel_events').where({ status });
 
-  if (filters.property_id) {
-    query = query.where({ property_id: filters.property_id });
-    countQuery = countQuery.where({ property_id: filters.property_id });
+  if (filters.hotel_id) {
+    query = query.where({ hotel_id: filters.hotel_id });
+    countQuery = countQuery.where({ hotel_id: filters.hotel_id });
   }
 
   if (filters.direction) {

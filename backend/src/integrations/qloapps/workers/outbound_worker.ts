@@ -60,7 +60,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
     }
 
     console.log(`[QloApps Outbound]   Base URL: ${config.base_url}`);
-    console.log(`[QloApps Outbound]   Property ID: ${config.property_id}`);
+    console.log(`[QloApps Outbound]   Property ID: ${config.hotel_id}`);
     console.log(`[QloApps Outbound]   Hotel ID: ${config.qloapps_hotel_id}`);
     console.log(`[QloApps Outbound]   Sync Enabled: ${config.sync_enabled}`);
 
@@ -240,7 +240,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
     console.log(`[QloApps Outbound] └─ Initializing push service...`);
 
     const handlerStart = Date.now();
-    // Use config-aware factory to ensure propertyId and hotelId are set correctly
+    // Use config-aware factory to ensure hotelId and hotelId are set correctly
     const pushService = await QloAppsPushSyncService.fromConfigId(configId);
 
     // Get reservations to sync (just this one)
@@ -434,7 +434,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     console.log(`[QloApps Outbound] 🚀 Syncing availability...`);
     const syncStart = Date.now();
-    const availabilityService = new QloAppsAvailabilitySyncService(client, configId, config.property_id);
+    const availabilityService = new QloAppsAvailabilitySyncService(client, configId, config.hotel_id);
     const result = await availabilityService.syncRoomTypeAvailability(
       roomTypeId,
       parseInt(mapping.qloapps_product_id, 10),
@@ -521,7 +521,7 @@ export class QloAppsOutboundWorker extends QloAppsBaseConsumer {
 
     console.log(`[QloApps Outbound] 🚀 Syncing rates...`);
     const syncStart = Date.now();
-    const rateService = new QloAppsRateSyncService(client, configId, config.property_id);
+    const rateService = new QloAppsRateSyncService(client, configId, config.hotel_id);
     const result = await rateService.syncRoomTypeRates(
       roomTypeId,
       parseInt(mapping.qloapps_product_id, 10),

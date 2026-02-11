@@ -16,43 +16,43 @@ import { qloAppsPublisher } from '../queue/rabbitmq_publisher.js';
 /**
  * Load QloApps config for a property
  */
-async function getQloAppsConfig(propertyId: string) {
+async function getQloAppsConfig(hotelId: string) {
   return db('qloapps_config')
-    .where({ property_id: propertyId })
+    .where({ hotel_id: hotelId })
     .first();
 }
 
 /**
  * Check if any QloApps sync is globally enabled for a property
  */
-async function isQloAppsSyncEnabled(propertyId: string): Promise<boolean> {
-  const config = await getQloAppsConfig(propertyId);
+async function isQloAppsSyncEnabled(hotelId: string): Promise<boolean> {
+  const config = await getQloAppsConfig(hotelId);
   return config?.sync_enabled === true;
 }
 
 /**
  * Check if outbound reservation (and guest) sync is enabled
  */
-async function isQloAppsReservationSyncEnabled(propertyId: string): Promise<boolean> {
-  const config = await getQloAppsConfig(propertyId);
+async function isQloAppsReservationSyncEnabled(hotelId: string): Promise<boolean> {
+  const config = await getQloAppsConfig(hotelId);
 
   if (!config) {
     console.warn(
-      `[QloApps SyncHook] QloApps config not found for property ${propertyId}, skipping reservation sync`
+      `[QloApps SyncHook] QloApps config not found for property ${hotelId}, skipping reservation sync`
     );
     return false;
   }
 
   if (!config.sync_enabled) {
     console.warn(
-      `[QloApps SyncHook] Global sync disabled for property ${propertyId}, skipping reservation sync`
+      `[QloApps SyncHook] Global sync disabled for property ${hotelId}, skipping reservation sync`
     );
     return false;
   }
 
   if (!config.sync_reservations_outbound) {
     console.warn(
-      `[QloApps SyncHook] Outbound reservation sync disabled for property ${propertyId}, skipping reservation sync`
+      `[QloApps SyncHook] Outbound reservation sync disabled for property ${hotelId}, skipping reservation sync`
     );
     return false;
   }
@@ -63,26 +63,26 @@ async function isQloAppsReservationSyncEnabled(propertyId: string): Promise<bool
 /**
  * Check if availability sync is enabled
  */
-async function isQloAppsAvailabilitySyncEnabled(propertyId: string): Promise<boolean> {
-  const config = await getQloAppsConfig(propertyId);
+async function isQloAppsAvailabilitySyncEnabled(hotelId: string): Promise<boolean> {
+  const config = await getQloAppsConfig(hotelId);
 
   if (!config) {
     console.warn(
-      `[QloApps SyncHook] QloApps config not found for property ${propertyId}, skipping availability sync`
+      `[QloApps SyncHook] QloApps config not found for property ${hotelId}, skipping availability sync`
     );
     return false;
   }
 
   if (!config.sync_enabled) {
     console.warn(
-      `[QloApps SyncHook] Global sync disabled for property ${propertyId}, skipping availability sync`
+      `[QloApps SyncHook] Global sync disabled for property ${hotelId}, skipping availability sync`
     );
     return false;
   }
 
   if (!config.sync_availability) {
     console.warn(
-      `[QloApps SyncHook] Availability sync disabled for property ${propertyId}, skipping availability sync`
+      `[QloApps SyncHook] Availability sync disabled for property ${hotelId}, skipping availability sync`
     );
     return false;
   }
@@ -93,26 +93,26 @@ async function isQloAppsAvailabilitySyncEnabled(propertyId: string): Promise<boo
 /**
  * Check if rate sync is enabled
  */
-async function isQloAppsRateSyncEnabled(propertyId: string): Promise<boolean> {
-  const config = await getQloAppsConfig(propertyId);
+async function isQloAppsRateSyncEnabled(hotelId: string): Promise<boolean> {
+  const config = await getQloAppsConfig(hotelId);
 
   if (!config) {
     console.warn(
-      `[QloApps SyncHook] QloApps config not found for property ${propertyId}, skipping rate sync`
+      `[QloApps SyncHook] QloApps config not found for property ${hotelId}, skipping rate sync`
     );
     return false;
   }
 
   if (!config.sync_enabled) {
     console.warn(
-      `[QloApps SyncHook] Global sync disabled for property ${propertyId}, skipping rate sync`
+      `[QloApps SyncHook] Global sync disabled for property ${hotelId}, skipping rate sync`
     );
     return false;
   }
 
   if (!config.sync_rates) {
     console.warn(
-      `[QloApps SyncHook] Rate sync disabled for property ${propertyId}, skipping rate sync`
+      `[QloApps SyncHook] Rate sync disabled for property ${hotelId}, skipping rate sync`
     );
     return false;
   }
@@ -123,9 +123,9 @@ async function isQloAppsRateSyncEnabled(propertyId: string): Promise<boolean> {
 /**
  * Get QloApps config ID for a property
  */
-async function getQloAppsConfigId(propertyId: string): Promise<string | null> {
+async function getQloAppsConfigId(hotelId: string): Promise<string | null> {
   const config = await db('qloapps_config')
-    .where({ property_id: propertyId })
+    .where({ hotel_id: hotelId })
     .first();
 
   return config?.id ?? null;
@@ -143,7 +143,7 @@ function getDefaultPropertyId(): string {
  */
 async function getRoomTypePropertyId(roomTypeId: string): Promise<string | null> {
   const roomType = await db('room_types').where({ id: roomTypeId }).first();
-  return roomType?.property_id ?? getDefaultPropertyId();
+  return roomType?.hotel_id ?? getDefaultPropertyId();
 }
 
 /**
@@ -179,18 +179,18 @@ export async function queueQloAppsReservationSyncHook(
 ): Promise<void> {
   try {
     // Get property ID from reservation
-    const propertyId = (await getReservationPropertyId(reservationId)) ?? getDefaultPropertyId();
+    const hotelId = (await getReservationPropertyId(reservationId)) ?? getDefaultPropertyId();
 
     // Check if reservation outbound sync is enabled
-    if (!(await isQloAppsReservationSyncEnabled(propertyId))) {
+    if (!(await isQloAppsReservationSyncEnabled(hotelId))) {
       return; // Sync disabled, skip
     }
 
     // Get config ID (we know config exists from the helper above)
-    const configId = await getQloAppsConfigId(propertyId);
+    const configId = await getQloAppsConfigId(hotelId);
     if (!configId) {
       console.warn(
-        `[QloApps SyncHook] No QloApps config found for property ${propertyId}`
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
       );
       return;
     }
@@ -279,18 +279,18 @@ export async function queueQloAppsAvailabilitySyncHook(
 ): Promise<void> {
   try {
     // Get property ID from room type
-    const propertyId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
+    const hotelId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
 
     // Check if availability sync is enabled
-    if (!(await isQloAppsAvailabilitySyncEnabled(propertyId))) {
+    if (!(await isQloAppsAvailabilitySyncEnabled(hotelId))) {
       return;
     }
 
     // Get config ID
-    const configId = await getQloAppsConfigId(propertyId);
+    const configId = await getQloAppsConfigId(hotelId);
     if (!configId) {
       console.warn(
-        `[QloApps SyncHook] No QloApps config found for property ${propertyId}`
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
       );
       return;
     }
@@ -379,18 +379,18 @@ export async function queueQloAppsRateSyncHook(
 ): Promise<void> {
   try {
     // Get property ID from room type
-    const propertyId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
+    const hotelId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
 
     // Check if rate sync is enabled
-    if (!(await isQloAppsRateSyncEnabled(propertyId))) {
+    if (!(await isQloAppsRateSyncEnabled(hotelId))) {
       return;
     }
 
     // Get config ID
-    const configId = await getQloAppsConfigId(propertyId);
+    const configId = await getQloAppsConfigId(hotelId);
     if (!configId) {
       console.warn(
-        `[QloApps SyncHook] No QloApps config found for property ${propertyId}`
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
       );
       return;
     }
@@ -441,18 +441,18 @@ export async function queueQloAppsRoomTypeSyncHook(
 ): Promise<void> {
   try {
     // Get property ID from room type
-    const propertyId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
+    const hotelId = (await getRoomTypePropertyId(roomTypeId)) ?? getDefaultPropertyId();
 
     // Check if reservation/room type outbound sync is enabled (uses reservation flag)
-    if (!(await isQloAppsReservationSyncEnabled(propertyId))) {
+    if (!(await isQloAppsReservationSyncEnabled(hotelId))) {
       return;
     }
 
     // Get config ID
-    const configId = await getQloAppsConfigId(propertyId);
+    const configId = await getQloAppsConfigId(hotelId);
     if (!configId) {
       console.warn(
-        `[QloApps SyncHook] No QloApps config found for property ${propertyId}`
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
       );
       return;
     }
@@ -501,7 +501,7 @@ export async function queueQloAppsRoomTypeSyncHook(
  */
 async function getGuestPropertyId(guestId: string): Promise<string | null> {
   const guest = await db('guests').where({ id: guestId }).first();
-  return guest?.property_id ?? getDefaultPropertyId();
+  return guest?.hotel_id ?? getDefaultPropertyId();
 }
 
 /**
@@ -517,18 +517,18 @@ export async function queueQloAppsGuestSyncHook(
 ): Promise<void> {
   try {
     // Get property ID from guest
-    const propertyId = (await getGuestPropertyId(guestId)) ?? getDefaultPropertyId();
+    const hotelId = (await getGuestPropertyId(guestId)) ?? getDefaultPropertyId();
 
     // Check if reservation/guest outbound sync is enabled (uses reservation flag)
-    if (!(await isQloAppsReservationSyncEnabled(propertyId))) {
+    if (!(await isQloAppsReservationSyncEnabled(hotelId))) {
       return; // Sync disabled, skip
     }
 
     // Get config ID
-    const configId = await getQloAppsConfigId(propertyId);
+    const configId = await getQloAppsConfigId(hotelId);
     if (!configId) {
       console.warn(
-        `[QloApps SyncHook] No QloApps config found for property ${propertyId}`
+        `[QloApps SyncHook] No QloApps config found for property ${hotelId}`
       );
       return;
     }
@@ -564,11 +564,11 @@ export async function queueQloAppsGuestSyncHook(
  * Queue full sync for a property
  * Call this for initial sync or manual full sync requests
  *
- * @param propertyId - The property ID
+ * @param hotelId - The property ID
  */
-export async function queueQloAppsFullSyncHook(propertyId?: string): Promise<void> {
+export async function queueQloAppsFullSyncHook(hotelId?: string): Promise<void> {
   try {
-    const propId = propertyId ?? getDefaultPropertyId();
+    const propId = hotelId ?? getDefaultPropertyId();
 
     // Check if sync is enabled
     if (!(await isQloAppsSyncEnabled(propId))) {

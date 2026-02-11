@@ -19,7 +19,21 @@ export async function getUsersHandler(
       .whereNull('deleted_at')
       .orderBy('created_at', 'desc');
 
-    res.json(users as UserResponse[]);
+    // Fetch hotel_ids for each user
+    const usersWithHotels = await Promise.all(
+      users.map(async (user) => {
+        const hotelIds = await db('user_hotels')
+          .where('user_id', user.id)
+          .select('hotel_id');
+        
+        return {
+          ...user,
+          hotel_ids: hotelIds.map((h) => h.hotel_id),
+        };
+      }),
+    );
+
+    res.json(usersWithHotels as UserResponse[]);
   } catch (error) {
     next(error);
   }
@@ -49,7 +63,17 @@ export async function getUserHandler(
       return;
     }
 
-    res.json(user as UserResponse);
+    // Fetch hotel_ids for the user
+    const hotelIds = await db('user_hotels')
+      .where('user_id', user.id)
+      .select('hotel_id');
+
+    const userWithHotels = {
+      ...user,
+      hotel_ids: hotelIds.map((h) => h.hotel_id),
+    };
+
+    res.json(userWithHotels as UserResponse);
   } catch (error) {
     next(error);
   }
@@ -64,7 +88,7 @@ export async function createUserHandler(
   next: NextFunction,
 ) {
   try {
-    const { email, password, first_name, last_name, role, is_active = true } = req.body;
+    const { email, password, first_name, last_name, role, is_active = true, hotel_ids = [] } = req.body;
 
     // Validation
     if (!email || !password || !first_name || !last_name || !role) {
@@ -96,6 +120,39 @@ export async function createUserHandler(
       return;
     }
 
+    // Validate hotel_ids if provided
+    if (hotel_ids.length > 0) {
+      const validHotels = await db('hotels')
+        .whereIn('id', hotel_ids)
+        .whereNull('deleted_at')
+        .select('id');
+
+      if (validHotels.length !== hotel_ids.length) {
+        res.status(400).json({
+          error: 'One or more hotel IDs are invalid',
+        } as any);
+        return;
+      }
+
+      // Non-SUPER_ADMIN can only assign hotels they have access to
+      const currentUser = (req as any).user;
+      if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+        const userHotels = await db('user_hotels')
+          .where('user_id', currentUser.userId)
+          .select('hotel_id');
+        
+        const userHotelIds = userHotels.map((h) => h.hotel_id);
+        const invalidAssignments = hotel_ids.filter((id) => !userHotelIds.includes(id));
+        
+        if (invalidAssignments.length > 0) {
+          res.status(403).json({
+            error: 'You can only assign hotels you have access to',
+          } as any);
+          return;
+        }
+      }
+    }
+
     // Hash password
     const passwordHash = await hashPassword(password);
 
@@ -111,7 +168,22 @@ export async function createUserHandler(
       })
       .returning(['id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'last_login', 'created_at', 'updated_at']);
 
-    res.status(201).json(user as UserResponse);
+    // Assign hotels to user
+    if (hotel_ids.length > 0) {
+      const userHotelEntries = hotel_ids.map((hotelId) => ({
+        user_id: user.id,
+        hotel_id: hotelId,
+      }));
+
+      await db('user_hotels').insert(userHotelEntries);
+    }
+
+    const userWithHotels = {
+      ...user,
+      hotel_ids,
+    };
+
+    res.status(201).json(userWithHotels as UserResponse);
 
     // Audit log: user created
     logCreate(req, 'user', user.id, {
@@ -119,6 +191,7 @@ export async function createUserHandler(
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
+      hotel_ids,
     }).catch((err) => console.error('Audit log failed:', err));
   } catch (error) {
     next(error);
@@ -135,7 +208,7 @@ export async function updateUserHandler(
 ) {
   try {
     const { id } = req.params;
-    const { email, first_name, last_name, role, is_active, password } = req.body;
+    const { email, first_name, last_name, role, is_active, password, hotel_ids } = req.body;
 
     // Check if user exists
     const existingUser = await db('users')
@@ -191,13 +264,70 @@ export async function updateUserHandler(
       updateData.password_hash = await hashPassword(password);
     }
 
+    // Validate and sync hotel_ids if provided
+    if (hotel_ids !== undefined) {
+      if (hotel_ids.length > 0) {
+        const validHotels = await db('hotels')
+          .whereIn('id', hotel_ids)
+          .whereNull('deleted_at')
+          .select('id');
+
+        if (validHotels.length !== hotel_ids.length) {
+          res.status(400).json({
+            error: 'One or more hotel IDs are invalid',
+          } as any);
+          return;
+        }
+
+        // Non-SUPER_ADMIN can only assign hotels they have access to
+        const currentUser = (req as any).user;
+        if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+          const userHotels = await db('user_hotels')
+            .where('user_id', currentUser.userId)
+            .select('hotel_id');
+          
+          const userHotelIds = userHotels.map((h) => h.hotel_id);
+          const invalidAssignments = hotel_ids.filter((id) => !userHotelIds.includes(id));
+          
+          if (invalidAssignments.length > 0) {
+            res.status(403).json({
+              error: 'You can only assign hotels you have access to',
+            } as any);
+            return;
+          }
+        }
+      }
+
+      // Sync user_hotels: delete existing and insert new ones
+      await db('user_hotels').where('user_id', id).delete();
+
+      if (hotel_ids.length > 0) {
+        const userHotelEntries = hotel_ids.map((hotelId) => ({
+          user_id: id,
+          hotel_id: hotelId,
+        }));
+
+        await db('user_hotels').insert(userHotelEntries);
+      }
+    }
+
     // Update user
     const [updatedUser] = await db('users')
       .where({ id })
       .update(updateData)
       .returning(['id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'last_login', 'created_at', 'updated_at']);
 
-    res.json(updatedUser as UserResponse);
+    // Fetch updated hotel_ids
+    const finalHotelIds = await db('user_hotels')
+      .where('user_id', id)
+      .select('hotel_id');
+
+    const userWithHotels = {
+      ...updatedUser,
+      hotel_ids: finalHotelIds.map((h) => h.hotel_id),
+    };
+
+    res.json(userWithHotels as UserResponse);
 
     // Audit log: user updated
     logUpdate(req, 'user', id, {

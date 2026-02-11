@@ -14,6 +14,7 @@ export interface CreateUserRequest {
   last_name: string;
   role: UserRole;
   is_active?: boolean;
+  hotel_ids?: string[]; // Hotels to assign the user to
 }
 
 export interface UpdateUserRequest {
@@ -23,6 +24,7 @@ export interface UpdateUserRequest {
   role?: UserRole;
   is_active?: boolean;
   password?: string; // Optional password update
+  hotel_ids?: string[]; // Hotels to assign the user to
 }
 
 export interface UserResponse {
@@ -35,5 +37,6 @@ export interface UserResponse {
   last_login: string | null;
   created_at: string;
   updated_at: string;
+  hotel_ids?: string[]; // Hotels the user has access to
 }
 

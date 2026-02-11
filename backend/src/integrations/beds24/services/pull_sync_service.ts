@@ -29,7 +29,7 @@ export class PullSyncService {
     dateRange?: { from?: Date; to?: Date }
   ): Promise<Beds24Booking[]> {
     const query: Record<string, any> = {
-      propertyId: [parseInt(beds24PropertyId, 10)],
+      hotelId: [parseInt(beds24PropertyId, 10)],
       includeGuests: true,
     };
 
@@ -410,9 +410,9 @@ export class PullSyncService {
    * Load Beds24 configuration
    */
   private async loadBeds24Config() {
-    const propertyId = '00000000-0000-0000-0000-000000000001';
+    const hotelId = '00000000-0000-0000-0000-000000000001';
     const config = await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .first();
 
     if (!config) {

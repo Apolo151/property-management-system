@@ -51,18 +51,18 @@ export interface CustomerPushSyncOptions {
 export class QloAppsCustomerPushSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
 
   constructor(
     client: QloAppsClient,
     configId: string,
-    propertyId: string,
+    hotelId: string,
     hotelId: number
   ) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
   }
 
@@ -90,7 +90,7 @@ export class QloAppsCustomerPushSyncService {
     return new QloAppsCustomerPushSyncService(
       client,
       configId,
-      config.property_id,
+      config.hotel_id,
       hotelId
     );
   }
@@ -120,7 +120,7 @@ export class QloAppsCustomerPushSyncService {
       // Check if guest is already mapped
       const existingMapping = await db('qloapps_customer_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           local_guest_id: guestId,
           is_active: true,
         })
@@ -228,7 +228,7 @@ export class QloAppsCustomerPushSyncService {
         // Update last synced timestamp
         await db('qloapps_customer_mappings')
           .where({
-            property_id: this.propertyId,
+            hotel_id: this.hotelId,
             local_guest_id: guest.id,
           })
           .update({
@@ -255,7 +255,7 @@ export class QloAppsCustomerPushSyncService {
       // Update mapping
       await db('qloapps_customer_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           local_guest_id: guest.id,
         })
         .update({
@@ -297,7 +297,7 @@ export class QloAppsCustomerPushSyncService {
     
     await db('qloapps_customer_mappings').insert({
       id: crypto.randomUUID(),
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       local_guest_id: guestId,
       qloapps_customer_id: qloAppsCustomerId.toString(),
       qloapps_hotel_id: this.hotelId.toString(),

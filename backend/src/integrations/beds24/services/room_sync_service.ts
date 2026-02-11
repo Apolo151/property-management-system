@@ -26,7 +26,7 @@ export class RoomSyncService {
       const roomsResponse = await this.client.makeRequest<Beds24Room[]>('/properties/rooms', {
         method: 'GET',
         query: {
-          propertyId: [parseInt(beds24PropertyId, 10)],
+          hotelId: [parseInt(beds24PropertyId, 10)],
         },
       });
 
@@ -79,7 +79,7 @@ export class RoomSyncService {
             if (room.id) {
               rooms.push({
                 id: room.id,
-                propertyId: parseInt(beds24PropertyId, 10),
+                hotelId: parseInt(beds24PropertyId, 10),
                 name: room.name || `Room ${room.id}`,
                 type: room.type,
                 maxGuests: room.maxGuests || room.maxOccupancy,
@@ -94,7 +94,7 @@ export class RoomSyncService {
             if (unit.roomId && !roomMap.has(unit.roomId)) {
               roomMap.set(unit.roomId, {
                 id: unit.roomId,
-                propertyId: parseInt(beds24PropertyId, 10),
+                hotelId: parseInt(beds24PropertyId, 10),
                 name: unit.roomName || unit.name || `Room ${unit.roomId}`,
                 type: unit.roomType || unit.type,
                 maxGuests: unit.maxGuests || unit.maxOccupancy,
@@ -132,7 +132,7 @@ export class RoomSyncService {
       const bookings = await this.client.makeRequest<any[]>('/bookings', {
         method: 'GET',
         query: {
-          propertyId: [parseInt(beds24PropertyId, 10)],
+          hotelId: [parseInt(beds24PropertyId, 10)],
           arrivalFrom: twoYearsAgo.toISOString().split('T')[0],
           arrivalTo: twoYearsFromNow.toISOString().split('T')[0],
         },
@@ -160,7 +160,7 @@ export class RoomSyncService {
       return Array.from(roomMap.values()).map((room) => {
         const beds24Room: Beds24Room = {
           id: room.id,
-          propertyId: parseInt(beds24PropertyId, 10),
+          hotelId: parseInt(beds24PropertyId, 10),
           name: room.name || `Room ${room.id}`,
         };
         if (room.type) {
@@ -558,9 +558,9 @@ export class RoomSyncService {
    * Load Beds24 configuration
    */
   private async loadBeds24Config() {
-    const propertyId = '00000000-0000-0000-0000-000000000001';
+    const hotelId = '00000000-0000-0000-0000-000000000001';
     const config = await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .first();
 
     if (!config) {

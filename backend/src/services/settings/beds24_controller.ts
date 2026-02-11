@@ -16,7 +16,7 @@ export async function getBeds24ConfigHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -41,7 +41,7 @@ export async function getBeds24ConfigHandler(
     // Don't send encrypted tokens to frontend
     res.json({
       configured: true,
-      beds24PropertyId: config.beds24_property_id,
+      beds24PropertyId: config.beds24_hotel_id,
       syncEnabled: config.sync_enabled,
       pushSyncEnabled: config.push_sync_enabled,
       pullSyncEnabled: config.pull_sync_enabled,
@@ -117,7 +117,7 @@ export async function authenticateBeds24Handler(
 
     // Store or update configuration
     const existing = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     const isFirstTimeSetup = !existing;
@@ -125,12 +125,12 @@ export async function authenticateBeds24Handler(
 
     if (existing) {
       await db('beds24_config')
-        .where({ property_id: PROPERTY_ID })
+        .where({ hotel_id: PROPERTY_ID })
         .update({
           refresh_token: encryptedRefreshToken,
           access_token: encryptedAccessToken, // Phase 6: Persist access token
           token_expires_at: tokenExpiresAt, // Phase 6: Store expiry
-          beds24_property_id: beds24PropertyId,
+          beds24_hotel_id: beds24PropertyId,
           sync_enabled: true,
           push_sync_enabled: true,
           pull_sync_enabled: true,
@@ -139,11 +139,11 @@ export async function authenticateBeds24Handler(
         });
     } else {
       await db('beds24_config').insert({
-        property_id: PROPERTY_ID,
+        hotel_id: PROPERTY_ID,
         refresh_token: encryptedRefreshToken,
         access_token: encryptedAccessToken, // Phase 6: Persist access token
         token_expires_at: tokenExpiresAt, // Phase 6: Store expiry
-        beds24_property_id: beds24PropertyId,
+        beds24_hotel_id: beds24PropertyId,
         sync_enabled: true,
         push_sync_enabled: true,
         pull_sync_enabled: true,
@@ -151,11 +151,11 @@ export async function authenticateBeds24Handler(
       });
     }
 
-    // Phase 1: Sync property ID to hotel_settings
-    await db('hotel_settings')
+    // Phase 1: Sync property ID to hotels
+    await db('hotels')
       .where({ id: PROPERTY_ID })
       .update({
-        beds24_property_id: beds24PropertyIdInt,
+        beds24_hotel_id: beds24PropertyIdInt,
         updated_at: new Date(),
       });
 
@@ -165,7 +165,7 @@ export async function authenticateBeds24Handler(
       
       // Phase 2: Set sync status to running before starting
       await db('beds24_config')
-        .where({ property_id: PROPERTY_ID })
+        .where({ hotel_id: PROPERTY_ID })
         .update({
           sync_status: 'running',
           sync_started_at: new Date(),
@@ -221,7 +221,7 @@ export async function updateBeds24ConfigHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -253,16 +253,16 @@ export async function updateBeds24ConfigHandler(
     }
 
     await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .update(updateData);
 
     const updated = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     res.json({
       configured: true,
-      beds24PropertyId: updated.beds24_property_id,
+      beds24PropertyId: updated.beds24_hotel_id,
       syncEnabled: updated.sync_enabled,
       pushSyncEnabled: updated.push_sync_enabled,
       pullSyncEnabled: updated.pull_sync_enabled,
@@ -285,7 +285,7 @@ export async function testBeds24ConnectionHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -325,7 +325,7 @@ export async function triggerInitialSyncHandler(
 ) {
   try {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {
@@ -340,13 +340,13 @@ export async function triggerInitialSyncHandler(
     // Run initial sync in background
     const initialSyncService = new InitialSyncService(
       refreshToken,
-      config.beds24_property_id,
+      config.beds24_hotel_id,
       PROPERTY_ID
     );
 
     // Phase 2: Set sync status to running before starting
     await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .update({
         sync_status: 'running',
         sync_started_at: new Date(),

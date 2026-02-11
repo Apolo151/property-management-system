@@ -21,6 +21,11 @@ export interface AuthResponse {
   };
   token: string;
   refreshToken?: string;
+  hotels?: Array<{
+    id: string;
+    hotel_name: string;
+  }>;
+  activeHotelId?: string;
 }
 
 export interface JwtPayload {

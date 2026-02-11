@@ -6,8 +6,6 @@ import type {
 } from './settings_types.js';
 import { logAction, logUpdate } from '../audit/audit_utils.js';
 
-const HOTEL_SETTINGS_ID = '00000000-0000-0000-0000-000000000001';
-
 /**
  * Clear all data except users and Beds24 token data
  * This is a dangerous operation - use with caution!
@@ -109,8 +107,11 @@ export async function getHotelSettingsHandler(
   next: NextFunction,
 ) {
   try {
-    const settings = await db('hotel_settings')
-      .where({ id: HOTEL_SETTINGS_ID })
+    const hotelId = (req as any).hotelId;
+
+    const settings = await db('hotels')
+      .where({ id: hotelId })
+      .whereNull('deleted_at')
       .first();
 
     if (!settings) {
@@ -120,15 +121,24 @@ export async function getHotelSettingsHandler(
       return;
     }
 
-    // Parse JSONB settings field if it's a string
-    const parsedSettings =
-      typeof settings.settings === 'string'
-        ? JSON.parse(settings.settings)
-        : settings.settings || {};
-
+    // Map hotels table to settings response format
     res.json({
-      ...settings,
-      settings: parsedSettings,
+      id: settings.id,
+      hotel_name: settings.hotel_name,
+      address: settings.hotel_address,
+      city: settings.hotel_city,
+      country: settings.hotel_country,
+      phone: settings.hotel_phone,
+      email: settings.hotel_email,
+      tax_rate: settings.tax_percentage || 0,
+      currency: settings.currency || 'USD',
+      timezone: settings.timezone || 'UTC',
+      check_in_time: settings.check_in_time || '14:00',
+      check_out_time: settings.check_out_time || '11:00',
+      beds24_hotel_id: settings.beds24_hotel_id,
+      settings: {},
+      created_at: settings.created_at,
+      updated_at: settings.updated_at,
     } as any);
   } catch (error) {
     next(error);
@@ -142,57 +152,63 @@ export async function updateHotelSettingsHandler(
   next: NextFunction,
 ) {
   try {
-    const updateData: any = { ...req.body };
+    const hotelId = (req as any).hotelId;
+    const body = req.body;
 
-    // Stringify settings if provided
-    if (updateData.settings) {
-      updateData.settings = JSON.stringify(updateData.settings);
-    }
+    // Map settings fields to hotels table columns
+    const updateData: any = {
+      updated_at: new Date(),
+    };
 
-    // Add updated_at timestamp
-    updateData.updated_at = new Date();
+    if (body.hotel_name !== undefined) updateData.hotel_name = body.hotel_name;
+    if (body.address !== undefined) updateData.hotel_address = body.address;
+    if (body.city !== undefined) updateData.hotel_city = body.city;
+    if (body.country !== undefined) updateData.hotel_country = body.country;
+    if (body.phone !== undefined) updateData.hotel_phone = body.phone;
+    if (body.email !== undefined) updateData.hotel_email = body.email;
+    if (body.tax_rate !== undefined) updateData.tax_percentage = body.tax_rate;
+    if (body.currency !== undefined) updateData.currency = body.currency;
+    if (body.timezone !== undefined) updateData.timezone = body.timezone;
+    if (body.check_in_time !== undefined) updateData.check_in_time = body.check_in_time;
+    if (body.check_out_time !== undefined) updateData.check_out_time = body.check_out_time;
+    if (body.beds24_hotel_id !== undefined) updateData.beds24_hotel_id = body.beds24_hotel_id;
 
-    // Try to update existing settings
-    const updated = await db('hotel_settings')
-      .where({ id: HOTEL_SETTINGS_ID })
+    // Update hotel
+    const [updated] = await db('hotels')
+      .where({ id: hotelId })
+      .whereNull('deleted_at')
       .update(updateData)
       .returning('*');
 
-    if (updated.length === 0) {
-      // Settings don't exist, create them
-      const [newSettings] = await db('hotel_settings')
-        .insert({
-          id: HOTEL_SETTINGS_ID,
-          hotel_name: updateData.hotel_name || 'Hotel',
-          ...updateData,
-        })
-        .returning('*');
-
-      const parsedSettings =
-        typeof newSettings.settings === 'string'
-          ? JSON.parse(newSettings.settings)
-          : newSettings.settings || {};
-
-      res.json({
-        ...newSettings,
-        settings: parsedSettings,
+    if (!updated) {
+      res.status(404).json({
+        error: 'Hotel not found',
       } as any);
       return;
     }
 
-    const settings = updated[0];
-    const parsedSettings =
-      typeof settings.settings === 'string'
-        ? JSON.parse(settings.settings)
-        : settings.settings || {};
-
+    // Map response
     res.json({
-      ...settings,
-      settings: parsedSettings,
+      id: updated.id,
+      hotel_name: updated.hotel_name,
+      address: updated.hotel_address,
+      city: updated.hotel_city,
+      country: updated.hotel_country,
+      phone: updated.hotel_phone,
+      email: updated.hotel_email,
+      tax_rate: updated.tax_percentage || 0,
+      currency: updated.currency || 'USD',
+      timezone: updated.timezone || 'UTC',
+      check_in_time: updated.check_in_time || '14:00',
+      check_out_time: updated.check_out_time || '11:00',
+      beds24_hotel_id: updated.beds24_hotel_id,
+      settings: {},
+      created_at: updated.created_at,
+      updated_at: updated.updated_at,
     } as any);
 
     // Audit log: settings updated
-    logAction(req, 'UPDATE_SETTINGS', 'hotel_settings', HOTEL_SETTINGS_ID, {
+    logAction(req, 'UPDATE_SETTINGS', 'hotel', hotelId, {
       updated_fields: Object.keys(req.body),
     }).catch((err) => console.error('Audit log failed:', err));
   } catch (error) {

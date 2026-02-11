@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { authenticateToken, requireRole } from '../auth/auth_middleware.js';
+import { authenticateToken, requireRole, hotelContext } from '../auth/auth_middleware.js';
 import {
   // Configuration
   getConfigHandler,
@@ -45,8 +45,9 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication and hotel context
 router.use(authenticateToken);
+router.use(hotelContext);
 
 // =============================================================================
 // Configuration Routes

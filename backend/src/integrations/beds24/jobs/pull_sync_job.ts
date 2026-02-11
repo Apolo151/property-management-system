@@ -14,9 +14,9 @@ export async function runPullSyncJob(): Promise<{
 }> {
   try {
     // Load Beds24 config
-    const propertyId = '00000000-0000-0000-0000-000000000001';
+    const hotelId = '00000000-0000-0000-0000-000000000001';
     const config = await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .first();
 
     if (!config) {
@@ -48,7 +48,7 @@ export async function runPullSyncJob(): Promise<{
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default to 7 days ago
 
     // Pull bookings modified since last sync
-    const bookings = await service.pullBookings(config.beds24_property_id, lastSync);
+    const bookings = await service.pullBookings(config.beds24_hotel_id, lastSync);
 
     // Sync bookings to PMS
     const results = await service.syncBookingsToPms(bookings);
@@ -58,7 +58,7 @@ export async function runPullSyncJob(): Promise<{
 
     // Update last sync timestamp
     await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .update({
         last_successful_sync: new Date(),
         updated_at: new Date(),
@@ -92,9 +92,9 @@ export async function runFullSyncJob(): Promise<{
   error?: string;
 }> {
   try {
-    const propertyId = '00000000-0000-0000-0000-000000000001';
+    const hotelId = '00000000-0000-0000-0000-000000000001';
     const config = await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .first();
 
     if (!config) {
@@ -121,7 +121,7 @@ export async function runFullSyncJob(): Promise<{
     const service = new PullSyncService(refreshToken);
 
     // Pull all bookings (no lastModified filter)
-    const bookings = await service.pullBookings(config.beds24_property_id);
+    const bookings = await service.pullBookings(config.beds24_hotel_id);
 
     // Sync bookings to PMS
     const results = await service.syncBookingsToPms(bookings);
@@ -131,7 +131,7 @@ export async function runFullSyncJob(): Promise<{
 
     // Update last sync timestamp
     await db('beds24_config')
-      .where({ property_id: propertyId })
+      .where({ hotel_id: hotelId })
       .update({
         last_successful_sync: new Date(),
         updated_at: new Date(),

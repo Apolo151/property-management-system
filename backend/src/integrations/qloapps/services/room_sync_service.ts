@@ -79,13 +79,13 @@ function mapTypeToRoomType(type: string): string {
 export class QloAppsRoomSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
 
-  constructor(client: QloAppsClient, configId: string, propertyId: string, hotelId: number) {
+  constructor(client: QloAppsClient, configId: string, hotelId: string, hotelId: number) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
   }
 
@@ -111,7 +111,7 @@ export class QloAppsRoomSyncService {
     return new QloAppsRoomSyncService(
       client,
       configId,
-      config.property_id,
+      config.hotel_id,
       parseInt(config.qloapps_hotel_id, 10)
     );
   }
@@ -206,7 +206,7 @@ export class QloAppsRoomSyncService {
       // Check if mapping already exists
       const existingMapping = await db('qloapps_room_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           qloapps_room_id: qloAppsRoom.id.toString(),
           is_active: true,
         })
@@ -230,7 +230,7 @@ export class QloAppsRoomSyncService {
       // Find room type mapping for this room's product
       const roomTypeMapping = await db('qloapps_room_type_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           qloapps_product_id: qloAppsRoom.id_product.toString(),
           is_active: true,
         })
@@ -415,7 +415,7 @@ export class QloAppsRoomSyncService {
     roomTypeId: string
   ): Promise<void> {
     await db('qloapps_room_mappings').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       qloapps_hotel_id: this.hotelId.toString(),
       qloapps_room_id: qloAppsRoomId.toString(),
       local_room_id: pmsRoomId,
@@ -435,7 +435,7 @@ export class QloAppsRoomSyncService {
   ): Promise<void> {
     await db('qloapps_room_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         qloapps_room_id: qloAppsRoomId.toString(),
       })
       .update({

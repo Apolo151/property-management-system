@@ -49,18 +49,18 @@ export interface RoomTypePushSyncOptions {
 export class QloAppsRoomTypePushSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
 
   constructor(
     client: QloAppsClient,
     configId: string,
-    propertyId: string,
+    hotelId: string,
     hotelId: number
   ) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
   }
 
@@ -88,7 +88,7 @@ export class QloAppsRoomTypePushSyncService {
     return new QloAppsRoomTypePushSyncService(
       client,
       configId,
-      config.property_id,
+      config.hotel_id,
       hotelId
     );
   }
@@ -118,7 +118,7 @@ export class QloAppsRoomTypePushSyncService {
       // Check if room type is already mapped
       const existingMapping = await db('qloapps_room_type_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           local_room_type_id: roomTypeId,
           is_active: true,
         })
@@ -213,7 +213,7 @@ export class QloAppsRoomTypePushSyncService {
         // Update last synced timestamp
         await db('qloapps_room_type_mappings')
           .where({
-            property_id: this.propertyId,
+            hotel_id: this.hotelId,
             local_room_type_id: roomType.id,
           })
           .update({
@@ -239,7 +239,7 @@ export class QloAppsRoomTypePushSyncService {
       // Update mapping timestamp
       await db('qloapps_room_type_mappings')
         .where({
-          property_id: this.propertyId,
+          hotel_id: this.hotelId,
           local_room_type_id: roomType.id,
         })
         .update({
@@ -279,7 +279,7 @@ export class QloAppsRoomTypePushSyncService {
   ): Promise<void> {
     await db('qloapps_room_type_mappings').insert({
       id: crypto.randomUUID(),
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       local_room_type_id: roomTypeId,
       qloapps_product_id: qloAppsProductId.toString(),
       qloapps_hotel_id: this.hotelId.toString(),
@@ -357,7 +357,7 @@ export class QloAppsRoomTypePushSyncService {
       // Get all PMS room types
       const pmsRoomTypes = await db('room_types')
         .whereNull('deleted_at')
-        .where({ property_id: this.propertyId });
+        .where({ hotel_id: this.hotelId });
 
       console.log(`[QloApps RoomType Push] Found ${qloAppsRoomTypes.length} QloApps room types`);
       console.log(`[QloApps RoomType Push] Found ${pmsRoomTypes.length} PMS room types`);
@@ -367,7 +367,7 @@ export class QloAppsRoomTypePushSyncService {
         // Check if already mapped
         const existingMapping = await db('qloapps_room_type_mappings')
           .where({
-            property_id: this.propertyId,
+            hotel_id: this.hotelId,
             local_room_type_id: pmsRoomType.id,
             is_active: true,
           })

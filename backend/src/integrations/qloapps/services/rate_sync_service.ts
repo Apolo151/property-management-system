@@ -58,12 +58,12 @@ export interface RateSyncOptions {
 export class QloAppsRateSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
 
-  constructor(client: QloAppsClient, configId: string, propertyId: string) {
+  constructor(client: QloAppsClient, configId: string, hotelId: string) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
   }
 
   /**
@@ -85,7 +85,7 @@ export class QloAppsRateSyncService {
       hotelId: parseInt(config.qloapps_hotel_id, 10),
     });
 
-    return new QloAppsRateSyncService(client, configId, config.property_id);
+    return new QloAppsRateSyncService(client, configId, config.hotel_id);
   }
 
   /**
@@ -98,7 +98,7 @@ export class QloAppsRateSyncService {
   }>> {
     const mappings = await db('qloapps_room_type_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         is_active: true,
       })
       .select('local_room_type_id', 'qloapps_product_id');
@@ -314,7 +314,7 @@ export class QloAppsRateSyncService {
   ): Promise<void> {
     const existing = await db('qloapps_sync_state')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
       })
       .first();
@@ -333,7 +333,7 @@ export class QloAppsRateSyncService {
         .update(updates);
     } else {
       await db('qloapps_sync_state').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
         ...updates,
       });
@@ -356,7 +356,7 @@ export class QloAppsRateSyncService {
     completedAt: Date;
   }): Promise<void> {
     await db('qloapps_sync_logs').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       sync_type: result.syncType,
       direction: 'push',
       status: result.success ? 'success' : 'failed',

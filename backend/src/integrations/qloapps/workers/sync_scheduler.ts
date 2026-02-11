@@ -61,7 +61,7 @@ let currentBackoffMs = SYNC_INTERVAL_MS;
  * Acquire a database lock for the sync operation
  * Returns the sync ID if lock acquired, null if another sync is running
  */
-async function acquireSyncLock(configId: string, propertyId: string): Promise<string | null> {
+async function acquireSyncLock(configId: string, hotelId: string): Promise<string | null> {
   try {
     // Check for any running syncs of this type that haven't timed out
     const runningSync = await db('qloapps_sync_state')
@@ -94,7 +94,7 @@ async function acquireSyncLock(configId: string, propertyId: string): Promise<st
     const syncId = crypto.randomUUID();
     await db('qloapps_sync_state').insert({
       id: syncId,
-      property_id: propertyId,
+      hotel_id: hotelId,
       sync_type: SYNC_TYPE,
       status: 'running',
       started_at: new Date(),
@@ -155,7 +155,7 @@ async function releaseSyncLock(
  */
 async function getEnabledConfigs(): Promise<Array<{
   id: string;
-  property_id: string;
+  hotel_id: string;
   base_url: string;
   api_key_encrypted: string;
   qloapps_hotel_id: number;
@@ -165,7 +165,7 @@ async function getEnabledConfigs(): Promise<Array<{
   return db('qloapps_config')
     .where({ sync_enabled: true })
     .whereNotNull('api_key_encrypted')
-    .select('id', 'property_id', 'base_url', 'api_key_encrypted', 'qloapps_hotel_id', 'sync_interval_minutes', 'last_successful_sync');
+    .select('id', 'hotel_id', 'base_url', 'api_key_encrypted', 'qloapps_hotel_id', 'sync_interval_minutes', 'last_successful_sync');
 }
 
 /**
@@ -173,7 +173,7 @@ async function getEnabledConfigs(): Promise<Array<{
  */
 async function runSyncForConfig(config: {
   id: string;
-  property_id: string;
+  hotel_id: string;
   base_url: string;
   api_key_encrypted: string;
   qloapps_hotel_id: number;
@@ -190,7 +190,7 @@ async function runSyncForConfig(config: {
   console.log(`[QloApps Sync] ▶️  Starting sync for config ${config.id}...`);
 
   // Acquire lock
-  const syncId = await acquireSyncLock(config.id, config.property_id);
+  const syncId = await acquireSyncLock(config.id, config.hotel_id);
   if (!syncId) {
     return {
       success: false,
@@ -214,7 +214,7 @@ async function runSyncForConfig(config: {
     });
 
     // Create sync service
-    const syncService = new QloAppsPullSyncService(client, config.id, config.property_id, config.qloapps_hotel_id);
+    const syncService = new QloAppsPullSyncService(client, config.id, config.hotel_id, config.qloapps_hotel_id);
 
     // Determine sync type and run appropriate sync method
     let result;
@@ -280,13 +280,13 @@ async function runSyncForConfig(config: {
       const roomTypeSyncSvc = new RoomTypeSyncService(
         (syncService as any).client,
         (syncService as any).configId,
-        (syncService as any).propertyId,
+        (syncService as any).hotelId,
         (syncService as any).hotelId
       );
       const customerSyncSvc = new CustomerSyncService(
         (syncService as any).client,
         (syncService as any).configId,
-        (syncService as any).propertyId,
+        (syncService as any).hotelId,
         (syncService as any).hotelId
       );
 

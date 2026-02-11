@@ -21,7 +21,7 @@ export async function getChannelEventsHandler(
       status = 'failed',
       direction,
       entity_type,
-      property_id,
+      hotel_id,
       limit = 50,
       offset = 0,
     } = req.query;
@@ -43,8 +43,8 @@ export async function getChannelEventsHandler(
       limit: limitNum,
       offset: offsetNum,
     };
-    if (property_id) {
-      filters.property_id = property_id as string;
+    if (hotel_id) {
+      filters.hotel_id = hotel_id as string;
     }
     if (direction) {
       filters.direction = direction as 'inbound' | 'outbound';
@@ -104,7 +104,7 @@ export async function getChannelEventHandler(
 
     res.json({
       id: event.id,
-      property_id: event.property_id,
+      hotel_id: event.hotel_id,
       direction: event.direction,
       source: event.source,
       event_type: event.event_type,

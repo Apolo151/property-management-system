@@ -141,6 +141,7 @@ export async function getReservationsHandler(
 ) {
   try {
     const { status, search, check_in, check_out } = req.query;
+    const hotelId = (req as any).hotelId;
 
     let query = db('reservations')
       .select(
@@ -155,6 +156,7 @@ export async function getReservationsHandler(
       .leftJoin('rooms', 'reservations.room_id', 'rooms.id')
       .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
+      .where('reservations.hotel_id', hotelId)
       .whereNull('reservations.deleted_at')
       .orderBy('reservations.created_at', 'desc');
 
@@ -234,6 +236,7 @@ export async function getReservationHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const reservation = await db('reservations')
       .select(
@@ -249,6 +252,7 @@ export async function getReservationHandler(
       .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
       .where('reservations.id', id)
+      .where('reservations.hotel_id', hotelId)
       .whereNull('reservations.deleted_at')
       .first();
 
@@ -307,6 +311,7 @@ export async function createReservationHandler(
   next: NextFunction,
 ) {
   try {
+    const hotelId = (req as any).hotelId;
     const {
       room_id, // Legacy: individual room
       room_type_id, // New: room type
@@ -433,6 +438,7 @@ export async function createReservationHandler(
       // Create reservation
       const [newReservation] = await trx('reservations')
         .insert({
+          hotel_id: hotelId,
           room_id: roomId, // Legacy: nullable
           room_type_id: roomTypeId, // New: nullable
           assigned_unit_id: assigned_unit_id || null,

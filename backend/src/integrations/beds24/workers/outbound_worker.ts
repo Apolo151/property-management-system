@@ -34,7 +34,7 @@ export class OutboundWorker extends BaseRabbitMQConsumer {
    */
   private async getBeds24Client(): Promise<Beds24Client> {
     const config = await db('beds24_config')
-      .where({ property_id: PROPERTY_ID })
+      .where({ hotel_id: PROPERTY_ID })
       .first();
 
     if (!config) {

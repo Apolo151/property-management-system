@@ -22,14 +22,19 @@ export async function getRoomTypesHandler(
 ) {
   try {
     const { search, room_type, include_deleted } = req.query;
+    const hotelId = (req as any).hotelId;
 
     let query = db('room_types')
       .select('*')
+      .where('hotel_id', hotelId)
       .whereNull('deleted_at')
       .orderBy('name', 'asc');
 
     if (include_deleted === 'true') {
-      query = db('room_types').select('*').orderBy('name', 'asc');
+      query = db('room_types')
+        .select('*')
+        .where('hotel_id', hotelId)
+        .orderBy('name', 'asc');
     }
 
     if (search) {
@@ -64,9 +69,10 @@ export async function getRoomTypeHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const roomType = await db('room_types')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -99,6 +105,7 @@ export async function createRoomTypeHandler(
 ) {
   try {
     const data = req.body;
+    const hotelId = (req as any).hotelId;
 
     // Validation
     if (!data.name || !data.room_type || !data.qty || !data.price_per_night) {
@@ -118,6 +125,7 @@ export async function createRoomTypeHandler(
     // Create room type
     const [roomType] = await db('room_types')
       .insert({
+        hotel_id: hotelId,
         name: data.name,
         room_type: data.room_type,
         qty: data.qty,
@@ -191,10 +199,11 @@ export async function updateRoomTypeHandler(
   try {
     const { id } = req.params;
     const data = req.body;
+    const hotelId = (req as any).hotelId;
 
-    // Check if room type exists
+    // Check if room type exists in this hotel
     const existing = await db('room_types')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -305,10 +314,11 @@ export async function deleteRoomTypeHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
-    // Check if room type exists
+    // Check if room type exists in this hotel
     const existing = await db('room_types')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -319,9 +329,9 @@ export async function deleteRoomTypeHandler(
       return;
     }
 
-    // Check if there are active reservations
+    // Check if there are active reservations in this hotel
     const activeReservations = await db('reservations')
-      .where({ room_type_id: id })
+      .where({ room_type_id: id, hotel_id: hotelId })
       .whereNotIn('status', ['Cancelled', 'Checked-out'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -365,6 +375,20 @@ export async function getRoomTypeAvailabilityHandler(
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
+    const hotelId = (req as any).hotelId;
+
+    // Verify room type belongs to this hotel
+    const roomType = await db('room_types')
+      .where({ id, hotel_id: hotelId })
+      .whereNull('deleted_at')
+      .first();
+
+    if (!roomType) {
+      res.status(404).json({
+        error: 'Room type not found',
+      });
+      return;
+    }
 
     if (!start_date || !end_date) {
       res.status(400).json({
@@ -416,6 +440,7 @@ export async function getAvailableRoomTypesHandler(
 ) {
   try {
     const { check_in, check_out, min_price, max_price, room_type, max_people, units_requested = 1 } = req.query;
+    const hotelId = (req as any).hotelId;
 
     if (!check_in || !check_out) {
       res.status(400).json({
@@ -459,8 +484,10 @@ export async function getAvailableRoomTypesHandler(
       roomType?: string;
       maxPeople?: number;
       unitsRequested?: number;
+      hotelId?: string;
     } = {
       unitsRequested: parseInt(String(units_requested)) || 1,
+      hotelId: hotelId,
     };
     if (min_price) {
       filters.minPrice = parseFloat(String(min_price));

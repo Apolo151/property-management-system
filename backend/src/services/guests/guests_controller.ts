@@ -11,9 +11,11 @@ export async function getGuestsHandler(
 ) {
   try {
     const { search } = req.query;
+    const hotelId = (req as any).hotelId;
 
     let query = db('guests')
       .select('*')
+      .where('hotel_id', hotelId)
       .whereNull('deleted_at')
       .orderBy('created_at', 'desc');
 
@@ -52,9 +54,10 @@ export async function getGuestHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const guest = await db('guests')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -110,10 +113,12 @@ export async function createGuestHandler(
       }
     }
 
-    // Check for duplicate email if provided
+    const hotelId = (req as any).hotelId;
+
+    // Check for duplicate email if provided (within this hotel)
     if (email) {
       const existingGuest = await db('guests')
-        .where({ email })
+        .where({ email, hotel_id: hotelId })
         .whereNull('deleted_at')
         .first();
 
@@ -128,6 +133,7 @@ export async function createGuestHandler(
     // Create guest
     const [newGuest] = await db('guests')
       .insert({
+        hotel_id: hotelId,
         name,
         email: email || null,
         phone: phone || null,
@@ -176,10 +182,11 @@ export async function updateGuestHandler(
   try {
     const { id } = req.params;
     const updates = req.body;
+    const hotelId = (req as any).hotelId;
 
-    // Check if guest exists
+    // Check if guest exists in this hotel
     const existing = await db('guests')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -209,9 +216,9 @@ export async function updateGuestHandler(
           return;
         }
 
-        // Check for duplicate email (excluding current guest)
+        // Check for duplicate email (excluding current guest, within this hotel)
         const existingGuest = await db('guests')
-          .where({ email: updates.email })
+          .where({ email: updates.email, hotel_id: hotelId })
           .where('id', '!=', id)
           .whereNull('deleted_at')
           .first();
@@ -294,9 +301,10 @@ export async function deleteGuestHandler(
 ) {
   try {
     const { id } = req.params;
+    const hotelId = (req as any).hotelId;
 
     const guest = await db('guests')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 

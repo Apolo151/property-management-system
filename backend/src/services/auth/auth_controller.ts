@@ -74,6 +74,56 @@ export async function loginHandler(
         last_login: new Date(),
       });
 
+    // Fetch user's hotels
+    let hotels = [];
+    if (user.role === 'SUPER_ADMIN') {
+      // SUPER_ADMIN sees all hotels
+      hotels = await db('hotels')
+        .whereNull('deleted_at')
+        .select('id', 'hotel_name')
+        .orderBy('hotel_name', 'asc');
+    } else {
+      // Other users see only assigned hotels
+      hotels = await db('hotels')
+        .join('user_hotels', 'hotels.id', 'user_hotels.hotel_id')
+        .where('user_hotels.user_id', user.id)
+        .whereNull('hotels.deleted_at')
+        .select('hotels.id', 'hotels.hotel_name')
+        .orderBy('hotels.hotel_name', 'asc');
+    }
+
+    // Auto-assign to default hotel if user has no hotels (Phase 1 backward compatibility)
+    if (hotels.length === 0 && user.role !== 'SUPER_ADMIN') {
+      const DEFAULT_HOTEL_ID = '00000000-0000-0000-0000-000000000001';
+      
+      // Check if default hotel exists
+      const defaultHotel = await db('hotels')
+        .where({ id: DEFAULT_HOTEL_ID })
+        .whereNull('deleted_at')
+        .first();
+
+      if (defaultHotel) {
+        // Auto-assign user to default hotel
+        try {
+          await db('user_hotels').insert({
+            user_id: user.id,
+            hotel_id: DEFAULT_HOTEL_ID,
+          });
+          
+          console.log(`[Auth] Auto-assigned user ${user.email} to default hotel`);
+          
+          // Add to hotels list
+          hotels = [{ id: defaultHotel.id, hotel_name: defaultHotel.hotel_name }];
+        } catch (error) {
+          // Ignore duplicate key errors (user already assigned)
+          console.error('[Auth] Failed to auto-assign user to default hotel:', error);
+        }
+      }
+    }
+
+    // Set first hotel as active (if any)
+    const activeHotelId = hotels.length > 0 ? hotels[0].id : undefined;
+
     // Return user data and token
     res.json({
       user: {
@@ -85,6 +135,8 @@ export async function loginHandler(
       },
       token,
       refreshToken,
+      hotels,
+      activeHotelId,
     } as any);
 
     // Audit log: user login
@@ -276,6 +328,24 @@ export async function meHandler(
       return;
     }
 
+    // Fetch user's hotels
+    let hotels = [];
+    if (user.role === 'SUPER_ADMIN') {
+      // SUPER_ADMIN sees all hotels
+      hotels = await db('hotels')
+        .whereNull('deleted_at')
+        .select('id', 'hotel_name')
+        .orderBy('hotel_name', 'asc');
+    } else {
+      // Other users see only assigned hotels
+      hotels = await db('hotels')
+        .join('user_hotels', 'hotels.id', 'user_hotels.hotel_id')
+        .where('user_hotels.user_id', user.id)
+        .whereNull('hotels.deleted_at')
+        .select('hotels.id', 'hotels.hotel_name')
+        .orderBy('hotels.hotel_name', 'asc');
+    }
+
     res.json({
       user: {
         id: user.id,
@@ -284,6 +354,7 @@ export async function meHandler(
         last_name: user.last_name,
         role: user.role,
       },
+      hotels,
     });
   } catch (error) {
     next(error);

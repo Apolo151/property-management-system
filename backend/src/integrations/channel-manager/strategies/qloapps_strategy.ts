@@ -24,7 +24,7 @@ import {
 } from '../../qloapps/hooks/sync_hooks.js';
 
 export class QloAppsChannelStrategy implements IChannelManagerStrategy {
-  private propertyId = '00000000-0000-0000-0000-000000000001';
+  private hotelId = '00000000-0000-0000-0000-000000000001';
 
   getName(): ChannelManagerName {
     return 'qloapps';
@@ -40,7 +40,7 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
 
   async isEnabled(): Promise<boolean> {
     const config = await db('qloapps_config')
-      .where({ property_id: this.propertyId })
+      .where({ hotel_id: this.hotelId })
       .first();
 
     return config?.sync_enabled === true;
@@ -51,26 +51,26 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
    */
   private async isOutboundReservationSyncEnabled(): Promise<boolean> {
     const config = await db('qloapps_config')
-      .where({ property_id: this.propertyId })
+      .where({ hotel_id: this.hotelId })
       .first();
 
     if (!config) {
       console.warn(
-        `[QloAppsStrategy] QloApps config not found for property ${this.propertyId}, outbound reservation sync disabled`
+        `[QloAppsStrategy] QloApps config not found for property ${this.hotelId}, outbound reservation sync disabled`
       );
       return false;
     }
 
     if (!config.sync_enabled) {
       console.warn(
-        `[QloAppsStrategy] Global sync disabled for property ${this.propertyId}, outbound reservation sync disabled`
+        `[QloAppsStrategy] Global sync disabled for property ${this.hotelId}, outbound reservation sync disabled`
       );
       return false;
     }
 
     if (!config.sync_reservations_outbound) {
       console.warn(
-        `[QloAppsStrategy] Outbound reservation sync disabled for property ${this.propertyId}`
+        `[QloAppsStrategy] Outbound reservation sync disabled for property ${this.hotelId}`
       );
       return false;
     }
@@ -84,7 +84,7 @@ export class QloAppsChannelStrategy implements IChannelManagerStrategy {
 
       // Check if config exists
       const config = await db('qloapps_config')
-        .where({ property_id: this.propertyId })
+        .where({ hotel_id: this.hotelId })
         .first();
 
       if (!config) {

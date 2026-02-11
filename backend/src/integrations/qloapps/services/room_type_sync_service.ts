@@ -77,13 +77,13 @@ export interface RoomTypeSyncOptions {
 export class QloAppsRoomTypeSyncService {
   private client: QloAppsClient;
   private configId: string;
-  private propertyId: string;
+  private hotelId: string;
   private hotelId: number;
 
-  constructor(client: QloAppsClient, configId: string, propertyId: string, hotelId: number) {
+  constructor(client: QloAppsClient, configId: string, hotelId: string, hotelId: number) {
     this.client = client;
     this.configId = configId;
-    this.propertyId = propertyId;
+    this.hotelId = hotelId;
     this.hotelId = hotelId;
   }
 
@@ -106,7 +106,7 @@ export class QloAppsRoomTypeSyncService {
       hotelId: parseInt(config.qloapps_hotel_id, 10),
     });
 
-    return new QloAppsRoomTypeSyncService(client, configId, config.property_id, parseInt(config.qloapps_hotel_id, 10));
+    return new QloAppsRoomTypeSyncService(client, configId, config.hotel_id, parseInt(config.qloapps_hotel_id, 10));
   }
 
   /**
@@ -137,7 +137,7 @@ export class QloAppsRoomTypeSyncService {
     isActive: boolean;
   }>> {
     const mappings = await db('qloapps_room_type_mappings')
-      .where({ property_id: this.propertyId })
+      .where({ hotel_id: this.hotelId })
       .select('id', 'local_room_type_id', 'qloapps_product_id', 'is_active');
 
     return mappings.map(m => ({
@@ -233,7 +233,7 @@ export class QloAppsRoomTypeSyncService {
     // Check for existing mapping
     const existing = await db('qloapps_room_type_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_room_type_id: pmsRoomTypeId,
       })
       .first();
@@ -251,7 +251,7 @@ export class QloAppsRoomTypeSyncService {
     } else {
       // Create new mapping
       await db('qloapps_room_type_mappings').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_room_type_id: pmsRoomTypeId,
         qloapps_product_id: qloAppsRoomTypeId.toString(),
         qloapps_hotel_id: this.hotelId.toString(),
@@ -269,7 +269,7 @@ export class QloAppsRoomTypeSyncService {
   async deleteMapping(pmsRoomTypeId: string): Promise<void> {
     await db('qloapps_room_type_mappings')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         local_room_type_id: pmsRoomTypeId,
       })
       .update({
@@ -484,7 +484,7 @@ export class QloAppsRoomTypeSyncService {
   ): Promise<void> {
     const existing = await db('qloapps_sync_state')
       .where({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
       })
       .first();
@@ -503,7 +503,7 @@ export class QloAppsRoomTypeSyncService {
         .update(updates);
     } else {
       await db('qloapps_sync_state').insert({
-        property_id: this.propertyId,
+        hotel_id: this.hotelId,
         entity_type: entityType,
         ...updates,
       });
@@ -526,7 +526,7 @@ export class QloAppsRoomTypeSyncService {
     completedAt: Date;
   }): Promise<void> {
     await db('qloapps_sync_logs').insert({
-      property_id: this.propertyId,
+      hotel_id: this.hotelId,
       sync_type: result.syncType,
       direction: 'pull',
       status: result.success ? 'success' : 'failed',
