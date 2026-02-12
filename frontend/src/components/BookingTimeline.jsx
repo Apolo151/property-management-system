@@ -11,12 +11,14 @@ import { useConfirmation } from '../hooks/useConfirmation'
 const BookingTimeline = () => {
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
   const { roomTypes, fetchRoomTypes } = useRoomTypesStore()
-  const { guests, fetchGuests } = useGuestsStore()
+  const { guests, fetchGuests, createGuest } = useGuestsStore()
   const toast = useToast()
   const confirmation = useConfirmation()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [guestName, setGuestName] = useState('') // For creating new guest
+  const [guest2Name, setGuest2Name] = useState('') // For creating second guest
   const [newReservation, setNewReservation] = useState({
     guestId: '',
     guest2Id: '',
@@ -357,6 +359,19 @@ const BookingTimeline = () => {
             guests={guests}
             label="Primary Guest"
             placeholder="Search for a guest by name, email, or phone..."
+            onCreateGuest={async (guestData) => {
+              try {
+                const newGuest = await createGuest(guestData)
+                setNewReservation({ ...newReservation, guestId: newGuest.id })
+                setGuestName('')
+                await fetchGuests() // Refresh guests list
+                toast.success(`Created new guest: ${newGuest.name}`)
+              } catch (error) {
+                toast.error(error.message || 'Failed to create guest')
+              }
+            }}
+            guestName={guestName}
+            onGuestNameChange={setGuestName}
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
@@ -401,6 +416,19 @@ const BookingTimeline = () => {
                     guests={guests.filter((g) => String(g.id) !== String(newReservation.guestId))}
                     label="Second Guest (Optional)"
                     placeholder="Search for a second guest by name, email, or phone..."
+                    onCreateGuest={async (guestData) => {
+                      try {
+                        const newGuest = await createGuest(guestData)
+                        setNewReservation({ ...newReservation, guest2Id: newGuest.id })
+                        setGuest2Name('')
+                        await fetchGuests() // Refresh guests list
+                        toast.success(`Created new guest: ${newGuest.name}`)
+                      } catch (error) {
+                        toast.error(error.message || 'Failed to create guest')
+                      }
+                    }}
+                    guestName={guest2Name}
+                    onGuestNameChange={setGuest2Name}
                   />
                 )}
               </>

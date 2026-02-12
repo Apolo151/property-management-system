@@ -18,7 +18,7 @@ import { api } from '../utils/api'
 const ReservationsPage = () => {
   const { rooms, fetchRooms } = useRoomsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
-  const { guests, fetchGuests } = useGuestsStore()
+  const { guests, fetchGuests, createGuest } = useGuestsStore()
   const { invoices, fetchInvoices, createInvoice } = useInvoicesStore()
   const toast = useToast()
   const confirmation = useConfirmation()
@@ -343,43 +343,9 @@ const ReservationsPage = () => {
       return
     }
 
-    // Handle guest creation or selection
-    let guestId = newReservation.guestId
-    let guest2Id = newReservation.guest2Id
-
-    // If guest name is provided but no guest is selected, create a new guest
-    if (!guestId && guestName && guestName.trim()) {
-      try {
-        const newGuest = await createGuest({
-          name: guestName.trim(),
-          email: '',
-          phone: '',
-        })
-        guestId = newGuest.id
-        toast.success(`Created new guest: ${newGuest.name}`)
-      } catch (error) {
-        toast.error(error.message || 'Failed to create guest')
-        return
-      }
-    }
-
-    // If second guest name is provided but no guest is selected, create a new guest
-    if (!guest2Id && guest2Name && guest2Name.trim()) {
-      try {
-        const newGuest = await createGuest({
-          name: guest2Name.trim(),
-          email: '',
-          phone: '',
-        })
-        guest2Id = newGuest.id
-        toast.success(`Created new guest: ${newGuest.name}`)
-      } catch (error) {
-        toast.error(error.message || 'Failed to create second guest')
-        return
-      }
-    }
-
-    // If no guest is provided, backend will use "Unknown Guest" automatically
+    // Get guest IDs (already set from GuestSelect component with modal)
+    const guestId = newReservation.guestId
+    const guest2Id = newReservation.guest2Id
 
     // Validate second guest for double rooms
     if (selectedRoom?.type === 'Double' && !newReservation.guest2Id) {
@@ -422,7 +388,9 @@ const ReservationsPage = () => {
 
     try {
       // Create reservation via API
-      // Only include guestId if we have one (either selected or created)
+      // Only include guestId if we have one (either selected or created via modal)
+      // Note: Guest creation happens inline via GuestSelect modal. If guest creation
+      // succeeds but reservation fails, the guest remains in the database for future use.
       await createReservation({
         roomId: newReservation.roomId,
         roomTypeId: newReservation.roomTypeId,
@@ -1036,6 +1004,19 @@ const ReservationsPage = () => {
                 guests={guests}
                 label="Primary Guest *"
                 placeholder="Search for a guest by name, email, or phone..."
+                onCreateGuest={async (guestData) => {
+                  try {
+                    const newGuest = await createGuest(guestData)
+                    setNewReservation({ ...newReservation, guestId: newGuest.id })
+                    setGuestName('')
+                    await fetchGuests() // Refresh guests list
+                    toast.success(`Created new guest: ${newGuest.name}`)
+                  } catch (error) {
+                    toast.error(error.message || 'Failed to create guest')
+                  }
+                }}
+                guestName={guestName}
+                onGuestNameChange={setGuestName}
               />
 
               {(selectedRoom?.type === 'Double' || selectedRoomType?.room_type?.toLowerCase() === 'double') && (
@@ -1051,13 +1032,9 @@ const ReservationsPage = () => {
                   label="Second Guest (Optional)"
                   placeholder="Search for a second guest or type a name to create new..."
                   required={false}
-                  onCreateGuest={async (name) => {
+                  onCreateGuest={async (guestData) => {
                     try {
-                      const newGuest = await createGuest({
-                        name: name.trim(),
-                        email: '',
-                        phone: '',
-                      })
+                      const newGuest = await createGuest(guestData)
                       setNewReservation({ ...newReservation, guest2Id: newGuest.id })
                       setGuest2Name('')
                       await fetchGuests() // Refresh guests list

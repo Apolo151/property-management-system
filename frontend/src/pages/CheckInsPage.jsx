@@ -141,8 +141,8 @@ const CheckInsPage = () => {
     try {
       await changeRoom(selectedCheckIn.id, {
         new_room_id: selectedNewRoom,
-        assignment_type: changeReason,
-        change_reason: changeNotes || changeReason.replace('_', ' '),
+        change_reason: changeReason,
+        notes: changeNotes || undefined,
       });
       toast.success('Room changed successfully');
       setIsChangeRoomModalOpen(false);

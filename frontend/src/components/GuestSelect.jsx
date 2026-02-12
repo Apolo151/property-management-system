@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import GuestFormModal from './GuestFormModal'
 
 const GuestSelect = ({ 
   value, 
@@ -13,6 +14,8 @@ const GuestSelect = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false)
+  const [modalInitialName, setModalInitialName] = useState('')
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -43,6 +46,15 @@ const GuestSelect = ({
     return searchTerm.trim().length > 0 && !hasExactMatch && filteredGuests.length === 0
   }, [searchTerm, hasExactMatch, filteredGuests.length])
 
+  // Option A: Trigger modal immediately when user types a non-existent name
+  useEffect(() => {
+    if (showCreateOption && searchTerm.trim().length > 0 && onCreateGuest) {
+      setModalInitialName(searchTerm.trim())
+      setIsGuestModalOpen(true)
+      setIsOpen(false)
+    }
+  }, [showCreateOption, searchTerm, onCreateGuest])
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -67,11 +79,22 @@ const GuestSelect = ({
     }
   }
 
-  const handleCreateNew = () => {
-    if (onCreateGuest && searchTerm.trim()) {
-      onCreateGuest(searchTerm.trim())
-      setSearchTerm('')
-      setIsOpen(false)
+  const handleGuestModalSubmit = (guestData) => {
+    if (onCreateGuest) {
+      onCreateGuest(guestData)
+    }
+    setIsGuestModalOpen(false)
+    setSearchTerm('')
+    if (onGuestNameChange) {
+      onGuestNameChange('')
+    }
+  }
+
+  const handleGuestModalClose = () => {
+    setIsGuestModalOpen(false)
+    setSearchTerm('')
+    if (onGuestNameChange) {
+      onGuestNameChange('')
     }
   }
 
@@ -160,18 +183,9 @@ const GuestSelect = ({
               <div className="font-medium text-gray-600">No guest (optional)</div>
             </button>
           )}
-          {showCreateOption && onCreateGuest && (
-            <button
-              type="button"
-              onClick={handleCreateNew}
-              className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none border-b border-gray-200"
-            >
-              <div className="font-medium text-blue-600">+ Create new guest: "{searchTerm.trim()}"</div>
-            </button>
-          )}
-          {filteredGuests.length === 0 && !showCreateOption ? (
+          {filteredGuests.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500">
-              {searchTerm.trim() ? 'No guests found. Type a name to create a new guest.' : 'No guests found'}
+              {searchTerm.trim() ? 'Type a name to create a new guest...' : 'No guests found'}
             </div>
           ) : (
             filteredGuests.map((guest) => (
@@ -190,6 +204,15 @@ const GuestSelect = ({
           )}
         </div>
       )}
+
+      {/* Guest Form Modal */}
+      <GuestFormModal
+        isOpen={isGuestModalOpen}
+        onClose={handleGuestModalClose}
+        onSubmit={handleGuestModalSubmit}
+        initialName={modalInitialName}
+        existingGuests={guests}
+      />
     </div>
   )
 }

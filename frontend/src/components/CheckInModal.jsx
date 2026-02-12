@@ -28,8 +28,8 @@ const CheckInModal = ({ isOpen, onClose, reservation }) => {
     setLoadingRooms(true);
     try {
       const response = await getEligibleRooms(reservation.id);
-      // Handle both array response and object with rooms property
-      const rooms = Array.isArray(response) ? response : response.rooms || [];
+      // Backend returns { available_rooms: [...] }
+      const rooms = response.available_rooms || [];
       setEligibleRooms(rooms);
       
       // Auto-select if there's a preferred room or only one option
@@ -122,7 +122,7 @@ const CheckInModal = ({ isOpen, onClose, reservation }) => {
               <option value="">Select a room...</option>
               {eligibleRooms.map((room) => (
                 <option key={room.id} value={room.id}>
-                  Room {room.room_number} - {room.room_type_name}
+                  Room {room.room_number} - {room.room_type || room.type}
                   {room.id === reservation.roomId && ' (Preferred)'}
                 </option>
               ))}

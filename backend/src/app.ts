@@ -24,5 +24,17 @@ export function buildApp() {
   // Group routes under /api.
   app.use("/api", apiV1Router);
 
+  // Global error handler (must be last)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[Error Handler]', err);
+    
+    // Send generic error response (don't leak stack traces in production)
+    res.status(err.status || 500).json({
+      error: process.env.NODE_ENV === 'production' 
+        ? 'An unexpected error occurred' 
+        : err.message || 'Internal server error',
+    });
+  });
+
   return app;
 }

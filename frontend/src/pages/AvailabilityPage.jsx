@@ -12,7 +12,7 @@ import { useToast } from '../hooks/useToast'
 const AvailabilityPage = () => {
   const { createReservation } = useReservationsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
-  const { guests, fetchGuests } = useGuestsStore()
+  const { guests, fetchGuests, createGuest } = useGuestsStore()
   const toast = useToast()
   const [checkIn, setCheckIn] = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'))
   const [checkOut, setCheckOut] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'))
@@ -22,6 +22,7 @@ const AvailabilityPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRoomType, setSelectedRoomType] = useState(null)
   const [guestId, setGuestId] = useState('')
+  const [guestName, setGuestName] = useState('') // For creating new guest
   const [guest2Id, setGuest2Id] = useState('')
   const [availableRoomTypes, setAvailableRoomTypes] = useState([])
   const [loading, setLoading] = useState(false)
@@ -304,6 +305,19 @@ const AvailabilityPage = () => {
             guests={guests}
             label="Primary Guest"
             placeholder="Search for a guest by name, email, or phone..."
+            onCreateGuest={async (guestData) => {
+              try {
+                const newGuest = await createGuest(guestData)
+                setGuestId(newGuest.id)
+                setGuestName('')
+                await fetchGuests() // Refresh guests list
+                toast.success(`Created new guest: ${newGuest.name}`)
+              } catch (error) {
+                toast.error(error.message || 'Failed to create guest')
+              }
+            }}
+            guestName={guestName}
+            onGuestNameChange={setGuestName}
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
