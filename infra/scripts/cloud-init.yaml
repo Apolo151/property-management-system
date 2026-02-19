@@ -1,0 +1,173 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+
+write_files:
+  # Docker Compose file
+  - path: /opt/hotel-pms/docker-compose.yml
+    encoding: b64
+    content: ${docker_compose_b64}
+    permissions: '0644'
+
+  # Nginx configuration
+  - path: /opt/hotel-pms/nginx/nginx.conf
+    encoding: b64
+    content: ${nginx_conf_b64}
+    permissions: '0644'
+
+  # Certbot initialization script
+  - path: /opt/hotel-pms/nginx/certbot-init.sh
+    encoding: b64
+    content: ${certbot_script_b64}
+    permissions: '0755'
+
+  # Environment variables file
+  - path: /opt/hotel-pms/.env
+    permissions: '0600'
+    content: |
+      # Application Configuration
+      NODE_ENV=${node_env}
+      PORT=${api_port}
+      
+      # Database Configuration
+      DB_HOST=${db_host}
+      DB_PORT=${db_port}
+      DB_NAME=${db_name}
+      DB_USER=${db_user}
+      DB_PASSWORD=${db_password}
+      
+      # JWT Configuration
+      JWT_SECRET=${jwt_secret}
+      JWT_EXPIRES_IN=${jwt_expires_in}
+      
+      # RabbitMQ Configuration
+      RABBITMQ_URL=${rabbitmq_url}
+      RABBITMQ_USER=${rabbitmq_user}
+      RABBITMQ_PASSWORD=${rabbitmq_password}
+      
+      # Sync Configuration
+      SYNC_ENABLED=${sync_enabled}
+      SYNC_INTERVAL_MS=${sync_interval_ms}
+      
+      # QloApps Integration
+      QLO_API_URL=${qloapps_api_url}
+      QLO_API_KEY=${qloapps_api_key}
+      QLOAPPS_DEFAULT_CURRENCY=${qloapps_currency}
+      
+      # Beds24 Integration
+      BEDS24_API_KEY=${beds24_api_key}
+      BEDS24_PROP_KEY=${beds24_prop_key}
+      BEDS24_API_URL=${beds24_api_url}
+      BEDS24_WEBHOOK_SECRET=${beds24_webhook_sec}
+      
+      # Encryption
+      ENCRYPTION_KEY=${encryption_key}
+      
+      # Domain Configuration
+      DOMAIN_NAME=${domain_name}
+      LETSENCRYPT_EMAIL=${letsencrypt_email}
+
+  # Systemd service for Docker Compose
+  - path: /etc/systemd/system/hotel-pms.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Hotel PMS Application
+      Requires=docker.service
+      After=docker.service
+      
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/hotel-pms
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+      
+      [Install]
+      WantedBy=multi-user.target
+
+  # Certbot systemd service
+  - path: /etc/systemd/system/certbot-init.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Initialize Let's Encrypt Certificate
+      After=hotel-pms.service
+      Requires=hotel-pms.service
+      
+      [Service]
+      Type=oneshot
+      WorkingDirectory=/opt/hotel-pms/nginx
+      ExecStart=/opt/hotel-pms/nginx/certbot-init.sh
+      RemainAfterExit=yes
+      
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Install Docker
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+  # Add admin user to docker group
+  - usermod -aG docker ${admin_username}
+
+  # Format and mount data disk
+  - |
+    if [ ! -b /dev/disk/azure/scsi1/lun0 ]; then
+      echo "Waiting for data disk..."
+      sleep 10
+    fi
+  - |
+    if ! blkid /dev/disk/azure/scsi1/lun0; then
+      mkfs.ext4 /dev/disk/azure/scsi1/lun0
+    fi
+  - mkdir -p /data
+  - echo '/dev/disk/azure/scsi1/lun0 /data ext4 defaults,nofail 0 2' >> /etc/fstab
+  - mount -a
+
+  # Create data directories
+  - mkdir -p /data/postgres
+  - mkdir -p /data/rabbitmq
+  - mkdir -p /data/letsencrypt/etc
+  - mkdir -p /data/letsencrypt/lib
+  - mkdir -p /data/letsencrypt/www
+  - mkdir -p /data/nginx/logs
+  - chown -R 999:999 /data/postgres
+  - chown -R 999:999 /data/rabbitmq
+  - chmod 755 /data/letsencrypt
+
+  # Create nginx directories
+  - mkdir -p /opt/hotel-pms/nginx
+
+  # Pull backend code from context (if available) or use registry
+  # Note: You'll need to build and push the image to a registry first
+  # For now, we'll build locally
+  - cd /opt/hotel-pms
+
+  # Enable and start services
+  - systemctl daemon-reload
+  - systemctl enable docker
+  - systemctl start docker
+  - systemctl enable hotel-pms.service
+  - systemctl start hotel-pms.service
+
+  # Wait for services to be ready
+  - sleep 30
+
+  # Initialize SSL certificate
+  - systemctl enable certbot-init.service
+  - systemctl start certbot-init.service
+
+final_message: "Hotel PMS system setup complete after $UPTIME seconds"
+

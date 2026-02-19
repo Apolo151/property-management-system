@@ -1,0 +1,64 @@
+# Azure Subscription
+subscription_id = "YOUR_SUBSCRIPTION_ID"  # Get with: az account show --query id -o tsv
+
+# Project Configuration
+project_name = "hotel-pms"
+environment  = "prod"
+location     = "Italy North"
+vm_size      = "Standard_B2als_v2"
+
+# VM Access Configuration
+admin_username = "azureuser"
+ssh_public_key = "ssh-rsa AAAAB3... your-public-key-here"
+allowed_ssh_ip = "*"  # Use "*" or "0.0.0.0/0" to allow all IPs, or specify "YOUR_IP/32" to restrict
+
+# Domain and SSL Configuration
+# If you don't have a domain, leave domain_name empty and the module will use the Azure Public IP FQDN (*.cloudapp.azure.com).
+domain_name        = ""
+letsencrypt_email  = "admin@example.com"  # Replace with your email
+
+# Storage Configuration
+data_disk_size_gb = 50
+
+# Application Configuration
+node_env = "production"
+api_port = 3000
+
+# Database Configuration
+db_name     = "hotel_pms_prod"
+db_user     = "postgres"
+db_password = "CHANGE_ME_SECURE_PASSWORD"  # Use a strong password
+
+# JWT Configuration
+jwt_secret     = "CHANGE_ME_LONG_RANDOM_SECRET_KEY"  # Generate with: openssl rand -base64 64
+jwt_expires_in = "7d"
+
+# RabbitMQ Configuration
+rabbitmq_user     = "admin"
+rabbitmq_password = "CHANGE_ME_SECURE_PASSWORD"  # Use a strong password
+
+# QloApps Integration (Optional - leave empty if not using)
+qloapps_api_url          = ""
+qloapps_api_key          = ""
+qloapps_default_currency = "USD"
+
+# Beds24 Integration (Optional - leave empty if not using)
+beds24_api_key        = ""
+beds24_prop_key       = ""
+beds24_api_url        = "https://api.beds24.com/v2"
+beds24_webhook_secret = ""
+
+# Sync Configuration
+sync_enabled     = true
+sync_interval_ms = 60000
+
+# Encryption (Optional - for sensitive data encryption)
+encryption_key = ""  # Generate with: openssl rand -base64 32
+
+# Resource Tags
+tags = {
+  ManagedBy   = "Terraform"
+  Project     = "HotelPMS"
+  Environment = "Production"
+}
+

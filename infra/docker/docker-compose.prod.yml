@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # ===================
+  # Nginx Reverse Proxy
+  # ===================
+  nginx:
+    image: nginx:alpine
+    container_name: hotel-pms-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /data/letsencrypt/etc:/etc/letsencrypt:ro
+      - /data/letsencrypt/www:/var/www/certbot:ro
+      - /data/nginx/logs:/var/log/nginx
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
+  # ===================
+  # API Service
+  # ===================
+  api:
+    build:
+      context: https://github.com/YOUR_ORG/YOUR_REPO.git#main:backend
+      dockerfile: Dockerfile
+    # For local build, use:
+    # build:
+    #   context: ../../backend
+    #   dockerfile: Dockerfile
+    container_name: hotel-pms-api
+    environment:
+      - NODE_ENV=$${NODE_ENV:-production}
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=$${DB_NAME}
+      - DB_USER=$${DB_USER}
+      - DB_PASSWORD=$${DB_PASSWORD}
+      - JWT_SECRET=$${JWT_SECRET}
+      - JWT_EXPIRES_IN=$${JWT_EXPIRES_IN:-7d}
+      - RABBITMQ_URL=$${RABBITMQ_URL}
+      - SYNC_INTERVAL_MS=$${SYNC_INTERVAL_MS:-60000}
+      - SYNC_ENABLED=$${SYNC_ENABLED:-true}
+      - QLO_API_URL=$${QLO_API_URL:-}
+      - QLO_API_KEY=$${QLO_API_KEY:-}
+      - QLOAPPS_DEFAULT_CURRENCY=$${QLOAPPS_DEFAULT_CURRENCY:-USD}
+      - BEDS24_API_KEY=$${BEDS24_API_KEY:-}
+      - BEDS24_PROP_KEY=$${BEDS24_PROP_KEY:-}
+      - BEDS24_API_URL=$${BEDS24_API_URL:-https://api.beds24.com/v2}
+      - BEDS24_WEBHOOK_SECRET=$${BEDS24_WEBHOOK_SECRET:-}
+      - ENCRYPTION_KEY=$${ENCRYPTION_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===================
+  # Workers
+  # ===================
+  worker-inbound:
+    build:
+      context: https://github.com/YOUR_ORG/YOUR_REPO.git#main:backend
+      dockerfile: Dockerfile
+    # For local build, use:
+    # build:
+    #   context: ../../backend
+    #   dockerfile: Dockerfile
+    container_name: hotel-pms-worker-inbound
+    command: ["node", "dist/src/workers/qloapps_inbound_worker.js"]
+    environment:
+      - NODE_ENV=$${NODE_ENV:-production}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=$${DB_NAME}
+      - DB_USER=$${DB_USER}
+      - DB_PASSWORD=$${DB_PASSWORD}
+      - RABBITMQ_URL=$${RABBITMQ_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
+  worker-outbound:
+    build:
+      context: https://github.com/YOUR_ORG/YOUR_REPO.git#main:backend
+      dockerfile: Dockerfile
+    # For local build, use:
+    # build:
+    #   context: ../../backend
+    #   dockerfile: Dockerfile
+    container_name: hotel-pms-worker-outbound
+    command: ["node", "dist/src/workers/qloapps_outbound_worker.js"]
+    environment:
+      - NODE_ENV=$${NODE_ENV:-production}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=$${DB_NAME}
+      - DB_USER=$${DB_USER}
+      - DB_PASSWORD=$${DB_PASSWORD}
+      - RABBITMQ_URL=$${RABBITMQ_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
+  worker-scheduler:
+    build:
+      context: https://github.com/YOUR_ORG/YOUR_REPO.git#main:backend
+      dockerfile: Dockerfile
+    # For local build, use:
+    # build:
+    #   context: ../../backend
+    #   dockerfile: Dockerfile
+    container_name: hotel-pms-worker-scheduler
+    command: ["node", "dist/src/workers/qloapps_sync_scheduler.js"]
+    environment:
+      - NODE_ENV=$${NODE_ENV:-production}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=$${DB_NAME}
+      - DB_USER=$${DB_USER}
+      - DB_PASSWORD=$${DB_PASSWORD}
+      - RABBITMQ_URL=$${RABBITMQ_URL}
+      - SYNC_INTERVAL_MS=$${SYNC_INTERVAL_MS:-60000}
+      - SYNC_ENABLED=$${SYNC_ENABLED:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
+  # ===================
+  # PostgreSQL Database
+  # ===================
+  postgres:
+    image: postgres:16-alpine
+    container_name: hotel-pms-postgres
+    environment:
+      - POSTGRES_USER=$${DB_USER}
+      - POSTGRES_PASSWORD=$${DB_PASSWORD}
+      - POSTGRES_DB=$${DB_NAME}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USER} -d $${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    shm_size: 128mb
+
+  # ===================
+  # RabbitMQ Message Broker
+  # ===================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: hotel-pms-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=$${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=$${RABBITMQ_PASSWORD}
+    volumes:
+      - /data/rabbitmq:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  hotel-network:
+    driver: bridge
+
