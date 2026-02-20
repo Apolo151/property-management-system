@@ -247,8 +247,10 @@ JWT_EXPIRES_IN=7d
 # Integration APIs
 BEDS24_API_KEY=your_api_key
 BEDS24_PROP_KEY=your_property_key
-QLO_API_URL=your_url
-QLO_API_KEY=your_api_key
+
+# Note: QloApps configuration (base URL and API key) is stored in the database
+# table `qloapps_config` and configured via the frontend Settings page, not via
+# environment variables. The API and workers read these settings from the database at runtime.
 ```
 
 ## Production Deployment

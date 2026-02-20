@@ -261,24 +261,46 @@ export class QloAppsClient {
    */
   async testConnection(): Promise<QloAppsConnectionTestResult> {
     const startTime = Date.now();
+    console.log('[QloAppsClient] 🔍 Starting connection test...');
+    console.log(`[QloAppsClient]   Base URL: ${this.config.baseUrl}`);
+    console.log(`[QloAppsClient]   Hotel ID: ${this.config.hotelId}`);
+    console.log(`[QloAppsClient]   Timeout: ${this.config.timeout}ms`);
+    console.log(`[QloAppsClient]   Circuit Breaker State: ${this.circuitBreaker.getState()}`);
 
     try {
       // Test connection by fetching the hotel info (validates API key, hotel ID, and connectivity)
       // This is a real, meaningful test that proves the configuration is correct
       // Always use display=full to get complete entity data
+      const endpoint = `${QLOAPPS_CONFIG.ENDPOINTS.HOTELS}/${this.config.hotelId}`;
+      const fullUrl = `${this.config.baseUrl}${endpoint}`;
+      console.log('[QloAppsClient] 📡 Making test request:');
+      console.log(`[QloAppsClient]   Endpoint: ${endpoint}`);
+      console.log(`[QloAppsClient]   Full URL: ${fullUrl}`);
+      console.log(`[QloAppsClient]   Query params: display=full`);
+
+      const requestStart = Date.now();
       const hotels = await this.makeRequest<any>(
-        `${QLOAPPS_CONFIG.ENDPOINTS.HOTELS}/${this.config.hotelId}`,
+        endpoint,
         { method: 'GET', query: { display: 'full' } }
       );
-
+      const requestDuration = Date.now() - requestStart;
       const responseTimeMs = Date.now() - startTime;
+
+      console.log(`[QloAppsClient] ✓ Request completed in ${requestDuration}ms`);
+      console.log(`[QloAppsClient]   Response type: ${typeof hotels}`);
+      console.log(`[QloAppsClient]   Response keys: ${hotels ? Object.keys(hotels).join(', ') : 'null'}`);
 
       // Extract hotel name if available
       let hotelName: string | undefined;
       if (hotels?.hotel?.hotel_name) {
         hotelName = hotels.hotel.hotel_name;
+        console.log(`[QloAppsClient]   Found hotel name in hotels.hotel.hotel_name: ${hotelName}`);
       } else if (hotels?.hotels?.hotel?.[0]?.hotel_name) {
         hotelName = hotels.hotels.hotel[0].hotel_name;
+        console.log(`[QloAppsClient]   Found hotel name in hotels.hotels.hotel[0].hotel_name: ${hotelName}`);
+      } else {
+        console.log('[QloAppsClient]   ⚠️  Hotel name not found in response structure');
+        console.log(`[QloAppsClient]   Response structure:`, JSON.stringify(hotels, null, 2).substring(0, 500));
       }
 
       const result: QloAppsConnectionTestResult = {
@@ -292,25 +314,37 @@ export class QloAppsClient {
       if (hotelName) {
         result.hotelName = hotelName;
       }
-      
+
+      console.log(`[QloAppsClient] ✅ Connection test successful (${responseTimeMs}ms)`);
       return result;
     } catch (error) {
       const responseTimeMs = Date.now() - startTime;
+      console.error(`[QloAppsClient] ❌ Connection test failed after ${responseTimeMs}ms`);
 
       // Provide helpful error messages
       if (error instanceof QloAppsError) {
+        console.error(`[QloAppsClient]   Error type: QloAppsError`);
+        console.error(`[QloAppsClient]   Status code: ${error.statusCode || 'N/A'}`);
+        console.error(`[QloAppsClient]   Error code: ${error.code || 'N/A'}`);
+        console.error(`[QloAppsClient]   Error message: ${error.message}`);
+        
         let message = 'Connection failed';
         
-        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        if (error.message.includes('401') || error.message.includes('Unauthorized') || error.statusCode === 401) {
           message = 'Invalid API key or credentials';
-        } else if (error.message.includes('404') || error.message.includes('not found')) {
+          console.error(`[QloAppsClient]   Diagnosis: Authentication failed - check API key`);
+        } else if (error.message.includes('404') || error.message.includes('not found') || error.statusCode === 404) {
           message = 'Invalid hotel ID or endpoint not found';
+          console.error(`[QloAppsClient]   Diagnosis: Resource not found - check hotel ID and base URL`);
         } else if (error.message.includes('ECONNREFUSED')) {
           message = 'Cannot reach QloApps server - check base URL';
-        } else if (error.message.includes('timeout')) {
+          console.error(`[QloAppsClient]   Diagnosis: Network connectivity issue - server unreachable`);
+        } else if (error.message.includes('timeout') || error instanceof QloAppsTimeoutError) {
           message = 'Connection timeout - server not responding';
+          console.error(`[QloAppsClient]   Diagnosis: Request timed out after ${this.config.timeout}ms`);
         } else {
           message = `Connection failed: ${error.message}`;
+          console.error(`[QloAppsClient]   Diagnosis: Unknown API error`);
         }
 
         return {
@@ -319,6 +353,12 @@ export class QloAppsClient {
           error: error.message,
           responseTimeMs,
         };
+      }
+
+      console.error(`[QloAppsClient]   Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
+      console.error(`[QloAppsClient]   Error message: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof Error && error.stack) {
+        console.error(`[QloAppsClient]   Stack trace:`, error.stack);
       }
 
       return {
@@ -804,45 +844,74 @@ export class QloAppsClient {
     endpoint: string,
     options: QloAppsRequestOptions = {}
   ): Promise<T> {
+    console.log(`[QloAppsClient] 📨 makeRequest called for endpoint: ${endpoint}`);
+    
     // Check circuit breaker
-    if (!this.circuitBreaker.canProceed()) {
+    const canProceed = this.circuitBreaker.canProceed();
+    console.log(`[QloAppsClient]   Circuit breaker check: ${canProceed ? '✓ Can proceed' : '✗ Blocked'}`);
+    console.log(`[QloAppsClient]   Circuit breaker state: ${this.circuitBreaker.getState()}`);
+    
+    if (!canProceed) {
+      const openedAt = this.circuitBreaker.getOpenedAt();
+      const resetAt = this.circuitBreaker.getResetAt();
+      console.error(`[QloAppsClient] ❌ Circuit breaker is OPEN`);
+      console.error(`[QloAppsClient]   Opened at: ${openedAt?.toISOString() || 'N/A'}`);
+      console.error(`[QloAppsClient]   Reset at: ${resetAt?.toISOString() || 'N/A'}`);
       throw new QloAppsCircuitBreakerError(
         'QloApps circuit breaker is open. Too many consecutive failures.',
-        this.circuitBreaker.getOpenedAt(),
-        this.circuitBreaker.getResetAt()
+        openedAt || undefined,
+        resetAt || undefined
       );
     }
 
     // Check rate limit
-    if (!options.skipRateLimit && !this.rateLimiter.tryConsume()) {
-      const waitTime = this.rateLimiter.getTimeUntilNextToken();
-      throw new QloAppsRateLimitError(
-        `Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`,
-        waitTime
-      );
+    if (!options.skipRateLimit) {
+      const rateLimitCheck = this.rateLimiter.tryConsume();
+      console.log(`[QloAppsClient]   Rate limit check: ${rateLimitCheck ? '✓ Token consumed' : '✗ Rate limited'}`);
+      
+      if (!rateLimitCheck) {
+        const waitTime = this.rateLimiter.getTimeUntilNextToken();
+        console.error(`[QloAppsClient] ❌ Rate limit exceeded, wait ${Math.ceil(waitTime / 1000)}s`);
+        throw new QloAppsRateLimitError(
+          `Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`,
+          waitTime
+        );
+      }
+    } else {
+      console.log(`[QloAppsClient]   Rate limit check: Skipped (skipRateLimit=true)`);
     }
 
     let lastError: Error | undefined;
     const maxRetries = QLOAPPS_CONFIG.MAX_RETRIES;
+    console.log(`[QloAppsClient]   Max retries: ${maxRetries}`);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      console.log(`[QloAppsClient] 🔄 Attempt ${attempt + 1}/${maxRetries + 1}`);
+      
       try {
-        return await this.executeRequest<T>(endpoint, options);
+        const result = await this.executeRequest<T>(endpoint, options);
+        console.log(`[QloAppsClient] ✅ Request succeeded on attempt ${attempt + 1}`);
+        return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`[QloAppsClient] ❌ Attempt ${attempt + 1} failed:`, lastError.message);
 
         // Don't retry on certain errors
         if (error instanceof QloAppsAuthenticationError) {
+          console.error(`[QloAppsClient]   Authentication error - not retrying`);
           this.circuitBreaker.recordFailure();
           throw error;
         }
 
         if (error instanceof QloAppsRateLimitError) {
+          console.log(`[QloAppsClient]   Rate limit error`);
           // Wait for rate limit to reset and retry
           if (error.retryAfter && attempt < maxRetries) {
+            console.log(`[QloAppsClient]   Waiting ${error.retryAfter}ms before retry...`);
             await this.sleep(error.retryAfter);
             continue;
           }
+          console.error(`[QloAppsClient]   Max retries reached for rate limit`);
           throw error;
         }
 
@@ -852,14 +921,18 @@ export class QloAppsClient {
           error.statusCode !== undefined &&
           error.statusCode >= 500
         ) {
+          console.log(`[QloAppsClient]   Recording server error (${error.statusCode}) to circuit breaker`);
           this.circuitBreaker.recordFailure();
         }
 
         // Retry with exponential backoff for retryable errors
+        const isRetryable = error instanceof QloAppsError && this.isRetryableError(error);
+        console.log(`[QloAppsClient]   Error is retryable: ${isRetryable}`);
+        console.log(`[QloAppsClient]   Attempts remaining: ${maxRetries - attempt}`);
+        
         if (
           attempt < maxRetries &&
-          error instanceof QloAppsError &&
-          this.isRetryableError(error)
+          isRetryable
         ) {
           const delay = Math.min(
             QLOAPPS_CONFIG.RETRY_INITIAL_DELAY_MS *
@@ -867,11 +940,13 @@ export class QloAppsClient {
             QLOAPPS_CONFIG.RETRY_MAX_DELAY_MS
           );
 
+          console.log(`[QloAppsClient]   Retrying after ${delay}ms (exponential backoff)`);
           this.log(`Retrying request (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
           await this.sleep(delay);
           continue;
         }
 
+        console.error(`[QloAppsClient]   Not retrying - throwing error`);
         throw error;
       }
     }
@@ -886,8 +961,14 @@ export class QloAppsClient {
     endpoint: string,
     options: QloAppsRequestOptions
   ): Promise<T> {
+    const requestStart = Date.now();
     const url = `${this.config.baseUrl}${endpoint}`;
     const method = options.method || 'GET';
+
+    console.log(`[QloAppsClient] 🔧 Building request:`);
+    console.log(`[QloAppsClient]   Base URL: ${this.config.baseUrl}`);
+    console.log(`[QloAppsClient]   Endpoint: ${endpoint}`);
+    console.log(`[QloAppsClient]   Method: ${method}`);
 
     // Build headers
     const headers: Record<string, string> = {
@@ -896,14 +977,20 @@ export class QloAppsClient {
       ...options.headers,
     };
 
+    console.log(`[QloAppsClient]   Headers:`);
+    console.log(`[QloAppsClient]     Authorization: Basic ${this.config.apiKey.substring(0, 8)}...`);
+    console.log(`[QloAppsClient]     ${QLOAPPS_CONFIG.HEADERS.OUTPUT_FORMAT}: ${headers[QLOAPPS_CONFIG.HEADERS.OUTPUT_FORMAT]}`);
+
     // Add Content-Type for requests with body
     if (options.body) {
       headers[QLOAPPS_CONFIG.HEADERS.CONTENT_TYPE] = 'application/json';
+      console.log(`[QloAppsClient]     Content-Type: ${headers[QLOAPPS_CONFIG.HEADERS.CONTENT_TYPE]}`);
     }
 
     // Build query string
     let fullUrl = url;
     if (options.query) {
+      console.log(`[QloAppsClient]   Query parameters:`, options.query);
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(options.query)) {
         if (value !== undefined && value !== null) {
@@ -914,28 +1001,44 @@ export class QloAppsClient {
       if (queryString) {
         fullUrl = `${url}?${queryString}`;
       }
+      console.log(`[QloAppsClient]   Query string: ${queryString}`);
     }
 
+    console.log(`[QloAppsClient]   Full URL: ${fullUrl}`);
     this.log(`${method} ${fullUrl}`);
 
     try {
       const controller = new AbortController();
       const timeoutMs = options.timeout || this.config.timeout || QLOAPPS_CONFIG.DEFAULT_TIMEOUT_MS;
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      console.log(`[QloAppsClient]   Timeout: ${timeoutMs}ms`);
+      const timeoutId = setTimeout(() => {
+        console.error(`[QloAppsClient] ⏱️  Request timeout after ${timeoutMs}ms`);
+        controller.abort();
+      }, timeoutMs);
 
       const requestBody = options.body ? JSON.stringify(options.body) : null;
+      if (requestBody) {
+        console.log(`[QloAppsClient]   Request body: ${requestBody.substring(0, 200)}...`);
+      }
       
+      console.log(`[QloAppsClient] 📡 Sending HTTP ${method} request...`);
+      const fetchStart = Date.now();
       const response = await fetch(fullUrl, {
         method,
         headers,
         body: requestBody,
         signal: controller.signal,
       });
-
+      const fetchDuration = Date.now() - fetchStart;
       clearTimeout(timeoutId);
+
+      console.log(`[QloAppsClient] ✓ Response received in ${fetchDuration}ms`);
+      console.log(`[QloAppsClient]   Status: ${response.status} ${response.statusText}`);
+      console.log(`[QloAppsClient]   Headers:`, Object.fromEntries(response.headers.entries()));
 
       // Handle non-2xx responses
       if (!response.ok) {
+        console.error(`[QloAppsClient] ❌ Non-OK response received`);
         const errorData = await this.parseErrorResponse(response);
         
         // Enhanced error logging for debugging
@@ -950,17 +1053,37 @@ export class QloAppsClient {
 
       // Record success
       this.circuitBreaker.recordSuccess();
+      console.log(`[QloAppsClient] ✓ Circuit breaker recorded success`);
 
       // Parse response
+      console.log(`[QloAppsClient] 📄 Reading response body...`);
+      const textStart = Date.now();
       const text = await response.text();
+      const textDuration = Date.now() - textStart;
+      console.log(`[QloAppsClient]   Response body read in ${textDuration}ms`);
+      console.log(`[QloAppsClient]   Response length: ${text.length} characters`);
+      console.log(`[QloAppsClient]   Response preview: ${text.substring(0, 200)}...`);
+
       if (!text) {
+        console.warn(`[QloAppsClient] ⚠️  Empty response body`);
         return {} as T;
       }
 
       try {
-        return JSON.parse(text) as T;
-      } catch {
+        console.log(`[QloAppsClient] 🔄 Parsing JSON response...`);
+        const parseStart = Date.now();
+        const parsed = JSON.parse(text) as T;
+        const parseDuration = Date.now() - parseStart;
+        console.log(`[QloAppsClient] ✓ JSON parsed successfully in ${parseDuration}ms`);
+        console.log(`[QloAppsClient]   Parsed keys: ${parsed && typeof parsed === 'object' ? Object.keys(parsed).join(', ') : 'N/A'}`);
+        const totalDuration = Date.now() - requestStart;
+        console.log(`[QloAppsClient] ✅ Request completed successfully in ${totalDuration}ms`);
+        return parsed;
+      } catch (parseError) {
         // QloApps might return XML, try to handle it
+        console.error(`[QloAppsClient] ❌ Failed to parse JSON response`);
+        console.error(`[QloAppsClient]   Parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        console.error(`[QloAppsClient]   Response preview: ${text.substring(0, 500)}`);
         this.log(`Warning: Response is not valid JSON: ${text.substring(0, 200)}`);
         throw new QloAppsError(
           QLOAPPS_CONFIG.ERROR_CODES.API_ERROR,
@@ -968,21 +1091,43 @@ export class QloAppsClient {
         );
       }
     } catch (error) {
+      const totalDuration = Date.now() - requestStart;
+      console.error(`[QloAppsClient] ❌ Request failed after ${totalDuration}ms`);
+      
       // Handle network errors
       if (error instanceof QloAppsError) {
+        console.error(`[QloAppsClient]   Error is QloAppsError: ${error.code}`);
         throw error;
       }
 
       if (error instanceof Error) {
+        console.error(`[QloAppsClient]   Error name: ${error.name}`);
+        console.error(`[QloAppsClient]   Error message: ${error.message}`);
+        if (error.stack) {
+          console.error(`[QloAppsClient]   Stack trace:`, error.stack);
+        }
+        
         if (error.name === 'AbortError') {
+          console.error(`[QloAppsClient]   Request was aborted (timeout)`);
           throw new QloAppsTimeoutError(
             this.config.timeout || QLOAPPS_CONFIG.DEFAULT_TIMEOUT_MS,
             error
           );
         }
+        
+        // Check for common network errors
+        if (error.message.includes('ECONNREFUSED')) {
+          console.error(`[QloAppsClient]   Connection refused - server not reachable`);
+        } else if (error.message.includes('ENOTFOUND')) {
+          console.error(`[QloAppsClient]   DNS lookup failed - hostname not found`);
+        } else if (error.message.includes('ETIMEDOUT')) {
+          console.error(`[QloAppsClient]   Connection timed out`);
+        }
+        
         throw new QloAppsNetworkError(`Network error: ${error.message}`, error);
       }
 
+      console.error(`[QloAppsClient]   Unknown error type: ${typeof error}`);
       throw new QloAppsNetworkError('Unknown network error');
     }
   }

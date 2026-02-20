@@ -21,14 +21,14 @@ services:
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
       - SYNC_INTERVAL_MS=${SYNC_INTERVAL_MS:-60000}
       - SYNC_ENABLED=${SYNC_ENABLED:-true}
-      - QLO_API_URL=${QLO_API_URL:-}
-      - QLO_API_KEY=${QLO_API_KEY:-}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
       - BEDS24_API_KEY=${BEDS24_API_KEY:-}
       - BEDS24_PROP_KEY=${BEDS24_PROP_KEY:-}
       - BEDS24_API_URL=${BEDS24_API_URL:-https://api.beds24.com/v2}
       - BEDS24_WEBHOOK_SECRET=${BEDS24_WEBHOOK_SECRET:-}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules
@@ -59,6 +59,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules
@@ -88,6 +90,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules
@@ -117,6 +121,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules
@@ -171,6 +177,23 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+    profiles:
+      - infra
+    networks:
+      - hotel-network
+
+  qloapps:
+    image: webkul/qloapps_docker:latest
+    container_name: qloapps
+    ports:
+      - "${QLOAPPS_PORT:-8080}:80"
+      - "3306:3306"
+      - "2222:22"
+    environment:
+      - USER_PASSWORD=${QLOAPPS_USER_PASSWORD:-qloappsuserpassword}
+      - MYSQL_ROOT_PASSWORD=${QLOAPPS_MYSQL_ROOT_PASSWORD:-myrootpassword}
+      - MYSQL_DATABASE=${QLOAPPS_MYSQL_DATABASE:-qlo170}
+    restart: unless-stopped
     profiles:
       - infra
     networks:

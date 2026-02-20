@@ -151,6 +151,13 @@ docker compose logs -f worker-outbound
 docker compose logs -f worker-scheduler
 ```
 
+### 5.1 Run all once
+
+To run all once:
+```bash
+docker compose --profile infra --profile workers up -d
+```
+
 ### 6. Run QloApps PMS via official Docker image
 
 To start a standalone QloApps PMS instance (used by this backend as an external channel/PMS), use the official Docker image from Webkul [`webkul/qloapps_docker`](https://hub.docker.com/r/webkul/qloapps_docker):
@@ -194,8 +201,8 @@ To start a standalone QloApps PMS instance (used by this backend as an external 
 4. **Configure QloApps integration in this PMS**:
 
    - Create a QloApps WebService API key inside QloApps.
-   - In this backend, set `QLO_API_URL` and `QLO_API_KEY` in `.env` so the API and workers can talk to QloApps.
-   - Use the admin UI / API endpoints to configure `qloapps_config` (base URL, API key, QloApps hotel ID).
+   - Use the admin UI / API endpoints to configure QloApps connection settings (base URL, API key, QloApps hotel ID).
+   - **Note**: QloApps base URL and API key are stored in the `qloapps_config` database table (configured via the frontend Settings page), not in environment variables. The API and workers read these settings from the database at runtime.
 
 ### 7. Run the frontend (PMS UI)
 
