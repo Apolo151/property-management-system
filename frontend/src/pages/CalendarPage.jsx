@@ -14,7 +14,7 @@ const CalendarPage = () => {
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
   const { rooms, fetchRooms } = useRoomsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
-  const { guests, fetchGuests } = useGuestsStore()
+  const { guests, fetchGuests, createGuest } = useGuestsStore()
   const toast = useToast()
   const confirmation = useConfirmation()
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -231,33 +231,9 @@ const CalendarPage = () => {
       return
     }
 
-    // Handle guest creation or selection
-    let guestId = newReservation.guestId
-    let guest2Id = newReservation.guest2Id
-
-    // If guest name is provided but no guest is selected, create a new guest
-    if (!guestId && guestName && guestName.trim()) {
-      try {
-        const newGuest = await useGuestsStore.getState().createGuest({ name: guestName.trim() })
-        guestId = String(newGuest.id)
-        setNewReservation({ ...newReservation, guestId })
-      } catch (error) {
-        toast.error('Failed to create new guest')
-        return
-      }
-    }
-
-    // If second guest name is provided but no guest is selected, create a new guest
-    if (!guest2Id && guest2Name && guest2Name.trim()) {
-      try {
-        const newGuest = await useGuestsStore.getState().createGuest({ name: guest2Name.trim() })
-        guest2Id = String(newGuest.id)
-        setNewReservation({ ...newReservation, guest2Id })
-      } catch (error) {
-        toast.error('Failed to create second guest')
-        return
-      }
-    }
+    // Get guest IDs (already set from GuestSelect component with inline creation)
+    const guestId = newReservation.guestId
+    const guest2Id = newReservation.guest2Id
 
     // Validate second guest for double rooms
     if (selectedRoom?.type === 'Double' && !guest2Id) {
@@ -827,6 +803,19 @@ const CalendarPage = () => {
                 guests={guests}
                 label="Primary Guest *"
                 placeholder="Search for a guest by name, email, or phone..."
+                onCreateGuest={async (guestData) => {
+                  try {
+                    const newGuest = await createGuest(guestData)
+                    setNewReservation({ ...newReservation, guestId: newGuest.id })
+                    setGuestName('')
+                    await fetchGuests()
+                    toast.success(`Created new guest: ${newGuest.name}`)
+                  } catch (error) {
+                    toast.error(error.message || 'Failed to create guest')
+                  }
+                }}
+                guestName={guestName}
+                onGuestNameChange={setGuestName}
               />
 
               {(selectedRoom?.type === 'Double' || selectedRoomType?.room_type?.toLowerCase() === 'double') && (
@@ -842,14 +831,15 @@ const CalendarPage = () => {
                   label="Second Guest (Optional)"
                   placeholder="Search for a second guest or type a name to create new..."
                   required={false}
-                  onCreateGuest={async (name) => {
+                  onCreateGuest={async (guestData) => {
                     try {
-                      const newGuest = await useGuestsStore.getState().createGuest({ name: name.trim() })
-                      setNewReservation({ ...newReservation, guest2Id: String(newGuest.id) })
+                      const newGuest = await createGuest(guestData)
+                      setNewReservation({ ...newReservation, guest2Id: newGuest.id })
                       setGuest2Name('')
-                      toast.success('Guest created successfully!')
+                      await fetchGuests()
+                      toast.success(`Created new guest: ${newGuest.name}`)
                     } catch (error) {
-                      toast.error('Failed to create guest')
+                      toast.error(error.message || 'Failed to create guest')
                     }
                   }}
                   guestName={guest2Name}
