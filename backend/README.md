@@ -275,6 +275,10 @@ Required environment variables (see `.env.example`):
 NODE_ENV=development
 PORT=3000
 
+# Multi-property API (non-production only): allow missing X-Hotel-Id to fall back to the
+# migrated default hotel UUID. Production must omit this or leave unset so clients must send X-Hotel-Id.
+# ALLOW_DEFAULT_HOTEL=true
+
 # Database
 DB_HOST=localhost
 DB_PORT=5432

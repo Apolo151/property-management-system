@@ -1,15 +1,15 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '../auth/auth_middleware.js';
 import db from '../../config/database.js';
 import { hashPassword } from '../auth/auth_utils.js';
 import type { CreateUserRequest, UpdateUserRequest, UserResponse } from './users_types.js';
-import { requireRole } from '../auth/auth_middleware.js';
 import { logCreate, logUpdate, logDelete } from '../audit/audit_utils.js';
 
 /**
  * Get all users (staff)
  */
 export async function getUsersHandler(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response<UserResponse[]>,
   next: NextFunction,
 ) {
@@ -43,7 +43,7 @@ export async function getUsersHandler(
  * Get single user
  */
 export async function getUserHandler(
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest<{ id: string }>,
   res: Response<UserResponse>,
   next: NextFunction,
 ) {
@@ -83,7 +83,7 @@ export async function getUserHandler(
  * Create new user (staff member)
  */
 export async function createUserHandler(
-  req: Request<{}, UserResponse, CreateUserRequest>,
+  req: AuthenticatedRequest<{}, UserResponse, CreateUserRequest>,
   res: Response<UserResponse>,
   next: NextFunction,
 ) {
@@ -134,15 +134,14 @@ export async function createUserHandler(
         return;
       }
 
-      // Non-SUPER_ADMIN can only assign hotels they have access to
-      const currentUser = (req as any).user;
+      const currentUser = req.user;
       if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
         const userHotels = await db('user_hotels')
           .where('user_id', currentUser.userId)
           .select('hotel_id');
         
         const userHotelIds = userHotels.map((h) => h.hotel_id);
-        const invalidAssignments = hotel_ids.filter((id) => !userHotelIds.includes(id));
+        const invalidAssignments = hotel_ids.filter((hid: string) => !userHotelIds.includes(hid));
         
         if (invalidAssignments.length > 0) {
           res.status(403).json({
@@ -170,7 +169,7 @@ export async function createUserHandler(
 
     // Assign hotels to user
     if (hotel_ids.length > 0) {
-      const userHotelEntries = hotel_ids.map((hotelId) => ({
+      const userHotelEntries = hotel_ids.map((hotelId: string) => ({
         user_id: user.id,
         hotel_id: hotelId,
       }));
@@ -202,7 +201,7 @@ export async function createUserHandler(
  * Update user
  */
 export async function updateUserHandler(
-  req: Request<{ id: string }, UserResponse, UpdateUserRequest>,
+  req: AuthenticatedRequest<{ id: string }, UserResponse, UpdateUserRequest>,
   res: Response<UserResponse>,
   next: NextFunction,
 ) {
@@ -279,15 +278,14 @@ export async function updateUserHandler(
           return;
         }
 
-        // Non-SUPER_ADMIN can only assign hotels they have access to
-        const currentUser = (req as any).user;
+        const currentUser = req.user;
         if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
           const userHotels = await db('user_hotels')
             .where('user_id', currentUser.userId)
             .select('hotel_id');
           
           const userHotelIds = userHotels.map((h) => h.hotel_id);
-          const invalidAssignments = hotel_ids.filter((id) => !userHotelIds.includes(id));
+          const invalidAssignments = hotel_ids.filter((hid: string) => !userHotelIds.includes(hid));
           
           if (invalidAssignments.length > 0) {
             res.status(403).json({
@@ -302,7 +300,7 @@ export async function updateUserHandler(
       await db('user_hotels').where('user_id', id).delete();
 
       if (hotel_ids.length > 0) {
-        const userHotelEntries = hotel_ids.map((hotelId) => ({
+        const userHotelEntries = hotel_ids.map((hotelId: string) => ({
           user_id: id,
           hotel_id: hotelId,
         }));
@@ -352,7 +350,7 @@ export async function updateUserHandler(
  * Delete user (soft delete)
  */
 export async function deleteUserHandler(
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest<{ id: string }>,
   res: Response<{ success: boolean; message: string }>,
   next: NextFunction,
 ) {
@@ -373,7 +371,7 @@ export async function deleteUserHandler(
     }
 
     // Prevent deleting yourself
-    const currentUserId = (req as any).user?.userId;
+    const currentUserId = req.user?.userId;
     if (currentUserId === id) {
       res.status(400).json({
         error: 'You cannot delete your own account',

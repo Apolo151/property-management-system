@@ -38,8 +38,10 @@ hotel is an independently scoped tenant. Core tables:
 - **Integration**: qloapps_config, qloapps_sync, sync_logs, qloapps_*_mappings
 
 All tables use UUID primary keys and include standard timestamps (created_at, updated_at).
-Soft-deletable tables include deleted_at. All operational data is scoped to a hotel via
-`hotel_id` FK, enforced by the `hotelContext` middleware on every API request.
+Soft-deletable tables include deleted_at. Operational data is scoped to a hotel via `hotel_id`
+FK. Tenant boundaries are enforced in the API by `hotelContext` on **property-scoped** route
+groups (see `docs/ARCHITECTURE.md`); global routes such as auth, hotel list, and user
+administration do not use that middleware.
 
 > **Note:** Previous versions of this document described a single-property design built on a
 > singleton `hotel_settings` table. The actual implementation supports multiple hotel
@@ -53,33 +55,31 @@ Soft-deletable tables include deleted_at. All operational data is scoped to a ho
 
 ### 1. hotel_settings
 
-Stores hotel configuration and settings. Single record table for the hotel property.
+Stores **per-property** configuration. Each row belongs to one hotel via **`hotel_id`** (FK to `hotels`). The schema below is **historical reference only** (early single-property design); current migrations use multi-row, per-hotel settings—see Knex migrations for the authoritative DDL.
+
+<details>
+<summary>Historical single-property DDL (deprecated — do not use as current model)</summary>
 
 ```sql
+-- DEPRECATED EXCERPT — was single-row; current system is multi-property
 CREATE TABLE hotel_settings (
     id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
     hotel_name VARCHAR(255) NOT NULL,
-    address TEXT,
-    city VARCHAR(100),
-    country VARCHAR(100),
-    phone VARCHAR(50),
-    email VARCHAR(255),
-    tax_rate DECIMAL(5, 2) DEFAULT 0.00,
-    currency VARCHAR(10) DEFAULT 'USD',
-    timezone VARCHAR(50) DEFAULT 'UTC',
-    check_in_time TIME DEFAULT '15:00:00',
-    check_out_time TIME DEFAULT '11:00:00',
-    settings JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    ...
 );
-
--- Ensure only one record exists
 CREATE UNIQUE INDEX idx_hotel_settings_single ON hotel_settings((1));
 ```
 
-**Columns:**
-- `id` (UUID, PK): Fixed UUID for single hotel record
+</details>
+
+**Current model (summary):**
+
+- One **`hotel_settings`** row per **`hotels.id`** (`hotel_id` NOT NULL, unique per hotel).
+- Operational and UI “settings” for a property are read/written in the context of `X-Hotel-Id` / `hotel_id`.
+
+**Columns (conceptual — align with migrations):**
+- `id` (UUID, PK): Settings row id
+- `hotel_id` (UUID, FK → `hotels.id`): Owning property
 - `hotel_name` (VARCHAR(255)): Hotel name
 - `address` (TEXT): Street address
 - `city` (VARCHAR(100)): City name

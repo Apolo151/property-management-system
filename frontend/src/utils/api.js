@@ -151,11 +151,14 @@ async function request(endpoint, options = {}) {
     }
 
     if (!response.ok) {
-      throw new ApiError(
-        data.error || `HTTP error! status: ${response.status}`,
-        response.status,
-        data
-      );
+      const code = data.code || '';
+      let message = data.error || `HTTP error! status: ${response.status}`;
+      if (code === 'PROPERTY_CONTEXT_REQUIRED') {
+        message = 'Select a property from the hotel menu before continuing.';
+      } else if (code === 'HOTEL_ACCESS_DENIED') {
+        message = 'You do not have access to this property.';
+      }
+      throw new ApiError(message, response.status, data);
     }
 
     return data;

@@ -1,10 +1,14 @@
 import { useMemo, useState, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import useAuditLogsStore from '../store/auditLogsStore'
+import useAuthStore from '../store/authStore'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 
 const AuditLogsPage = () => {
+  const activeHotel = useAuthStore((state) =>
+    state.hotels.find((h) => h.id === state.activeHotelId),
+  )
   const { auditLogs, loading, error, fetchAuditLogs, total } = useAuditLogsStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [actionFilter, setActionFilter] = useState('')
@@ -152,6 +156,11 @@ const AuditLogsPage = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Audit Logs</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">Track all system actions and changes</p>
+        {activeHotel && (
+          <p className="text-sm text-primary-600 dark:text-primary-400 mt-1 font-medium">
+            Property: {activeHotel.hotel_name}
+          </p>
+        )}
       </div>
 
       {/* Filters */}

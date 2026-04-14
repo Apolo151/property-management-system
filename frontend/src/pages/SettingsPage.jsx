@@ -1507,7 +1507,8 @@ const SettingsPage = () => {
                     )}
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    Select which hotels this staff member can access. SUPER_ADMIN users have access to all hotels automatically.
+                    Select which hotels this staff member can access. SUPER_ADMIN can assign any property. ADMIN can only
+                    assign hotels they already belong to (enforced by the API).
                   </p>
                 </div>
 

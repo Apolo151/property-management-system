@@ -27,6 +27,7 @@ const MainLayout = ({ children, onLogout }) => {
   }
 
   const activeHotel = getActiveHotel()
+  const needsHotelPick = hotels.length > 1 && !activeHotelId
 
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
@@ -126,8 +127,21 @@ const MainLayout = ({ children, onLogout }) => {
           </div>
         )}
 
+        {needsHotelPick && (
+          <div
+            className={`mx-4 mb-2 px-3 py-2 rounded-lg text-sm ${
+              darkMode ? 'bg-amber-900/50 text-amber-100' : 'bg-amber-50 text-amber-900 border border-amber-200'
+            }`}
+          >
+            Select a property using the hotel menu above before using operational pages.
+          </div>
+        )}
+
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <nav
+          className={`flex-1 px-4 py-6 space-y-2 overflow-y-auto ${needsHotelPick ? 'opacity-40 pointer-events-none' : ''}`}
+          aria-disabled={needsHotelPick}
+        >
           {navigation.map((item) => (
             <Link
               key={item.path}
@@ -206,7 +220,21 @@ const MainLayout = ({ children, onLogout }) => {
             </div>
           </div>
         </header>
-        <main className={`p-4 lg:p-8 ${darkMode ? 'bg-gray-900' : ''}`}>{children}</main>
+        <main className={`relative p-4 lg:p-8 ${darkMode ? 'bg-gray-900' : ''}`}>
+          {needsHotelPick && (
+            <div
+              className={`absolute inset-0 z-10 flex justify-center pt-16 px-4 ${darkMode ? 'bg-gray-900/70' : 'bg-gray-50/80'}`}
+            >
+              <p
+                className={`max-w-md text-center text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}
+              >
+                Choose your active property in the sidebar to continue. The API requires a property context for
+                operational data.
+              </p>
+            </div>
+          )}
+          <div className={needsHotelPick ? 'pointer-events-none opacity-40 min-h-[40vh]' : ''}>{children}</div>
+        </main>
       </div>
     </div>
   )

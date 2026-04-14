@@ -121,8 +121,8 @@ export async function loginHandler(
       }
     }
 
-    // Set first hotel as active (if any)
-    const activeHotelId = hotels.length > 0 ? hotels[0].id : undefined;
+    // Only auto-select when exactly one property; otherwise client must choose (multi-tenant UX).
+    const activeHotelId = hotels.length === 1 ? hotels[0].id : undefined;
 
     // Return user data and token
     res.json({

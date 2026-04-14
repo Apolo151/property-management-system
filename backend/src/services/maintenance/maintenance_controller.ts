@@ -1,4 +1,5 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '../auth/auth_middleware.js';
 import db from '../../config/database.js';
 import type {
   CreateMaintenanceRequestRequest,
@@ -8,11 +9,12 @@ import type {
 
 // Get all maintenance requests
 export async function getMaintenanceRequestsHandler(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response<MaintenanceRequestResponse[]>,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { status, priority, search, room_id } = req.query;
 
     let query = db('maintenance_requests')
@@ -24,6 +26,8 @@ export async function getMaintenanceRequestsHandler(
       )
       .join('rooms', 'maintenance_requests.room_id', 'rooms.id')
       .leftJoin('users as assigned_user', 'maintenance_requests.assigned_to', 'assigned_user.id')
+      .where('maintenance_requests.hotel_id', hotelId)
+      .where('rooms.hotel_id', hotelId)
       .whereNull('maintenance_requests.deleted_at')
       .orderBy('maintenance_requests.created_at', 'desc');
 
@@ -81,11 +85,12 @@ export async function getMaintenanceRequestsHandler(
 
 // Get single maintenance request
 export async function getMaintenanceRequestHandler(
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest<{ id: string }>,
   res: Response<MaintenanceRequestResponse>,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { id } = req.params;
 
     const request = await db('maintenance_requests')
@@ -98,6 +103,8 @@ export async function getMaintenanceRequestHandler(
       .join('rooms', 'maintenance_requests.room_id', 'rooms.id')
       .leftJoin('users as assigned_user', 'maintenance_requests.assigned_to', 'assigned_user.id')
       .where('maintenance_requests.id', id)
+      .where('maintenance_requests.hotel_id', hotelId)
+      .where('rooms.hotel_id', hotelId)
       .whereNull('maintenance_requests.deleted_at')
       .first();
 
@@ -137,11 +144,12 @@ export async function getMaintenanceRequestHandler(
 
 // Create maintenance request
 export async function createMaintenanceRequestHandler(
-  req: Request<{}, MaintenanceRequestResponse, CreateMaintenanceRequestRequest>,
+  req: AuthenticatedRequest<{}, MaintenanceRequestResponse, CreateMaintenanceRequestRequest>,
   res: Response<MaintenanceRequestResponse>,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { room_id, title, description, priority = 'Medium', status = 'Open', assigned_to } = req.body;
 
     // Validation
@@ -152,8 +160,8 @@ export async function createMaintenanceRequestHandler(
       return;
     }
 
-    // Check if room exists
-    const room = await db('rooms').where({ id: room_id }).first();
+    // Check if room exists in this property
+    const room = await db('rooms').where({ id: room_id, hotel_id: hotelId }).first();
     if (!room) {
       res.status(404).json({
         error: 'Room not found',
@@ -175,6 +183,7 @@ export async function createMaintenanceRequestHandler(
     // Create maintenance request
     const [newRequest] = await db('maintenance_requests')
       .insert({
+        hotel_id: hotelId,
         room_id,
         title,
         description,
@@ -196,6 +205,7 @@ export async function createMaintenanceRequestHandler(
       .join('rooms', 'maintenance_requests.room_id', 'rooms.id')
       .leftJoin('users as assigned_user', 'maintenance_requests.assigned_to', 'assigned_user.id')
       .where('maintenance_requests.id', newRequest.id)
+      .where('maintenance_requests.hotel_id', hotelId)
       .first();
 
     const response: MaintenanceRequestResponse = {
@@ -227,17 +237,18 @@ export async function createMaintenanceRequestHandler(
 
 // Update maintenance request
 export async function updateMaintenanceRequestHandler(
-  req: Request<{ id: string }, MaintenanceRequestResponse, UpdateMaintenanceRequestRequest>,
+  req: AuthenticatedRequest<{ id: string }, MaintenanceRequestResponse, UpdateMaintenanceRequestRequest>,
   res: Response<MaintenanceRequestResponse>,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { id } = req.params;
     const updates = req.body;
 
-    // Check if request exists
+    // Check if request exists in this property
     const existing = await db('maintenance_requests')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -253,8 +264,7 @@ export async function updateMaintenanceRequestHandler(
     };
 
     if (updates.room_id !== undefined) {
-      // Check if room exists
-      const room = await db('rooms').where({ id: updates.room_id }).first();
+      const room = await db('rooms').where({ id: updates.room_id, hotel_id: hotelId }).first();
       if (!room) {
         res.status(404).json({
           error: 'Room not found',
@@ -300,8 +310,7 @@ export async function updateMaintenanceRequestHandler(
       updateData.assigned_to = updates.assigned_to || null;
     }
 
-    // Update maintenance request
-    await db('maintenance_requests').where({ id }).update(updateData);
+    await db('maintenance_requests').where({ id, hotel_id: hotelId }).update(updateData);
 
     // Fetch updated request
     const updated = await db('maintenance_requests')
@@ -314,6 +323,7 @@ export async function updateMaintenanceRequestHandler(
       .join('rooms', 'maintenance_requests.room_id', 'rooms.id')
       .leftJoin('users as assigned_user', 'maintenance_requests.assigned_to', 'assigned_user.id')
       .where('maintenance_requests.id', id)
+      .where('maintenance_requests.hotel_id', hotelId)
       .first();
 
     const response: MaintenanceRequestResponse = {
@@ -345,15 +355,16 @@ export async function updateMaintenanceRequestHandler(
 
 // Delete maintenance request (soft delete)
 export async function deleteMaintenanceRequestHandler(
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest<{ id: string }>,
   res: Response,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { id } = req.params;
 
     const request = await db('maintenance_requests')
-      .where({ id })
+      .where({ id, hotel_id: hotelId })
       .whereNull('deleted_at')
       .first();
 
@@ -365,7 +376,7 @@ export async function deleteMaintenanceRequestHandler(
     }
 
     // Soft delete
-    await db('maintenance_requests').where({ id }).update({
+    await db('maintenance_requests').where({ id, hotel_id: hotelId }).update({
       deleted_at: new Date(),
     });
 

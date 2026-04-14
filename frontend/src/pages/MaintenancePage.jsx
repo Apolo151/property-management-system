@@ -7,8 +7,12 @@ import Modal from '../components/Modal'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import { useToast } from '../hooks/useToast'
+import useAuthStore from '../store/authStore'
 
 const MaintenancePage = () => {
+  const activeHotel = useAuthStore((state) =>
+    state.hotels.find((h) => h.id === state.activeHotelId),
+  )
   const { rooms, fetchRooms } = useRoomsStore()
   const {
     maintenanceRequests,
@@ -166,6 +170,11 @@ const MaintenancePage = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Maintenance Requests</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">Track and manage room maintenance issues</p>
+          {activeHotel && (
+            <p className="text-sm text-primary-600 dark:text-primary-400 mt-1 font-medium">
+              Property: {activeHotel.hotel_name}
+            </p>
+          )}
         </div>
         <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">
           + New Request
