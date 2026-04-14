@@ -2,10 +2,10 @@
 
 ## Document Information
 
-- **Version:** 1.0
-- **Date:** December 2024
-- **Status:** Production Ready
-- **System:** Hotel Property Management System (PMS)
+- **Version:** 1.1
+- **Date:** 2026-04-14
+- **Status:** Updated — Multi-Property; QloApps integration
+- **System:** Hotel Property Management System (PMS) — Multi-Property
 
 ---
 
@@ -21,17 +21,23 @@
 
 ## Introduction
 
-This document describes the use cases for the Hotel Property Management System (PMS). The system manages hotel operations including reservations, guest management, room management, housekeeping, maintenance, invoicing, and financial reporting.
+This document describes the use cases for the Hotel Property Management System (PMS). The system manages hotel operations including reservations, guest management, room management, housekeeping, maintenance, invoicing, and financial reporting across multiple hotel properties.
 
 ### System Overview
 
-The PMS is designed for a single hotel property with approximately 30 rooms. The system:
-- Streamlines hotel operations and enhances guest experiences
+The PMS is a **multi-property** hotel management system supporting multiple independently
+operated hotel properties under a single platform. The system:
+- Manages multiple hotel properties, each with its own rooms, guests, staff, and configuration
+- Streamlines hotel operations and enhances guest experiences per property
 - Optimizes resource management and room allocation
-- Integrates with Beds24 channel manager for OTA bookings
-- Provides comprehensive reporting and analytics
-- Maintains audit trails for compliance
-- Supports efficient daily operations for small to medium-sized hotels
+- Integrates with QloApps channel manager for OTA bookings per property
+- Provides comprehensive reporting and analytics per property and across the platform
+- Maintains audit trails for compliance per property
+- Supports efficient daily operations for small to medium-sized hotel groups
+
+> **Note**: Earlier versions of this document referred to Beds24 as the channel manager and
+> described a single-property system. The current implementation uses QloApps and supports
+> multiple hotel properties. Use cases UC-1001 through UC-1008 have been updated accordingly.
 
 ---
 
@@ -77,10 +83,10 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 
 ### Secondary Actors
 
-- **Beds24 Channel Manager** (External System)
+- **QloApps Channel Manager** (External System, per property)
   - Receives booking data from PMS
   - Sends booking updates to PMS
-  - Syncs room availability and rates
+  - Syncs room availability and rates per hotel property
 
 - **System** (Automated Processes)
   - Automated invoice generation
@@ -219,18 +225,18 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 | UC-904 | Filter Audit Logs by Entity | Super Admin, Admin, Manager, Viewer | Medium |
 | UC-905 | View User Activity | Super Admin, Admin | Medium |
 
-### 11. Beds24 Integration
+### 11. QloApps Channel Manager Integration
 
 | Use Case ID | Use Case Name | Primary Actor | Priority |
 |------------|---------------|---------------|----------|
-| UC-1001 | Sync Reservations to Beds24 | System | High |
-| UC-1002 | Receive Reservations from Beds24 | System | High |
+| UC-1001 | Sync Reservations to QloApps | System | High |
+| UC-1002 | Receive Reservations from QloApps | System | High |
 | UC-1003 | Sync Room Availability | System | High |
 | UC-1004 | Sync Room Rates | System | High |
 | UC-1005 | Handle Sync Conflicts | Admin, Manager | High |
 | UC-1006 | View Sync Status | Admin, Manager, Viewer | Medium |
 | UC-1007 | Manual Sync Trigger | Admin | Medium |
-| UC-1008 | Configure Beds24 Settings | Admin | High |
+| UC-1008 | Configure QloApps Settings | Admin | High |
 
 ### 12. Notifications
 
@@ -315,7 +321,7 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 11. System creates reservation record
 12. System updates room status if status is "Checked-in"
 13. System logs audit event
-14. System queues Beds24 sync job
+14. System queues QloApps sync job
 15. System displays success message
 
 **Alternative Flows:**
@@ -328,7 +334,7 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 **Postconditions:** 
 - Reservation is created
 - Room availability is updated
-- Beds24 sync is queued
+- QloApps sync is queued (if integration is configured for this property)
 
 ---
 
@@ -351,7 +357,7 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 8. System updates housekeeping status to "Dirty" (for future)
 9. System logs audit event
 10. System creates notification for housekeeping
-11. System queues Beds24 sync job
+11. System queues QloApps sync job (if integration configured)
 12. System displays success message
 
 **Alternative Flows:**
@@ -384,7 +390,7 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 8. System creates invoice automatically
 9. System logs audit event
 10. System creates notification for housekeeping
-11. System queues Beds24 sync job
+11. System queues QloApps sync job (if integration configured)
 12. System displays success message with invoice details
 
 **Alternative Flows:**
@@ -509,28 +515,28 @@ The PMS is designed for a single hotel property with approximately 30 rooms. The
 
 ---
 
-### UC-1001: Sync Reservations to Beds24
+### UC-1001: Sync Reservations to QloApps
 
 **Actor:** System (Automated)  
 **Preconditions:**
-- Beds24 integration is configured
+- QloApps integration is configured for the hotel property
 - Reservation is created or updated locally
 
 **Main Success Scenario:**
 1. System detects local reservation change
-2. System queues sync job in Redis
-3. Background worker picks up job
-4. Worker calls Beds24 API with reservation data
-5. Beds24 API responds with success
+2. System queues sync job in RabbitMQ outbound queue
+3. Background outbound worker picks up job
+4. Worker calls QloApps API with reservation data
+5. QloApps API responds with success
 6. System updates sync status to "Synced"
 7. System logs sync event
 
 **Alternative Flows:**
-- 4a. Beds24 API error: System retries with exponential backoff
+- 4a. QloApps API error: System retries with exponential backoff
 - 4b. Max retries exceeded: System marks as "Sync Failed" and alerts admin
 - 5a. Conflict detected: System creates conflict record for manual resolution
 
-**Postconditions:** Reservation is synced to Beds24
+**Postconditions:** Reservation is synced to QloApps
 
 ---
 

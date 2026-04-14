@@ -2,11 +2,11 @@
 
 ## Document Information
 
-- **Version:** 1.0
-- **Date:** December 2024
-- **Status:** Production Ready
+- **Version:** 1.1
+- **Date:** 2026-04-14
+- **Status:** Updated — Multi-Property design; QloApps integration tables
 - **Database:** PostgreSQL 14+
-- **System:** Hotel Property Management System (PMS)
+- **System:** Hotel Property Management System (PMS) — Multi-Property
 
 ---
 
@@ -24,20 +24,28 @@
 
 ## Schema Overview
 
-The database schema consists of 19 core tables organized into logical groups for a single hotel property with approximately 30 rooms:
+The database schema is organized for a **multi-property** hotel management system, where each
+hotel is an independently scoped tenant. Core tables:
 
-- **Core Entities**: users, hotel_settings
+- **Multi-Property Core**: hotels, hotel_settings, user_hotels
+- **Identity & Access**: users
 - **Guest Management**: guests, guest_notes
-- **Room Management**: rooms, room_features
-- **Reservations**: reservations, reservation_guests
+- **Room Management**: room_types, rooms, room_features
+- **Reservations**: reservations, reservation_guests, check_ins
 - **Financial**: invoices, payments, expenses, expense_categories
 - **Operations**: housekeeping, maintenance_requests
 - **System**: audit_logs, notifications
-- **Integration**: beds24_sync, sync_logs
+- **Integration**: qloapps_config, qloapps_sync, sync_logs, qloapps_*_mappings
 
-All tables use UUID primary keys and include standard timestamps (created_at, updated_at). Soft-deletable tables include deleted_at.
+All tables use UUID primary keys and include standard timestamps (created_at, updated_at).
+Soft-deletable tables include deleted_at. All operational data is scoped to a hotel via
+`hotel_id` FK, enforced by the `hotelContext` middleware on every API request.
 
-**Note:** This schema is optimized for a single hotel property. The `hotel_settings` table stores hotel configuration instead of a multi-property `properties` table.
+> **Note:** Previous versions of this document described a single-property design built on a
+> singleton `hotel_settings` table. The actual implementation supports multiple hotel
+> properties. The `hotels` table is the multi-property root; `hotel_settings` stores
+> per-property configuration (one record per hotel). Integration tables reference QloApps,
+> not Beds24.
 
 ---
 
@@ -87,7 +95,7 @@ CREATE UNIQUE INDEX idx_hotel_settings_single ON hotel_settings((1));
 - `created_at` (TIMESTAMP): Creation timestamp
 - `updated_at` (TIMESTAMP): Last update timestamp
 
-**Note:** This table is designed to hold a single record. The unique index on a constant expression ensures only one hotel configuration can exist. The default UUID is fixed to maintain consistency.
+**Note:** This table holds one configuration record per hotel property. Each hotel has its own settings record linked by `hotel_id`. The `hotel_settings` table is no longer a singleton — each hotel property manages its own configuration independently.
 
 ---
 
@@ -980,7 +988,7 @@ CREATE TRIGGER reservation_checkout_invoice
 
 ## Notes
 
-1. **Single Hotel Design**: This schema is optimized for a single hotel property with approximately 30 rooms. The `hotel_settings` table stores hotel configuration as a single record.
+1. **Multi-Property Design**: This schema supports multiple independently operated hotel properties. The `hotels` table is the multi-property root. `hotel_settings` stores per-property configuration. All operational data is scoped to a hotel via `hotel_id`. Users can be assigned to multiple hotels via `user_hotels`.
 
 2. **UUID Primary Keys**: All tables use UUID for better distribution, security, and multi-database support.
 
@@ -1001,7 +1009,7 @@ CREATE TRIGGER reservation_checkout_invoice
 
 9. **Overlap Prevention**: Partial unique index prevents overlapping reservations for same room.
 
-10. **Room Number Uniqueness**: Room numbers are globally unique (no property_id needed for single hotel).
+10. **Room Number Uniqueness**: Room numbers are unique per hotel property (scoped by `hotel_id`).
 
 ---
 

@@ -2,16 +2,19 @@
 
 ## Document Information
 
-- **Version:** 1.0
-- **Date:** December 2024
-- **Status:** Production Ready
-- **System:** Hotel Property Management System (PMS)
+- **Version:** 2.0
+- **Date:** 2026-04-14
+- **Status:** Updated — Multi-Property design; QloApps integration; new entities added
+- **System:** Hotel Property Management System (PMS) — Multi-Property
 
 ---
 
 ## Overview
 
-This document presents the Entity Relationship Diagram (ERD) for the Hotel Property Management System. The ERD illustrates all entities, their attributes, and the relationships between them.
+This document presents the Entity Relationship Diagram (ERD) for the Hotel Property Management
+System. The PMS is a **multi-property** platform: each hotel property is an independently
+scoped tenant. All operational data belongs to a hotel via `hotel_id`. The ERD reflects the
+actual as-built model from Knex migrations — not the earlier single-property documentation.
 
 ---
 
@@ -19,70 +22,85 @@ This document presents the Entity Relationship Diagram (ERD) for the Hotel Prope
 
 ```mermaid
 erDiagram
+    %% Multi-Property Core
+    HOTELS ||--o{ HOTEL_SETTINGS : configures
+    HOTELS ||--o{ USER_HOTELS : has
+    USER_HOTELS }o--|| USERS : assigns
+    HOTELS ||--o{ ROOM_TYPES : defines
+    HOTELS ||--o{ ROOMS : contains
+    HOTELS ||--o{ GUESTS : belongs_to
+    HOTELS ||--o{ RESERVATIONS : manages
+    HOTELS ||--o{ INVOICES : owns
+    HOTELS ||--o{ EXPENSES : tracks
+
+    %% Room hierarchy
+    ROOM_TYPES ||--o{ ROOMS : categorizes
+
     %% Core Entities
     USERS ||--o{ AUDIT_LOGS : creates
     USERS ||--o{ NOTIFICATIONS : receives
-    
+
     %% Guest and Reservation Entities
     GUESTS ||--o{ RESERVATIONS : makes
     GUESTS ||--o{ INVOICES : receives
     GUESTS ||--o{ GUEST_NOTES : has
-    
+
     RESERVATIONS ||--|| ROOMS : assigned_to
     RESERVATIONS ||--o{ INVOICES : generates
     RESERVATIONS ||--o{ RESERVATION_GUESTS : has
-    
+    RESERVATIONS ||--o{ CHECK_INS : tracked_by
+
     RESERVATION_GUESTS }o--|| GUESTS : references
     RESERVATION_GUESTS }o--|| RESERVATIONS : belongs_to
-    
+
+    %% Check-in lifecycle
+    CHECK_INS }o--|| RESERVATIONS : for
+    CHECK_INS }o--|| ROOMS : occupies
+    CHECK_INS }o--|| GUESTS : primary_guest
+
     %% Room Management
-    ROOMS ||--o{ HOUSEKEEPING : has_status
+    ROOMS ||--|| HOUSEKEEPING : has_status
     ROOMS ||--o{ MAINTENANCE_REQUESTS : has
     ROOMS ||--o{ RESERVATIONS : hosts
     ROOMS ||--o{ ROOM_FEATURES : has
-    
+
     ROOM_FEATURES }o--|| ROOMS : belongs_to
-    
+
     %% Housekeeping
     HOUSEKEEPING }o--|| ROOMS : tracks
     HOUSEKEEPING }o--o| USERS : assigned_staff
-    
+
     %% Maintenance
     MAINTENANCE_REQUESTS }o--|| ROOMS : for
     MAINTENANCE_REQUESTS }o--o| USERS : assigned_to
-    
+
     %% Financial
     INVOICES }o--|| RESERVATIONS : for
     INVOICES }o--|| GUESTS : billed_to
     INVOICES ||--o{ PAYMENTS : has
-    
+
     EXPENSES ||--o{ EXPENSE_CATEGORIES : categorized_by
-    
+
     %% Audit and System
     AUDIT_LOGS }o--o| USERS : created_by
-    
     NOTIFICATIONS }o--o| USERS : sent_to
-    
-    %% Beds24 Integration
-    BEDS24_SYNC ||--o{ SYNC_LOGS : has
-    
+
+    %% QloApps Integration
+    QLOAPPS_SYNC ||--o{ SYNC_LOGS : has
+
     %% Entity Definitions
-    USERS {
+    HOTELS {
         uuid id PK
-        string email UK
-        string password_hash
-        string first_name
-        string last_name
-        string role
-        boolean is_active
-        timestamp last_login
+        string name
+        text address
         timestamp created_at
         timestamp updated_at
         timestamp deleted_at
     }
-    
+
     HOTEL_SETTINGS {
         uuid id PK
+        uuid hotel_id FK
         string hotel_name
         string address
         string city
@@ -98,9 +116,45 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
+    USER_HOTELS {
+        uuid id PK
+        uuid user_id FK
+        uuid hotel_id FK
+        timestamp created_at
+    }
+
+    USERS {
+        uuid id PK
+        string email UK
+        string password_hash
+        string first_name
+        string last_name
+        string role
+        boolean is_active
+        timestamp last_login
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    ROOM_TYPES {
+        uuid id PK
+        uuid hotel_id FK
+        string name
+        text description
+        decimal base_price
+        integer max_occupancy
+        jsonb amenities
+        integer total_units
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
     GUESTS {
         uuid id PK
+        uuid hotel_id FK
         string name
         string email
         string phone
@@ -111,22 +165,23 @@ erDiagram
         timestamp updated_at
         timestamp deleted_at
     }
-    
+
     ROOMS {
         uuid id PK
+        uuid hotel_id FK
+        uuid room_type_id FK
         string room_number UK
-        string type
         string status
-        decimal price_per_night
         integer floor
         jsonb features
         text description
         timestamp created_at
         timestamp updated_at
     }
-    
+
     RESERVATIONS {
         uuid id PK
+        uuid hotel_id FK
         uuid room_id FK
         uuid primary_guest_id FK
         date check_in
@@ -134,13 +189,26 @@ erDiagram
         string status
         decimal total_amount
         string source
-        string beds24_booking_id
+        string qloapps_booking_id
         text special_requests
         timestamp created_at
         timestamp updated_at
         timestamp deleted_at
     }
-    
+
+    CHECK_INS {
+        uuid id PK
+        uuid reservation_id FK
+        uuid room_id FK
+        uuid guest_id FK
+        timestamp checked_in_at
+        timestamp checked_out_at
+        string status
+        text notes
+        timestamp created_at
+        timestamp updated_at
+    }
+
     RESERVATION_GUESTS {
         uuid id PK
         uuid reservation_id FK
@@ -148,9 +216,10 @@ erDiagram
         string guest_type
         timestamp created_at
     }
-    
+
     INVOICES {
         uuid id PK
+        uuid hotel_id FK
         uuid reservation_id FK
         uuid guest_id FK
         date issue_date
@@ -163,7 +232,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     PAYMENTS {
         uuid id PK
         uuid invoice_id FK
@@ -173,7 +242,7 @@ erDiagram
         timestamp paid_at
         timestamp created_at
     }
-    
+
     HOUSEKEEPING {
         uuid id PK
         uuid room_id FK
@@ -184,9 +253,10 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     MAINTENANCE_REQUESTS {
         uuid id PK
+        uuid hotel_id FK
         uuid room_id FK
         uuid assigned_to_id FK
         string title
@@ -197,9 +267,10 @@ erDiagram
         timestamp updated_at
         timestamp resolved_at
     }
-    
+
     EXPENSES {
         uuid id PK
+        uuid hotel_id FK
         string category
         decimal amount
         date expense_date
@@ -208,7 +279,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     AUDIT_LOGS {
         uuid id PK
         uuid user_id FK
@@ -221,7 +292,7 @@ erDiagram
         string user_agent
         timestamp created_at
     }
-    
+
     NOTIFICATIONS {
         uuid id PK
         uuid user_id FK
@@ -232,9 +303,10 @@ erDiagram
         boolean is_read
         timestamp created_at
     }
-    
-    BEDS24_SYNC {
+
+    QLOAPPS_SYNC {
         uuid id PK
+        uuid hotel_id FK
         string sync_type
         string status
         jsonb sync_data
@@ -243,7 +315,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     SYNC_LOGS {
         uuid id PK
         uuid sync_id FK
@@ -254,14 +326,14 @@ erDiagram
         jsonb response_data
         timestamp created_at
     }
-    
+
     ROOM_FEATURES {
         uuid id PK
         uuid room_id FK
         string feature_name
         timestamp created_at
     }
-    
+
     GUEST_NOTES {
         uuid id PK
         uuid guest_id FK
@@ -269,7 +341,7 @@ erDiagram
         text note
         timestamp created_at
     }
-    
+
     EXPENSE_CATEGORIES {
         uuid id PK
         string name
@@ -282,6 +354,46 @@ erDiagram
 
 ## Entity Descriptions
 
+### Multi-Property Core Entities
+
+#### HOTELS
+Root entity for the multi-property platform. Each hotel is an independently scoped tenant.
+All operational data belongs to a hotel via `hotel_id`.
+
+**Key Attributes:**
+- `id`: Unique identifier (UUID)
+- `name`: Hotel property name
+
+**Relationships:**
+- Has HOTEL_SETTINGS (one-to-one per property)
+- Has USER_HOTELS assignments (one-to-many)
+- Contains ROOM_TYPES and ROOMS (one-to-many)
+- Owns GUESTS, RESERVATIONS, INVOICES, EXPENSES, MAINTENANCE (one-to-many)
+
+---
+
+#### HOTEL_SETTINGS
+Per-property configuration. Each hotel property has exactly one settings record.
+
+**Key Attributes:**
+- `hotel_id`: FK to HOTELS (per-property scope)
+- `hotel_name`, `address`, `city`, `country`: Location
+- `tax_rate`, `currency`, `timezone`: Business settings
+- `check_in_time`, `check_out_time`: Standard times
+- `settings`: JSONB for flexible additional configuration
+
+---
+
+#### USER_HOTELS
+Property assignment table. Users can be assigned to one or more hotel properties.
+`SUPER_ADMIN` users bypass hotel scoping and can access all properties.
+
+**Key Attributes:**
+- `user_id`: FK to USERS
+- `hotel_id`: FK to HOTELS
+
+---
+
 ### Core Entities
 
 #### USERS
@@ -293,25 +405,11 @@ Represents system users with different roles (Super Admin, Admin, Manager, Front
 - `role`: User role (enum)
 
 **Relationships:**
+- Assigned to HOTELS via USER_HOTELS (many-to-many)
 - Creates AUDIT_LOGS (one-to-many)
 - Receives NOTIFICATIONS (one-to-many)
 - Assigned to HOUSEKEEPING (one-to-many)
 - Assigned to MAINTENANCE_REQUESTS (one-to-many)
-
----
-
-#### HOTEL_SETTINGS
-Stores hotel configuration and settings. Single record table for the hotel property (approximately 30 rooms).
-
-**Key Attributes:**
-- `id`: Fixed UUID identifier
-- `hotel_name`: Hotel name
-- `address`, `city`, `country`: Location information
-- `tax_rate`, `currency`, `timezone`: Business settings
-- `check_in_time`, `check_out_time`: Standard times
-- `settings`: JSONB for flexible configuration
-
-**Note:** This is a single-record table storing hotel-wide configuration.
 
 ---
 
@@ -333,15 +431,29 @@ Represents guest profiles with contact information and history.
 
 ---
 
-#### ROOMS
-Represents hotel rooms with status, pricing, and features. Approximately 30 rooms for this single hotel property.
+#### ROOM_TYPES
+Categorizes rooms within a hotel property. Defines inventory units with base pricing and
+occupancy rules. Room types are scoped to a hotel via `hotel_id`.
 
 **Key Attributes:**
-- `id`: Unique identifier (UUID)
-- `room_number`: Unique room identifier (globally unique for single hotel)
-- `type`: Room type (Single, Double, Suite)
+- `hotel_id`: FK to HOTELS
+- `name`: Room type name (e.g., Deluxe Double)
+- `base_price`: Base nightly rate
+- `max_occupancy`: Maximum guests
+- `total_units`: Count of physical rooms of this type
+- `amenities`: JSONB amenity list
+
+---
+
+#### ROOMS
+Represents physical hotel rooms. Scoped to a hotel via `hotel_id`. Room numbers are unique
+per hotel property (not globally).
+
+**Key Attributes:**
+- `hotel_id`: FK to HOTELS
+- `room_type_id`: FK to ROOM_TYPES
+- `room_number`: Unique identifier within the hotel
 - `status`: Current status (Available, Occupied, Cleaning, Out of Service)
-- `price_per_night`: Room rate
 - `floor`: Floor number
 - `features`: JSONB array of features
 
@@ -353,16 +465,29 @@ Represents hotel rooms with status, pricing, and features. Approximately 30 room
 
 ---
 
-#### RESERVATIONS
-Represents guest reservations with check-in/out dates and status.
+#### CHECK_INS
+Application-layer record of the check-in lifecycle (check-in, room change, check-out) for
+a reservation. Separate from reservation status to allow detailed audit of operational events.
 
 **Key Attributes:**
-- `id`: Unique identifier (UUID)
+- `reservation_id`: FK to RESERVATIONS
+- `room_id`: Assigned physical room at check-in
+- `guest_id`: Primary guest
+- `checked_in_at`, `checked_out_at`: Timestamps
+- `status`: `Active` or `Checked-out`
+
+---
+
+#### RESERVATIONS
+Represents guest reservations with check-in/out dates and status. Scoped to a hotel.
+
+**Key Attributes:**
+- `hotel_id`: FK to HOTELS
 - `check_in`, `check_out`: Reservation dates
 - `status`: Reservation status (Confirmed, Checked-in, Checked-out, Cancelled)
 - `total_amount`: Calculated total
-- `source`: Booking source (Direct, Beds24, OTA)
-- `beds24_booking_id`: External booking reference
+- `source`: Booking source (Direct, QloApps, OTA)
+- `qloapps_booking_id`: External booking reference (formerly `beds24_booking_id`)
 
 **Relationships:**
 - Assigned to ROOMS (many-to-one)
@@ -506,13 +631,15 @@ Represents system notifications for users.
 
 ### Integration Entities
 
-#### BEDS24_SYNC
-Tracks synchronization status with Beds24 channel manager.
+#### QLOAPPS_SYNC
+Tracks synchronization operations with the QloApps channel manager. Scoped to a hotel
+property via `hotel_id`. Formerly documented as `BEDS24_SYNC` — renamed to reflect the
+actual QloApps integration.
 
 **Key Attributes:**
-- `id`: Unique identifier (UUID)
+- `hotel_id`: FK to HOTELS (per-property sync)
 - `sync_type`: Type of sync (PUSH, PULL, WEBHOOK)
-- `status`: Sync status (Pending, Success, Failed)
+- `status`: Sync status (Pending, Success, Failed, Conflict)
 - `sync_data`: JSONB sync payload
 - `error_message`: Error details if failed
 - `last_sync_at`: Last successful sync timestamp
@@ -523,17 +650,17 @@ Tracks synchronization status with Beds24 channel manager.
 ---
 
 #### SYNC_LOGS
-Detailed logs for each Beds24 sync operation.
+Detailed logs for each QloApps sync operation.
 
 **Key Attributes:**
 - `id`: Unique identifier (UUID)
 - `action`: Specific sync action
-- `status`: Operation status
+- `status`: Operation status (Success, Failed, Retry)
 - `request_data`, `response_data`: JSONB request/response
 - `error_message`: Error details
 
 **Relationships:**
-- Belongs to BEDS24_SYNC (many-to-one)
+- Belongs to QLOAPPS_SYNC (many-to-one)
 
 ---
 
@@ -583,18 +710,23 @@ Predefined expense categories.
 ## Relationship Summary
 
 ### One-to-Many Relationships
+- HOTELS → ROOM_TYPES, ROOMS, GUESTS, RESERVATIONS, INVOICES, EXPENSES, MAINTENANCE_REQUESTS
+- HOTELS → HOTEL_SETTINGS (one-to-one per property)
+- ROOM_TYPES → ROOMS
 - ROOMS → RESERVATIONS
-- ROOMS → HOUSEKEEPING
 - ROOMS → MAINTENANCE_REQUESTS
+- ROOMS → ROOM_FEATURES
 - GUESTS → RESERVATIONS
 - GUESTS → INVOICES
+- RESERVATIONS → CHECK_INS
 - RESERVATIONS → INVOICES
 - INVOICES → PAYMENTS
 - USERS → AUDIT_LOGS
 - USERS → NOTIFICATIONS
-- BEDS24_SYNC → SYNC_LOGS
+- QLOAPPS_SYNC → SYNC_LOGS
 
 ### Many-to-Many Relationships
+- USERS ↔ HOTELS (via USER_HOTELS)
 - RESERVATIONS ↔ GUESTS (via RESERVATION_GUESTS)
 
 ### One-to-One Relationships
@@ -656,17 +788,33 @@ All entities include `created_at` and `updated_at` timestamps. Soft-deletable en
 
 ## Notes
 
-1. **Single Hotel Design**: This ERD is designed for a single hotel property with approximately 30 rooms. The HOTEL_SETTINGS entity stores hotel-wide configuration as a single record.
+1. **Multi-Property Design**: The HOTELS entity is the multi-property root. All operational data
+   (ROOMS, GUESTS, RESERVATIONS, INVOICES, EXPENSES, MAINTENANCE) is scoped to a hotel via
+   `hotel_id`. HOTEL_SETTINGS stores per-property configuration (one record per hotel).
 
-2. **Double Room Support**: The RESERVATION_GUESTS junction table allows multiple guests per reservation, supporting double rooms and group bookings.
+2. **Property Assignment**: Users are assigned to hotels via USER_HOTELS. SUPER_ADMIN users
+   bypass property scoping. Per-request hotel scope is enforced via the `X-Hotel-Id` header.
 
-3. **Audit Trail**: Comprehensive audit logging tracks all changes with before/after states for compliance and debugging.
+3. **Room Hierarchy**: ROOM_TYPES categorizes physical ROOMS. Room numbers are unique per
+   hotel property, not globally.
 
-4. **Soft Deletes**: Critical entities (USERS, GUESTS, RESERVATIONS) support soft deletes via `deleted_at` for data retention and recovery.
+4. **Check-in Lifecycle**: CHECK_INS is a dedicated entity tracking check-in, room-change, and
+   check-out events per reservation at the application layer.
 
-5. **Beds24 Integration**: Dedicated entities track sync status and logs for reliable channel manager integration.
+5. **Double Room Support**: RESERVATION_GUESTS links multiple guests to a reservation,
+   supporting double rooms and group bookings.
 
-6. **Flexible Configuration**: JSONB columns allow for flexible, schema-less data where needed without migrations.
+6. **Audit Trail**: Comprehensive audit logging tracks all changes with before/after states for
+   compliance and debugging.
+
+7. **Soft Deletes**: Critical entities (USERS, GUESTS, RESERVATIONS, ROOM_TYPES) support soft
+   deletes via `deleted_at` for data retention and recovery.
+
+8. **QloApps Integration**: QLOAPPS_SYNC (formerly BEDS24_SYNC) and SYNC_LOGS track per-hotel
+   sync status and operation logs for reliable channel manager integration. Additional
+   mapping tables (qloapps_*_mappings) track external-to-local entity ID mappings.
+
+9. **Flexible Configuration**: JSONB columns allow flexible, schema-less data where needed.
 
 ---
 
