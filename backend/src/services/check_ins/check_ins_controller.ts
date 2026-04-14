@@ -86,6 +86,16 @@ export async function createCheckInHandler(
       } as any);
       return;
     }
+    if (
+      error.message.includes('scheduled arrival') ||
+      error.message.includes('marked as') ||
+      error.message.includes('Hotel local date')
+    ) {
+      res.status(400).json({
+        error: error.message,
+      } as any);
+      return;
+    }
     next(error);
   }
 }
@@ -205,21 +215,53 @@ export async function checkOutHandler(
       return;
     }
 
+    const amountRaw = req.body?.amount;
     const request: CheckOutRequest = {
       checkin_id: id!,
       actual_checkout_time: req.body.actual_checkout_time,
       notes: req.body.notes,
     };
+    if (amountRaw !== undefined && amountRaw !== null && amountRaw !== '') {
+      const n = Number(amountRaw);
+      if (!Number.isNaN(n)) {
+        request.amount = n;
+      }
+    }
 
     const checkIn = await checkOutGuest(request, hotelId!);
 
-    // Audit log
-    await logUpdate(req, 'check_in', checkIn.id, {}, checkIn);
+    const calculated = checkIn.checkout_invoice_calculated_amount;
+    const { checkout_invoice_calculated_amount: _calc, ...publicCheckIn } = checkIn;
 
-    res.json(checkIn);
+    if (
+      checkIn.checkout_invoice &&
+      calculated !== undefined &&
+      Math.abs(checkIn.checkout_invoice.amount - calculated) > 0.005
+    ) {
+      await logAction(req, 'CHECKOUT_INVOICE_AMOUNT_OVERRIDE', 'check_in', publicCheckIn.id, {
+        description: 'Checkout invoice amount differs from reservation total',
+        calculated_amount: calculated,
+        invoiced_amount: checkIn.checkout_invoice.amount,
+      });
+    }
+
+    // Audit log
+    await logUpdate(req, 'check_in', publicCheckIn.id, {}, publicCheckIn);
+
+    res.json(publicCheckIn);
   } catch (error: any) {
     if (error.message.includes('not found')) {
       res.status(404).json({
+        error: error.message,
+      } as any);
+      return;
+    }
+    if (
+      error.message.includes('scheduled departure') ||
+      error.message.includes('scheduled arrival') ||
+      error.message.includes('Hotel local date')
+    ) {
+      res.status(400).json({
         error: error.message,
       } as any);
       return;
@@ -302,7 +344,8 @@ export async function changeRoomHandler(
     if (
       error.message.includes('Cannot') ||
       error.message.includes('occupied') ||
-      error.message.includes('Out of Service')
+      error.message.includes('Out of Service') ||
+      error.message.includes('conflicting reservation')
     ) {
       res.status(409).json({
         error: error.message,
@@ -432,6 +475,16 @@ export async function checkInFromReservationHandler(
       error.message.includes('occupied')
     ) {
       res.status(409).json({
+        error: error.message,
+      } as any);
+      return;
+    }
+    if (
+      error.message.includes('scheduled arrival') ||
+      error.message.includes('marked as') ||
+      error.message.includes('Hotel local date')
+    ) {
+      res.status(400).json({
         error: error.message,
       } as any);
       return;

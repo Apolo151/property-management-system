@@ -98,6 +98,11 @@ const CheckInModal = ({ isOpen, onClose, reservation }) => {
             )}
             <p><strong>Check-in Date:</strong> {reservation.checkIn}</p>
             <p><strong>Check-out Date:</strong> {reservation.checkOut}</p>
+            {reservation.checkinId && (
+              <p className="font-mono text-xs text-gray-600">
+                <strong>Active check-in:</strong> {reservation.checkinId}
+              </p>
+            )}
           </div>
         </div>
 

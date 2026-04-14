@@ -14,7 +14,12 @@ export type Beds24SubStatus =
   | 'nonPayment';
 
 // Legacy PMS status (for backward compatibility)
-export type LegacyReservationStatus = 'Confirmed' | 'Checked-in' | 'Checked-out' | 'Cancelled';
+export type LegacyReservationStatus =
+  | 'Confirmed'
+  | 'Checked-in'
+  | 'Checked-out'
+  | 'Cancelled'
+  | 'No-show';
 
 export interface CreateReservationRequest {
   room_id?: string; // Legacy: individual room (backward compatibility)
@@ -171,6 +176,8 @@ export interface ReservationResponse {
   check_in: string;
   check_out: string;
   status: string; // Legacy status
+  /** Active check-in record when guest is or was checked in via Check-ins API */
+  checkin_id?: string | null;
   total_amount: number;
   source: string;
   beds24_booking_id?: string;

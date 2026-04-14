@@ -238,7 +238,7 @@ CREATE TABLE reservations (
     check_in DATE NOT NULL,
     check_out DATE NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Confirmed' CHECK (status IN (
-        'Confirmed', 'Checked-in', 'Checked-out', 'Cancelled'
+        'Confirmed', 'Checked-in', 'Checked-out', 'Cancelled', 'No-show'
     )),
     total_amount DECIMAL(10, 2) NOT NULL,
     source VARCHAR(50) DEFAULT 'Direct' CHECK (source IN (
@@ -261,10 +261,8 @@ CREATE INDEX idx_reservations_dates ON reservations(check_in, check_out);
 CREATE INDEX idx_reservations_beds24_booking_id ON reservations(beds24_booking_id);
 CREATE INDEX idx_reservations_deleted_at ON reservations(deleted_at) WHERE deleted_at IS NULL;
 
--- Partial unique index to prevent overlapping reservations
-CREATE UNIQUE INDEX idx_reservations_no_overlap 
-ON reservations(room_id, check_in, check_out) 
-WHERE status != 'Cancelled' AND deleted_at IS NULL;
+-- (Historical) Partial unique index on room/date — overlap enforcement may use application logic
+-- when multiple statuses free inventory (Cancelled, No-show, Checked-out).
 ```
 
 **Columns:**

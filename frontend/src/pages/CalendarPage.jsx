@@ -10,6 +10,9 @@ import useGuestsStore from '../store/guestsStore'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 
+const reservationBlocksAvailability = (status) =>
+  status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
+
 const CalendarPage = () => {
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
   const { rooms, fetchRooms } = useRoomsStore()
@@ -161,7 +164,7 @@ const CalendarPage = () => {
           if (r.roomTypeId !== selectedRoomType.room_type_id) return false
           
           const hasConflict = reservations.some((res) => {
-            if (res.roomId !== r.id || res.status === 'Cancelled') return false
+            if (res.roomId !== r.id || reservationBlocksAvailability(res.status)) return false
             const resCheckIn = parseISO(res.checkIn)
             const resCheckOut = parseISO(res.checkOut)
             const newCheckIn = parseISO(checkIn)
@@ -251,7 +254,7 @@ const CalendarPage = () => {
     let force = false
     if (newReservation.roomId) {
       const hasOverlap = reservations.some((res) => {
-        if (res.roomId !== newReservation.roomId || res.status === 'Cancelled') return false
+        if (res.roomId !== newReservation.roomId || reservationBlocksAvailability(res.status)) return false
         const resCheckIn = parseISO(res.checkIn)
         const resCheckOut = parseISO(res.checkOut)
         return (
@@ -338,6 +341,8 @@ const CalendarPage = () => {
         return 'bg-gray-500 dark:bg-gray-400'
       case 'Cancelled':
         return 'bg-red-500'
+      case 'No-show':
+        return 'bg-orange-600'
       default:
         return 'bg-gray-500 dark:bg-gray-400'
     }
@@ -452,6 +457,10 @@ const CalendarPage = () => {
             <div className="w-4 h-4 bg-red-500 rounded"></div>
             <span className="text-sm">Cancelled</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-orange-600 rounded"></div>
+            <span className="text-sm">No-show</span>
+          </div>
         </div>
       </div>
 
@@ -493,6 +502,12 @@ const CalendarPage = () => {
                 <StatusBadge status={selectedReservation.status} type="reservation" />
               </div>
             </div>
+            {selectedReservation.checkinId && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Check-in record</label>
+                <p className="text-gray-900 dark:text-gray-100 font-mono text-xs">{selectedReservation.checkinId}</p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Amount</label>
               <p className="text-gray-900 dark:text-gray-100">${selectedReservation.totalAmount?.toLocaleString() || '0'}</p>
@@ -667,7 +682,7 @@ const CalendarPage = () => {
                     for (let unitIndex = 0; unitIndex < totalUnits; unitIndex++) {
                       const unitId = `${selectedRoomType.room_type_id}-unit-${unitIndex}`
                       const isAvailable = !reservations.some((res) => {
-                        if (res.assignedUnitId !== unitId || res.status === 'Cancelled') return false
+                        if (res.assignedUnitId !== unitId || reservationBlocksAvailability(res.status)) return false
                         const resCheckIn = parseISO(res.checkIn)
                         const resCheckOut = parseISO(res.checkOut)
                         const newCheckIn = parseISO(checkIn)
@@ -863,6 +878,7 @@ const CalendarPage = () => {
                   <option value="Checked-in">Checked-in</option>
                   <option value="Checked-out">Checked-out</option>
                   <option value="Cancelled">Cancelled</option>
+                  <option value="No-show">No-show</option>
                 </select>
               </div>
 
@@ -870,10 +886,7 @@ const CalendarPage = () => {
                 <button onClick={handleBackStep} className="btn btn-secondary">
                   Back
                 </button>
-                <button
-                  onClick={handleCreateReservation}
-                  className="btn btn-primary"
-                >
+                <button onClick={handleCreateReservation} className="btn btn-primary">
                   Create Reservation
                 </button>
               </div>

@@ -144,19 +144,18 @@ export async function createInvoiceHandler(
     const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
     const {
       reservation_id,
-      guest_id,
+      guest_id: bodyGuestId,
       issue_date,
       due_date,
-      amount,
+      amount: bodyAmount,
       status = 'Pending',
       payment_method,
       notes,
     } = req.body;
 
-    // Validation
-    if (!guest_id || !issue_date || !due_date || amount === undefined) {
+    if (!issue_date || !due_date) {
       res.status(400).json({
-        error: 'guest_id, issue_date, due_date, and amount are required',
+        error: 'issue_date and due_date are required',
       } as any);
       return;
     }
@@ -171,34 +170,61 @@ export async function createInvoiceHandler(
       return;
     }
 
-    if (amount <= 0) {
+    let reservationRow: { id: string; primary_guest_id: string; total_amount: string | number } | null =
+      null;
+    if (reservation_id) {
+      reservationRow = await db('reservations')
+        .where({ id: reservation_id, hotel_id: hotelId })
+        .whereNull('deleted_at')
+        .first();
+      if (!reservationRow) {
+        res.status(404).json({
+          error: 'Reservation not found',
+        } as any);
+        return;
+      }
+    }
+
+    let guest_id = bodyGuestId;
+    if (!guest_id && reservationRow) {
+      guest_id = reservationRow.primary_guest_id;
+    }
+
+    const amountExplicit = bodyAmount !== undefined && bodyAmount !== null;
+    let amount = bodyAmount;
+    if ((amount === undefined || amount === null) && reservationRow) {
+      amount = parseFloat(String(reservationRow.total_amount));
+    }
+
+    if (!guest_id) {
+      res.status(400).json({
+        error: 'guest_id is required unless reservation_id resolves to a reservation',
+      } as any);
+      return;
+    }
+
+    if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
+      res.status(400).json({
+        error: 'amount is required unless reservation_id is provided',
+      } as any);
+      return;
+    }
+
+    const numericAmount = Number(amount);
+
+    if (numericAmount <= 0) {
       res.status(400).json({
         error: 'amount must be greater than 0',
       } as any);
       return;
     }
 
-    // Check if guest exists and belongs to the same hotel
     const guest = await db('guests').where({ id: guest_id, hotel_id: hotelId }).first();
     if (!guest) {
       res.status(404).json({
         error: 'Guest not found',
       } as any);
       return;
-    }
-
-    // Check if reservation exists if provided and belongs to the same hotel
-    if (reservation_id) {
-      const reservation = await db('reservations')
-        .where({ id: reservation_id, hotel_id: hotelId })
-        .whereNull('deleted_at')
-        .first();
-      if (!reservation) {
-        res.status(404).json({
-          error: 'Reservation not found',
-        } as any);
-        return;
-      }
     }
 
     // Create invoice
@@ -209,7 +235,7 @@ export async function createInvoiceHandler(
         guest_id,
         issue_date: issueDate.toISOString().split('T')[0],
         due_date: dueDate.toISOString().split('T')[0],
-        amount,
+        amount: numericAmount,
         status,
         payment_method: payment_method || null,
         notes: notes || null,
@@ -252,12 +278,25 @@ export async function createInvoiceHandler(
 
     res.status(201).json(response);
 
+    if (
+      reservationRow &&
+      amountExplicit &&
+      Math.abs(numericAmount - parseFloat(String(reservationRow.total_amount))) > 0.005
+    ) {
+      logAction(req, 'INVOICE_AMOUNT_OVERRIDE', 'invoice', fullInvoice.id, {
+        description: 'Manual invoice amount differs from reservation total',
+        reservation_id: reservationRow.id,
+        calculated_amount: parseFloat(String(reservationRow.total_amount)),
+        invoiced_amount: numericAmount,
+      }).catch((err) => console.error('Audit log failed:', err));
+    }
+
     // Audit log: invoice created
     logCreate(req, 'invoice', fullInvoice.id, {
       guest_id,
       guest_name: fullInvoice.guest_name,
       reservation_id: reservation_id || null,
-      amount,
+      amount: numericAmount,
       status,
       issue_date,
       due_date,

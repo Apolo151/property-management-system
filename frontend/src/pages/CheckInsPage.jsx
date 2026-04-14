@@ -34,6 +34,7 @@ const CheckInsPage = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [checkoutAmount, setCheckoutAmount] = useState('');
   const [isChangeRoomModalOpen, setIsChangeRoomModalOpen] = useState(false);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -93,13 +94,30 @@ const CheckInsPage = () => {
     if (!selectedCheckIn) return;
 
     try {
-      await checkOutGuest(selectedCheckIn.id, {
+      const payload = {
         notes: checkoutNotes,
         actual_checkout_time: new Date().toISOString(),
-      });
-      toast.success('Guest checked out successfully');
+      };
+      const trimmed = checkoutAmount.trim();
+      if (trimmed !== '') {
+        const n = Number(trimmed);
+        if (!Number.isNaN(n)) {
+          payload.amount = n;
+        }
+      }
+      const result = await checkOutGuest(selectedCheckIn.id, payload);
+      if (result.checkout_invoice?.id) {
+        toast.success(
+          `Checked out. Invoice ${result.checkout_invoice.id.substring(0, 8)}… ($${Number(result.checkout_invoice.amount).toFixed(2)})`,
+        );
+      } else if (result.checkout_invoice_error) {
+        toast.warning(`Checked out; invoice issue: ${result.checkout_invoice_error}`);
+      } else {
+        toast.success('Guest checked out successfully');
+      }
       setIsCheckoutModalOpen(false);
       setCheckoutNotes('');
+      setCheckoutAmount('');
       setSelectedCheckIn(null);
     } catch (error) {
       toast.error(error.message || 'Failed to checkout guest');
@@ -434,6 +452,7 @@ const CheckInsPage = () => {
           onClose={() => {
             setIsCheckoutModalOpen(false);
             setCheckoutNotes('');
+            setCheckoutAmount('');
             setSelectedCheckIn(null);
           }}
           title="Checkout Guest"
@@ -443,6 +462,24 @@ const CheckInsPage = () => {
               <p className="text-sm text-gray-700 dark:text-gray-300">
                 Checkout <strong>{selectedCheckIn.guest_name}</strong> from Room{' '}
                 <strong>{selectedCheckIn.room_number}</strong>?
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Invoice amount (optional)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={checkoutAmount}
+                onChange={(e) => setCheckoutAmount(e.target.value)}
+                placeholder="Leave blank to use reservation total"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Overrides the reservation total for the checkout invoice when set.
               </p>
             </div>
 
@@ -465,6 +502,7 @@ const CheckInsPage = () => {
               onClick={() => {
                 setIsCheckoutModalOpen(false);
                 setCheckoutNotes('');
+                setCheckoutAmount('');
                 setSelectedCheckIn(null);
               }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"

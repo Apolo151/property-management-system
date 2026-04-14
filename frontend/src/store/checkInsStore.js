@@ -149,6 +149,8 @@ const useCheckInsStore = create((set, get) => ({
         guest_email: checkIn.reservation?.primary_guest_email || '',
         guest_phone: checkIn.reservation?.primary_guest_phone || '',
         room_type_name: checkIn.reservation?.room_type_name || '',
+        checkout_invoice: checkIn.checkout_invoice,
+        checkout_invoice_error: checkIn.checkout_invoice_error,
       };
       
       // Update the check-in in the list
