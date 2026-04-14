@@ -21,10 +21,10 @@
 | 4. Reservation Management | Partial | Create/search/calendar/check-in/out present; edit/cancel/date-modify/second-guest coverage partial |
 | 5. Invoice & Payment Management | Partial | Invoice/payment core exists; PDF/history/auto-checkout invoice reliability not fully proven |
 | 6. Housekeeping Management | Partial | Status updates and assignment exist; schedule/alerts/workflow depth missing |
-| 7. Maintenance Management | Partial | Create/view/update/priority/repaired present; tenant-scoping and history depth need hardening |
+| 7. Maintenance Management | Partial | Tenant-scoped list/detail/create/update aligned with `hotel_id`; long-term history/reporting depth still partial |
 | 8. Expense Management | Implemented | Core create/view/update/delete/category/filter/report needs appear covered |
 | 9. Reporting & Analytics | Partial | Dashboard and exports exist; advanced occupancy forecast/cancellation analysis depth partial |
-| 10. Audit & Compliance | Partial | View/search/filter largely present; export/user-activity granularity and tenant filtering need hardening |
+| 10. Audit & Compliance | Partial | View/search/filter tenant-scoped by `hotel_id`; export/user-activity granularity still partial |
 | 11. Beds24 Integration | Missing/Partial | Requirement names Beds24, implementation targets QloApps with partial sync/TODOs |
 | 12. Notifications | Partial | Notification UI exists; reminder/alert automation use cases not fully evidenced |
 
@@ -34,7 +34,7 @@
 |---|---|---|---|---|---|
 | UC-004 | Reset Password | Missing | `frontend/src/pages/LoginPage.jsx`, `backend/src/services/auth/auth_routes.ts` | No complete reset-password user flow (request/reset token + reset UI/API lifecycle) evident | Phase 2 |
 | UC-005 | Change Password | Partial | `frontend/src/store/authStore.js`, `backend/src/services/auth` | Backend/auth utilities exist but no clear user-facing change-password journey in pages | Phase 2 |
-| UC-006 | Manage User Roles | Partial | `frontend/src/pages/SettingsPage.jsx`, `backend/src/services/users/users_routes.ts` | Users routes have auth-wiring risk (`requireRole` without clear `authenticateToken`) causing reliability/security gap | Phase 2 + Phase 4 hardening |
+| UC-006 | Manage User Roles | Partial | `frontend/src/pages/SettingsPage.jsx`, `backend/src/services/users/users_routes.ts` | JWT + role order fixed; password reset/change-password journeys still partial | Phase 2 + Phase 4 hardening |
 | UC-106 | Merge Duplicate Guest Records | Missing | `frontend/src/pages/GuestsPage.jsx`, `backend/src/services/guests` | No merge workflow detected in guest UI/API | Phase 2 |
 | UC-207 | Set Room Rates | Partial | `frontend/src/pages/RoomTypesPage.jsx`, `backend/src/services/room_types` | Base pricing exists but dedicated rate-management flow is limited vs use-case intent | Phase 2/3 |
 | UC-208 | Add Room Features | Partial | `frontend/src/pages/RoomsPage.jsx`, `backend/src/services/rooms` | Room attributes present, but explicit room-features management workflow is limited | Phase 2 |
@@ -48,11 +48,11 @@
 | UC-409 | Auto-generate Invoice on Check-out | Partial | `backend/src/services/check_ins/check_ins_service.ts`, `docs/USE_CASES.md` | Checkout lifecycle exists; guaranteed invoice auto-generation path and failure handling not fully validated end-to-end | Phase 2 |
 | UC-506 | View Housekeeping Schedule | Missing | `frontend/src/pages/RoomsPage.jsx` | Housekeeping statuses exist; no explicit schedule/calendar workflow detected | Phase 2 |
 | UC-507 | Track Last Cleaned Date | Partial | `frontend/src/pages/RoomsPage.jsx`, `backend/src/services/rooms` | Last-cleaned appears surfaced in some places; consistency/history depth unclear | Phase 2 |
-| UC-607 | View Maintenance History | Partial | `frontend/src/pages/MaintenancePage.jsx`, `backend/src/services/maintenance/maintenance_controller.ts` | List/history basics exist, but tenant filtering and long-term history/reporting robustness need work | Phase 2 + Phase 4 hardening |
+| UC-607 | View Maintenance History | Partial | `frontend/src/pages/MaintenancePage.jsx`, `backend/src/services/maintenance/maintenance_controller.ts` | Requests scoped to `X-Hotel-Id`; advanced history/reporting depth still partial | Phase 2 + Phase 4 hardening |
 | UC-807 | View Cancellation Rate | Partial | `frontend/src/pages/DashboardPage.jsx`, `backend/src/services/reports/reports_controller.ts` | Dashboard metrics exist; explicit cancellation-rate accuracy/traceability requirements need validation | Phase 2 |
 | UC-808 | View Occupancy Forecast | Partial | `frontend/src/pages/DashboardPage.jsx`, `backend/src/services/reports` | Forecast visualization exists, but forecasting model depth/data confidence unclear | Phase 2 |
 | UC-903 | Export Audit Logs | Partial | `frontend/src/pages/AuditLogsPage.jsx`, `backend/src/services/audit` | Audit viewing exists; export capability and scoped controls need confirmation/hardening | Phase 2/4 |
-| UC-905 | View User Activity | Partial | `frontend/src/pages/AuditLogsPage.jsx`, `backend/src/services/audit/audit_controller.ts` | General logs available, but dedicated user activity reporting and tenant-safe filtering are limited | Phase 2 + Phase 4 hardening |
+| UC-905 | View User Activity | Partial | `frontend/src/pages/AuditLogsPage.jsx`, `backend/src/services/audit/audit_controller.ts` | Audit list/detail scoped to current hotel; dedicated user-activity reporting still limited | Phase 2 + Phase 4 hardening |
 | UC-1001..UC-1008 | Beds24 Integration Suite | Missing/Partial | `backend/src/services/qloapps/*`, `backend/src/integrations/qloapps/*`, `frontend/src/pages/SettingsPage.jsx` | Requirement targets Beds24, current implementation targets QloApps; plus sync conflict/health/rate/availability TODOs remain | Phase 3 |
 | UC-1101..UC-1106 | Notifications Suite | Partial | `frontend/src/components/Notifications.jsx`, `backend/src` | Notification surface exists, but automated reminder/alert rules in use cases are not fully evidenced | Phase 2 |
 
@@ -69,9 +69,9 @@
 ## Cross-Cutting Risks Identified During Comparison
 
 - **Tenant isolation inconsistencies (Partial)**:
-  - Maintenance and audit read paths need stricter hotel scoping validation.
+  - Other modules should be reviewed periodically for consistent `hotel_id` + `X-Hotel-Id` usage.
 - **Security hardening debt (Partial)**:
-  - User route auth-wiring inconsistency; permissive defaults should be tightened before production.
+  - Production must not set `ALLOW_DEFAULT_HOTEL`; confirm `NODE_ENV=production` and header discipline in deployment checks.
 - **Use-case drift in external integration (Resolved)**:
   - `USE_CASES.md` previously specified Beds24; updated to QloApps. Sync implementation gaps remain (Phase 3).
 - **Legacy/overlapping lifecycle handling (Medium)**:

@@ -1,8 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+import type { Query } from 'express-serve-static-core';
 import { verifyToken, type JwtPayload } from './auth_utils.js';
 import db from '../../config/database.js';
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = Query,
+> extends Request<P, ResBody, ReqBody, ReqQuery> {
   user?: JwtPayload;
   hotelId?: string;
 }
@@ -59,19 +66,27 @@ export function requireRole(...allowedRoles: string[]) {
   };
 }
 
-// Default hotel ID for backward compatibility (Phase 1)
-// TODO: Remove this default in Phase 3 when frontend sends X-Hotel-Id header
+/** Legacy default property UUID (single-property migrations). Non-production only when ALLOW_DEFAULT_HOTEL=true. */
 const DEFAULT_HOTEL_ID = '00000000-0000-0000-0000-000000000000';
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+function allowDefaultHotelFallback(): boolean {
+  return process.env.ALLOW_DEFAULT_HOTEL === 'true';
+}
 
 /**
  * Hotel Context Middleware
- * 
+ *
  * Validates the X-Hotel-Id header and ensures the user has access to the hotel.
  * SUPER_ADMIN users have implicit access to all hotels.
- * 
+ *
  * Must be applied after authenticateToken middleware.
- * 
- * TEMPORARY: Falls back to default hotel ID if header is missing (Phase 1 compatibility)
+ *
+ * Production: missing header → 400 PROPERTY_CONTEXT_REQUIRED.
+ * Non-production: same unless ALLOW_DEFAULT_HOTEL=true, then falls back to DEFAULT_HOTEL_ID (local scripts only).
  */
 export async function hotelContext(
   req: AuthenticatedRequest,
@@ -86,13 +101,19 @@ export async function hotelContext(
       return;
     }
 
-    // Extract hotel ID from header or use default (Phase 1 backward compatibility)
-    let hotelId = req.headers['x-hotel-id'] as string;
+    let hotelId = (req.headers['x-hotel-id'] as string | undefined)?.trim();
 
-    // TEMPORARY: Fallback to default hotel if header is missing
-    // This provides backward compatibility until frontend is updated (Phase 3)
     if (!hotelId) {
-      console.warn('[hotelContext] X-Hotel-Id header missing, using default hotel (Phase 1 compatibility)');
+      if (isProduction() || !allowDefaultHotelFallback()) {
+        res.status(400).json({
+          error: 'Select a property or send the X-Hotel-Id header.',
+          code: 'PROPERTY_CONTEXT_REQUIRED',
+        });
+        return;
+      }
+      console.warn(
+        '[hotelContext] X-Hotel-Id missing; using default hotel (ALLOW_DEFAULT_HOTEL=true, non-production only)',
+      );
       hotelId = DEFAULT_HOTEL_ID;
     }
 

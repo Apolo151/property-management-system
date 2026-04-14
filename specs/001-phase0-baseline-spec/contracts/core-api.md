@@ -4,12 +4,18 @@
 **Date**: 2026-04-14  
 **Base URL**: `/api/v1`  
 **Auth**: All endpoints require `Authorization: Bearer <access_token>` unless noted.  
-**Hotel Scope**: All operational endpoints require `X-Hotel-Id: <hotel_uuid>` header. Each
-hotel is an independent property tenant. `SUPER_ADMIN` users can access any hotel.
-Users must be assigned to a hotel via `user_hotels` to access its data.
+**Hotel Scope**: Property-scoped operational routes (rooms, reservations, guests, invoices,
+maintenance, audit, settings under `/api/v1/...` that mount `hotelContext`) require
+`X-Hotel-Id: <hotel_uuid>`. In **production**, omitting the header returns **400** with
+`code: PROPERTY_CONTEXT_REQUIRED`. Non-production may set `ALLOW_DEFAULT_HOTEL=true` for the
+legacy default property UUID (local tooling only). Each hotel is an independent tenant.
+`SUPER_ADMIN` may access any hotel via the header; other users must appear in `user_hotels`.
+
+**Common error codes**: `PROPERTY_CONTEXT_REQUIRED`, `HOTEL_ACCESS_DENIED`, `HOTEL_NOT_FOUND`,
+`TOKEN_EXPIRED`, `TOKEN_INVALID`.
 
 This document describes the existing API surface as-built, including current coverage
-status and known gaps.
+status and known gaps. See also `specs/003-docs-code-alignment/contracts/property-context-and-tenancy.md`.
 
 ---
 
@@ -61,16 +67,17 @@ Multi-property management. Only `SUPER_ADMIN` and `ADMIN` can create or manage h
 
 ## 2. Users (`/api/v1/users`)
 
-⚠️ **Security debt**: `requireRole` is applied but `authenticateToken` middleware wiring
-needs verification. Treat all these endpoints as requiring both middleware.
+All routes use **`authenticateToken`** then **`requireRole('ADMIN','SUPER_ADMIN')`**. Listing is
+global for admins (no `X-Hotel-Id`). **ADMIN** may only assign `hotel_ids` for hotels they
+belong to; **SUPER_ADMIN** unrestricted.
 
 | Method | Path | Description | Status | Notes |
 |---|---|---|---|---|
-| GET | `/api/v1/users` | List users (hotel-scoped) | ⚠️ Partial | Auth wiring gap |
-| POST | `/api/v1/users` | Create user + assign to hotel | ⚠️ Partial | UC-006 |
-| GET | `/api/v1/users/:id` | Get user by ID | ⚠️ Partial | — |
-| PUT | `/api/v1/users/:id` | Update user info / role | ⚠️ Partial | UC-006 |
-| DELETE | `/api/v1/users/:id` | Soft-delete user | ⚠️ Partial | — |
+| GET | `/api/v1/users` | List users | ✅ Implemented | JWT + role |
+| POST | `/api/v1/users` | Create user + assign to hotel | ✅ Implemented | UC-006 |
+| GET | `/api/v1/users/:id` | Get user by ID | ✅ Implemented | — |
+| PUT | `/api/v1/users/:id` | Update user info / role | ✅ Implemented | UC-006 |
+| DELETE | `/api/v1/users/:id` | Soft-delete user | ✅ Implemented | — |
 
 ---
 

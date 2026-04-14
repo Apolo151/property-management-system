@@ -20,12 +20,22 @@ const useAuthStore = create((set, get) => ({
       localStorage.setItem('refreshToken', response.refreshToken);
       localStorage.setItem('user', JSON.stringify(response.user));
       
-      // Store hotels and activeHotelId
       const hotels = response.hotels || [];
-      const activeHotelId = response.activeHotelId || (hotels.length > 0 ? hotels[0].id : null);
-      
+      let activeHotelId = response.activeHotelId ?? null;
+      if (hotels.length === 1) {
+        activeHotelId = hotels[0].id;
+      } else if (hotels.length > 1) {
+        const stored = localStorage.getItem('activeHotelId');
+        if (stored && hotels.some((h) => h.id === stored)) {
+          activeHotelId = stored;
+        } else {
+          activeHotelId = null;
+        }
+      }
       if (activeHotelId) {
         localStorage.setItem('activeHotelId', activeHotelId);
+      } else {
+        localStorage.removeItem('activeHotelId');
       }
       localStorage.setItem('hotels', JSON.stringify(hotels));
       
@@ -129,16 +139,28 @@ const useAuthStore = create((set, get) => ({
       const response = await api.auth.me();
       
       // Update hotels if provided
-      const hotels = response.hotels || [];
-      if (hotels.length > 0) {
-        localStorage.setItem('hotels', JSON.stringify(hotels));
-      }
-      
-      set({
-        user: response.user,
-        hotels,
-        isAuthenticated: true,
-      });
+        const hotels = response.hotels || [];
+        if (hotels.length > 0) {
+          localStorage.setItem('hotels', JSON.stringify(hotels));
+        }
+        let nextActiveHotelId = get().activeHotelId;
+        if (hotels.length === 1) {
+          nextActiveHotelId = hotels[0].id;
+          localStorage.setItem('activeHotelId', nextActiveHotelId);
+        } else if (hotels.length > 1) {
+          const cur = get().activeHotelId;
+          if (!cur || !hotels.some((h) => h.id === cur)) {
+            nextActiveHotelId = null;
+            localStorage.removeItem('activeHotelId');
+          }
+        }
+
+        set({
+          user: response.user,
+          hotels,
+          activeHotelId: nextActiveHotelId,
+          isAuthenticated: true,
+        });
       localStorage.setItem('user', JSON.stringify(response.user));
       return response.user;
     } catch (error) {
@@ -226,10 +248,13 @@ const useAuthStore = create((set, get) => ({
         const user = JSON.parse(userStr);
         const hotels = hotelsStr ? JSON.parse(hotelsStr) : [];
         
-        // If no activeHotelId but user has hotels, set the first one
-        if (!activeHotelId && hotels.length > 0) {
+        if (!activeHotelId && hotels.length === 1) {
           activeHotelId = hotels[0].id;
           localStorage.setItem('activeHotelId', activeHotelId);
+        }
+        if (hotels.length > 1 && activeHotelId && !hotels.some((h) => h.id === activeHotelId)) {
+          activeHotelId = null;
+          localStorage.removeItem('activeHotelId');
         }
         
         set({

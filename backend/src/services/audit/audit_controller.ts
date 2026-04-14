@@ -1,4 +1,5 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '../auth/auth_middleware.js';
 import db from '../../config/database.js';
 import type { GetAuditLogsQuery, AuditLogResponse } from './audit_types.js';
 
@@ -79,13 +80,14 @@ function transformAuditLog(log: any): AuditLogResponse {
 }
 
 export async function getAuditLogsHandler(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const query = req.query as unknown as GetAuditLogsQuery;
-    
+
     // Join with users table to get user names
     let queryBuilder = db('audit_logs')
       .select(
@@ -94,7 +96,8 @@ export async function getAuditLogsHandler(
         'users.last_name as user_last_name',
         'users.email as user_email'
       )
-      .leftJoin('users', 'audit_logs.user_id', 'users.id');
+      .leftJoin('users', 'audit_logs.user_id', 'users.id')
+      .where('audit_logs.hotel_id', hotelId);
 
     // Apply filters
     if (query.action) {
@@ -134,9 +137,8 @@ export async function getAuditLogsHandler(
     }
 
     // Get total count before pagination
-    // Build a separate count query with the same filters
-    let countQuery = db('audit_logs');
-    
+    let countQuery = db('audit_logs').where('audit_logs.hotel_id', hotelId);
+
     if (query.action) {
       countQuery = countQuery.where('action', query.action);
     }
@@ -194,11 +196,12 @@ export async function getAuditLogsHandler(
 }
 
 export async function getAuditLogHandler(
-  req: Request,
+  req: AuthenticatedRequest<{ id: string }>,
   res: Response,
   next: NextFunction,
 ) {
   try {
+    const hotelId = req.hotelId!;
     const { id } = req.params;
 
     const log = await db('audit_logs')
@@ -210,6 +213,7 @@ export async function getAuditLogHandler(
       )
       .leftJoin('users', 'audit_logs.user_id', 'users.id')
       .where('audit_logs.id', id)
+      .where('audit_logs.hotel_id', hotelId)
       .first();
 
     if (!log) {

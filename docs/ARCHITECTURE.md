@@ -111,6 +111,14 @@ Common local flow:
 - Keep feature-oriented service structure: low coupling and readable boundaries
 - Remove unused multi-provider abstractions until a second provider is required
 
+## Multi-property tenancy
+
+- **Tenant**: Each **hotel** row is an independent property. Operational data (rooms, reservations, guests, invoices, maintenance, audit rows, etc.) is scoped with `hotel_id`.
+- **Property context**: Authenticated API requests that operate on tenant data use middleware **`hotelContext`** after **`authenticateToken`**. The client sends **`X-Hotel-Id`** with the active property UUID. **`SUPER_ADMIN`** may call any hotel they pass in the header; other roles must be linked in **`user_hotels`**.
+- **Production**: Missing `X-Hotel-Id` on `hotelContext` routes returns **400** with `code: PROPERTY_CONTEXT_REQUIRED`. For local scripts and tests only, set **`ALLOW_DEFAULT_HOTEL=true`** (non-production) to allow the legacy default UUID; never enable in production.
+- **Global routes (no hotel header)**: `/api/auth/*`, **`/api/v1/hotels`** (list/manage properties), and **`/api/v1/users`** (user admin uses JWT only; hotel assignment rules are enforced in the users service).
+- **Frontend**: Users with multiple assigned properties must **select** an active hotel; the SPA stores it and sends `X-Hotel-Id` on operational calls.
+
 ## Out of Scope
 
 The backend does not currently implement:

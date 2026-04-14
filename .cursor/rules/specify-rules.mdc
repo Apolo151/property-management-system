@@ -9,6 +9,8 @@ alwaysApply: true
 Auto-generated from all feature plans. Last updated: 2026-04-15
 
 ## Active Technologies
+- Node.js 18+, TypeScript 5.x (backend); React 18 (frontend) + Express, Knex, PostgreSQL, JWT auth; React Router, Zustand (as in repo) (003-docs-code-alignment)
+- PostgreSQL (existing schema: `hotels`, `hotel_id` on tenant tables, `user_hotels`) (003-docs-code-alignment)
 
 - Node.js 18+ / TypeScript 5.x (backend); React 18 JSX (frontend) + Express.js, Knex.js, Zustand, React Router v6, RabbitMQ (optional QloApps hooks) (001-phase0-baseline-spec)
 
@@ -28,6 +30,7 @@ npm test && npm run lint
 Node.js 18+ / TypeScript 5.x (backend); React 18 JSX (frontend): Follow standard conventions
 
 ## Recent Changes
+- 003-docs-code-alignment: Added Node.js 18+, TypeScript 5.x (backend); React 18 (frontend) + Express, Knex, PostgreSQL, JWT auth; React Router, Zustand (as in repo)
 
 - 001-phase0-baseline-spec: Added Node.js 18+ / TypeScript 5.x (backend); React 18 JSX (frontend) + Express.js, Knex.js, Zustand, React Router v6, RabbitMQ (optional QloApps hooks)
 
