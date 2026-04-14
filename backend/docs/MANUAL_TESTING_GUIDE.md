@@ -100,7 +100,7 @@ Server running on port 3000
 ### Terminal 2: Inbound Worker
 ```bash
 cd backend
-npm run worker:inbound
+npm run worker:qloapps-inbound
 ```
 
 **Expected output:**
@@ -108,14 +108,14 @@ npm run worker:inbound
 [RabbitMQ] Connected
 [RabbitMQ] Topology initialized
 [RabbitMQ] Topology setup complete
-[InboundWorker] Started consuming from beds24.inbound queue
+[QloApps InboundWorker] Started consuming from qloapps.inbound queue
 [InboundWorker] Running. Press Ctrl+C to stop.
 ```
 
 ### Terminal 3: Outbound Worker
 ```bash
 cd backend
-npm run worker:outbound
+npm run worker:qloapps-outbound
 ```
 
 **Expected output:**
@@ -123,7 +123,7 @@ npm run worker:outbound
 [RabbitMQ] Connected
 [RabbitMQ] Topology initialized
 [RabbitMQ] Topology setup complete
-[OutboundWorker] Started consuming from pms.outbound queue
+[QloApps OutboundWorker] Started consuming from qloapps.outbound queue
 [OutboundWorker] Running. Press Ctrl+C to stop.
 ```
 

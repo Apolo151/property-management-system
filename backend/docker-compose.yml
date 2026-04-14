@@ -1,4 +1,9 @@
 services:
+  # Profile guide:
+  # - default: api + postgres + rabbitmq
+  # - workers: add qloapps workers
+  # - infra: add optional qloapps container
+
   # ===================
   # Main Application
   # ===================
@@ -22,10 +27,6 @@ services:
       - SYNC_INTERVAL_MS=${SYNC_INTERVAL_MS:-60000}
       - SYNC_ENABLED=${SYNC_ENABLED:-true}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
-      - BEDS24_API_KEY=${BEDS24_API_KEY:-}
-      - BEDS24_PROP_KEY=${BEDS24_PROP_KEY:-}
-      - BEDS24_API_URL=${BEDS24_API_URL:-https://api.beds24.com/v2}
-      - BEDS24_WEBHOOK_SECRET=${BEDS24_WEBHOOK_SECRET:-}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -59,6 +60,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -90,6 +93,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -121,6 +126,9 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - QLOAPPS_SYNC_INTERVAL_MS=${QLOAPPS_SYNC_INTERVAL_MS:-300000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -157,8 +165,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    profiles:
-      - infra
     networks:
       - hotel-network
 
@@ -177,8 +183,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-    profiles:
-      - infra
     networks:
       - hotel-network
 

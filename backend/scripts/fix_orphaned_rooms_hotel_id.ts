@@ -14,6 +14,7 @@ import db from '../src/config/database.js';
  */
 
 const DEFAULT_HOTEL_ID = '00000000-0000-0000-0000-000000000000';
+type RoomCountRow = { hotel_id: string; count: string };
 
 async function main() {
   const targetHotelId = process.env.TARGET_HOTEL_ID;
@@ -33,11 +34,11 @@ async function main() {
     // Count rooms per hotel before
     const beforePerHotel = await db('rooms')
       .select('hotel_id')
-      .count<{ count: string }>('id as count')
+      .count('id as count')
       .groupBy('hotel_id');
 
     console.log('[fix_orphaned_rooms_hotel_id] Room counts BEFORE:');
-    beforePerHotel.forEach((row) => {
+    (beforePerHotel as RoomCountRow[]).forEach((row) => {
       console.log(`  hotel_id=${row.hotel_id}: ${row.count} rooms`);
     });
 
@@ -70,11 +71,11 @@ async function main() {
 
     const afterPerHotel = await db('rooms')
       .select('hotel_id')
-      .count<{ count: string }>('id as count')
+      .count('id as count')
       .groupBy('hotel_id');
 
     console.log('[fix_orphaned_rooms_hotel_id] Room counts AFTER:');
-    afterPerHotel.forEach((row) => {
+    (afterPerHotel as RoomCountRow[]).forEach((row) => {
       console.log(`  hotel_id=${row.hotel_id}: ${row.count} rooms`);
     });
 

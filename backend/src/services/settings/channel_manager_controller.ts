@@ -8,7 +8,8 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { channelManagerService } from '../../integrations/channel-manager/index.js';
+import { QloAppsClient } from '../../integrations/qloapps/qloapps_client.js';
+import { QloAppsConfigRepository } from '../qloapps/qloapps_repository.js';
 
 /**
  * Get channel manager status
@@ -20,8 +21,16 @@ export async function getChannelManagerStatusHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const status = await channelManagerService.getStatus();
-    res.json(status);
+    const repository = new QloAppsConfigRepository();
+    const config = await repository.getConfig();
+    res.json({
+      active: 'qloapps',
+      available: ['qloapps'],
+      qloapps: {
+        configured: !!config?.api_key_encrypted,
+        syncEnabled: config?.sync_enabled || false,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -44,18 +53,22 @@ export async function switchChannelManagerHandler(
       return;
     }
 
-    if (!['beds24', 'qloapps'].includes(channelManager)) {
-      res.status(400).json({ error: 'Invalid channel manager. Must be beds24 or qloapps' });
+    if (channelManager !== 'qloapps') {
+      res.status(400).json({ error: 'Only qloapps is supported' });
       return;
     }
 
-    await channelManagerService.switchTo(channelManager);
+    const repository = new QloAppsConfigRepository();
+    const config = await repository.getConfig();
+    if (!config) {
+      res.status(400).json({ error: 'QloApps is not configured' });
+      return;
+    }
 
-    const status = await channelManagerService.getStatus();
+    await repository.updateConfig({ syncEnabled: true });
     res.json({
       success: true,
-      message: `Switched to ${channelManager}`,
-      status,
+      message: 'QloApps is active',
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -76,7 +89,24 @@ export async function testQloAppsConnectionHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const result = await channelManagerService.testQloAppsConnection();
+    const repository = new QloAppsConfigRepository();
+    const config = await repository.getConfig();
+    const apiKey = await repository.getDecryptedApiKey();
+
+    if (!config || !apiKey) {
+      res.status(400).json({
+        success: false,
+        message: 'QloApps is not configured',
+      });
+      return;
+    }
+
+    const client = new QloAppsClient({
+      baseUrl: config.base_url,
+      apiKey,
+      hotelId: config.qloapps_hotel_id,
+    });
+    const result = await client.testConnection();
     res.json(result);
   } catch (error) {
     next(error);
@@ -191,9 +221,6 @@ export async function setupQloAppsConnectionHandler(
 
     // Save configuration
     await repository.saveConfig(configData);
-
-    // Automatically switch to QloApps as active channel manager
-    await channelManagerService.switchTo('qloapps');
 
     res.json({
       success: true,

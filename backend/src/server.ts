@@ -2,7 +2,7 @@ import 'dotenv/config';
 import morgan from 'morgan';
 
 import { buildApp } from './app.js';
-import { channelManagerService } from './integrations/channel-manager/index.js';
+import { initializeQloAppsIntegration } from './integrations/qloapps/index.js';
 
 const port = Number(process.env.PORT) || 3000;
 const app = buildApp();
@@ -14,12 +14,11 @@ app.use(environment === 'development' ? morgan('dev') : morgan('tiny'));
 // Initialize services and start the server
 async function startServer() {
   try {
-    // Initialize Channel Manager Service
-    await channelManagerService.initialize();
-    console.log('[Server] Channel Manager Service initialized');
+    await initializeQloAppsIntegration();
+    console.log('[Server] QloApps integration initialized');
   } catch (error) {
-    console.error('[Server] Failed to initialize Channel Manager Service:', error);
-    // Continue starting server even if channel manager init fails
+    console.error('[Server] Failed to initialize QloApps integration:', error);
+    // Continue starting server even if integration init fails
   }
 
   // Start the server and capture the returned Server instance.

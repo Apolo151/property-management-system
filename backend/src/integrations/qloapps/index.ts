@@ -22,6 +22,29 @@
  * ```
  */
 
+import { QloAppsConfigRepository } from '../../services/qloapps/qloapps_repository.js';
+
+/**
+ * Initialize QloApps integration at app startup.
+ * This keeps startup lightweight while validating configuration state.
+ */
+export async function initializeQloAppsIntegration(): Promise<void> {
+  const repository = new QloAppsConfigRepository();
+  const config = await repository.getConfig();
+
+  if (!config) {
+    console.log('[QloApps] No configuration found; integration will stay idle');
+    return;
+  }
+
+  if (!config.sync_enabled) {
+    console.log('[QloApps] Configuration found but sync is disabled');
+    return;
+  }
+
+  console.log('[QloApps] Configuration loaded and sync is enabled');
+}
+
 // Client
 export { QloAppsClient } from './qloapps_client.js';
 
