@@ -620,7 +620,9 @@ export async function getUnmappedRoomTypesHandler(
 
           const allQloAppsRoomTypes = await client.getRoomTypes();
           const mappings = await roomTypeMappingRepository.getAllMappings();
-          const mappedQloAppsIds = new Set(mappings.map((m) => m.qloapps_product_id));
+          const mappedQloAppsIds = new Set(
+            mappings.map((m) => Number(m.qloapps_product_id))
+          );
 
           qloAppsRoomTypes = allQloAppsRoomTypes
             .filter((rt) => !mappedQloAppsIds.has(rt.id))
@@ -806,9 +808,9 @@ export async function getReservationMappingsHandler(
         id: m.id,
         localReservationId: m.local_reservation_id,
         qloAppsOrderId: m.qloapps_order_id,
-        qloAppsBookingId: m.qloapps_booking_id,
+        qloAppsBookingId: m.qloapps_reference,
         source: m.source,
-        qloAppsChannel: m.qloapps_channel,
+        qloAppsChannel: m.ota_channel,
         hasConflict: m.has_conflict,
         lastSyncedAt: m.last_synced_at,
         createdAt: m.created_at,
@@ -922,8 +924,10 @@ export async function getCustomerMappingsHandler(
         localGuestName: m.guest_name,
         localGuestEmail: m.guest_email,
         qloAppsCustomerId: m.qloapps_customer_id,
-        matchMethod: m.match_method,
-        confidenceScore: parseFloat(m.confidence_score.toString()),
+        matchMethod: m.match_type,
+        confidenceScore: m.metadata?.confidence_score
+          ? parseFloat(String(m.metadata.confidence_score))
+          : null,
         createdAt: m.created_at,
         updatedAt: m.updated_at,
       })),
@@ -1176,7 +1180,9 @@ export async function getMappingSuggestionsHandler(
 
     const qloAppsRoomTypes = await client.getRoomTypes();
     const mappings = await roomTypeMappingRepository.getAllMappings();
-    const mappedQloAppsIds = new Set(mappings.map((m) => m.qloapps_product_id));
+    const mappedQloAppsIds = new Set(
+      mappings.map((m) => Number(m.qloapps_product_id))
+    );
 
     const unmappedQloApps = qloAppsRoomTypes.filter((rt) => !mappedQloAppsIds.has(rt.id));
 

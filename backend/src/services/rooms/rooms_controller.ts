@@ -8,20 +8,17 @@ import type {
   HousekeepingResponse,
   Beds24RoomType,
 } from './rooms_types.js';
-// Beds24 hooks disabled - QloApps is now the primary channel manager
-// import {
-//   queueRoomAvailabilitySyncHook,
-//   queueRoomRatesSyncHook,
-// } from '../../integrations/beds24/hooks/sync_hooks.js';
-import { channelManagerService } from '../../integrations/channel-manager/index.js';
+import {
+  queueQloAppsAvailabilitySyncHook,
+  queueQloAppsRateSyncHook,
+} from '../../integrations/qloapps/hooks/sync_hooks.js';
 
 // ============================================================================
 // Channel Manager Sync Helpers
 // ============================================================================
 
 /**
- * Queue room availability sync to the active channel manager
- * - QloApps only (Beds24 disabled)
+ * Queue room availability sync to QloApps.
  */
 async function queueAvailabilitySync(
   roomTypeId: string,
@@ -29,27 +26,16 @@ async function queueAvailabilitySync(
   dateTo?: string
 ): Promise<void> {
   try {
-    const activeManager = channelManagerService.getActiveChannelManager();
-
-    // Only use QloApps (Beds24 disabled)
-    if (activeManager === 'qloapps') {
-      const from = dateFrom ?? new Date().toISOString().split('T')[0];
-      const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      await channelManagerService.syncAvailability({
-        roomTypeId,
-        dateFrom: from as string,
-        dateTo: to as string,
-      });
-    }
-    // Note: Beds24 integration disabled
+    const from = dateFrom ?? new Date().toISOString().split('T')[0];
+    const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    await queueQloAppsAvailabilitySyncHook(roomTypeId, from as string, to as string);
   } catch (error) {
     console.error('[RoomsController] Failed to queue availability sync:', error);
   }
 }
 
 /**
- * Queue room rates sync to the active channel manager
- * - QloApps only (Beds24 disabled)
+ * Queue room rates sync to QloApps.
  */
 async function queueRatesSync(
   roomTypeId: string,
@@ -57,19 +43,9 @@ async function queueRatesSync(
   dateTo?: string
 ): Promise<void> {
   try {
-    const activeManager = channelManagerService.getActiveChannelManager();
-
-    // Only use QloApps (Beds24 disabled)
-    if (activeManager === 'qloapps') {
-      const from = dateFrom ?? new Date().toISOString().split('T')[0];
-      const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      await channelManagerService.syncRates({
-        roomTypeId,
-        dateFrom: from as string,
-        dateTo: to as string,
-      });
-    }
-    // Note: Beds24 integration disabled
+    const from = dateFrom ?? new Date().toISOString().split('T')[0];
+    const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    await queueQloAppsRateSyncHook(roomTypeId, from as string, to as string);
   } catch (error) {
     console.error('[RoomsController] Failed to queue rates sync:', error);
   }

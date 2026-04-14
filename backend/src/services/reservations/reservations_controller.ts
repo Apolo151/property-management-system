@@ -5,13 +5,10 @@ import type {
   UpdateReservationRequest,
   ReservationResponse,
 } from './reservations_types.js';
-// Beds24 hooks disabled - QloApps is now the primary channel manager
-// import {
-//   queueReservationSyncHook,
-//   queueReservationCancelHook,
-//   queueRoomAvailabilitySyncHook,
-// } from '../../integrations/beds24/hooks/sync_hooks.js';
-import { channelManagerService } from '../../integrations/channel-manager/index.js';
+import {
+  queueQloAppsAvailabilitySyncHook,
+  queueQloAppsReservationSyncHook,
+} from '../../integrations/qloapps/hooks/sync_hooks.js';
 import { RoomTypeAvailabilityService } from '../room_types/room_type_availability_service.js';
 import { logCreate, logUpdate, logDelete, logAction } from '../audit/audit_utils.js';
 
@@ -22,27 +19,14 @@ const availabilityService = new RoomTypeAvailabilityService();
 // ============================================================================
 
 /**
- * Queue reservation sync to the active channel manager
- * - QloApps only (Beds24 disabled)
+ * Queue reservation sync to QloApps.
  */
 async function queueReservationSync(
   reservationId: string,
-  action: 'create' | 'update' | 'cancel',
-  sourceToSkip?: string
+  action: 'create' | 'update' | 'cancel'
 ): Promise<void> {
   try {
-    const activeManager = channelManagerService.getActiveChannelManager();
-
-    // Skip if reservation came from QloApps (prevent sync loop)
-    if (sourceToSkip === 'QloApps' && activeManager === 'qloapps') {
-      return;
-    }
-
-    // Only use QloApps (Beds24 disabled)
-    if (activeManager === 'qloapps') {
-      await channelManagerService.syncReservation({ reservationId, action });
-    }
-    // Note: Beds24 integration disabled - uncomment imports above to re-enable
+    await queueQloAppsReservationSyncHook(reservationId, action);
   } catch (error) {
     console.error(`[ReservationController] Failed to queue ${action} sync for ${reservationId}:`, error);
     // Don't rethrow - sync failures shouldn't break reservation operations
@@ -50,8 +34,7 @@ async function queueReservationSync(
 }
 
 /**
- * Queue room availability sync to the active channel manager
- * - QloApps only (Beds24 disabled)
+ * Queue room availability sync to QloApps.
  */
 async function queueAvailabilitySync(
   roomTypeId: string,
@@ -59,19 +42,9 @@ async function queueAvailabilitySync(
   dateTo?: string
 ): Promise<void> {
   try {
-    const activeManager = channelManagerService.getActiveChannelManager();
-
-    // Only use QloApps (Beds24 disabled)
-    if (activeManager === 'qloapps') {
-      const from = dateFrom ?? new Date().toISOString().split('T')[0];
-      const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      await channelManagerService.syncAvailability({ 
-        roomTypeId, 
-        dateFrom: from as string, 
-        dateTo: to as string 
-      });
-    }
-    // Note: Beds24 integration disabled
+    const from = dateFrom ?? new Date().toISOString().split('T')[0];
+    const to = dateTo ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    await queueQloAppsAvailabilitySyncHook(roomTypeId, from as string, to as string);
   } catch (error) {
     console.error(`[ReservationController] Failed to queue availability sync:`, error);
   }
@@ -339,8 +312,10 @@ export async function createReservationHandler(
     let finalGuestId = primary_guest_id;
     if (!finalGuestId) {
       // Find or create "Unknown Guest"
-      const { GuestMatchingService } = await import('../../integrations/beds24/services/guest_matching_service.js');
-      const guestMatchingService = new GuestMatchingService();
+      const { QloAppsGuestMatchingService } = await import(
+        '../../integrations/qloapps/services/guest_matching_service.js'
+      );
+      const guestMatchingService = new QloAppsGuestMatchingService();
       finalGuestId = await guestMatchingService.getUnknownGuestId();
     }
 
@@ -565,7 +540,7 @@ export async function createReservationHandler(
 
     // Queue sync to active channel manager (non-blocking, fire-and-forget)
     // This ensures reservations created in PMS are synced to the channel manager (QloApps)
-    queueReservationSync(reservation.id, 'create', source).catch((err) => {
+    queueReservationSync(reservation.id, 'create').catch((err) => {
       console.error(
         `[ReservationController] Failed to queue sync for reservation ${reservation.id}:`,
         err
@@ -702,7 +677,7 @@ export async function updateReservationHandler(
     });
 
     // Queue channel manager sync (non-blocking)
-    queueReservationSync(id, 'update', existing.source).catch((err) => {
+    queueReservationSync(id, 'update').catch((err) => {
       console.error('Failed to queue reservation sync:', err);
     });
 
@@ -716,13 +691,6 @@ export async function updateReservationHandler(
         });
       }
     }
-
-    // Queue QloApps sync (non-blocking)
-    import('../../integrations/qloapps/hooks/sync_hooks.js')
-      .then(({ queueQloAppsReservationSyncHook }) => 
-        queueQloAppsReservationSyncHook(id, 'update')
-      )
-      .catch((err) => console.error('QloApps sync hook failed:', err));
 
     // Fetch updated reservation
     const updated = await db('reservations')
@@ -821,7 +789,7 @@ export async function deleteReservationHandler(
     }
 
     // Queue channel manager sync for cancellation (non-blocking)
-    queueReservationSync(id, 'cancel', reservation.source).catch((err) => {
+    queueReservationSync(id, 'cancel').catch((err) => {
       console.error('Failed to queue reservation cancel sync:', err);
     });
 
@@ -831,13 +799,6 @@ export async function deleteReservationHandler(
         console.error('Failed to queue room availability sync:', err);
       });
     }
-
-    // Queue QloApps sync for cancellation (non-blocking)
-    import('../../integrations/qloapps/hooks/sync_hooks.js')
-      .then(({ queueQloAppsReservationCancelHook }) => 
-        queueQloAppsReservationCancelHook(id)
-      )
-      .catch((err) => console.error('QloApps cancel sync hook failed:', err));
 
     res.status(204).send();
 

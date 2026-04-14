@@ -16,9 +16,6 @@ import { reportsRoutes } from './services/reports/reports_routes.js';
 import { auditRoutes } from './services/audit/audit_routes.js';
 import { settingsRoutes } from './services/settings/settings_routes.js';
 import { usersRoutes } from './services/users/users_routes.js';
-import { adminRoutes } from './services/admin/channel_events_routes.js';
-// Beds24 webhook routes disabled - QloApps is now the primary channel manager
-// import beds24WebhookRoutes from './integrations/beds24/webhooks/webhook_routes.js';
 import { qloAppsRoutes } from './services/qloapps/index.js';
 
 export const apiV1Router = Router();
@@ -38,10 +35,5 @@ apiV1Router.use('/v1', reportsRoutes);
 apiV1Router.use('/v1', auditRoutes);
 apiV1Router.use('/v1', settingsRoutes);
 apiV1Router.use('/v1', usersRoutes);
-apiV1Router.use('/admin', adminRoutes);
-// Beds24 webhook routes disabled - uncomment to re-enable
-// apiV1Router.use('/integrations/beds24', beds24WebhookRoutes);
-
-// QloApps routes - available at both paths for convenience
+// QloApps routes
 apiV1Router.use('/v1/qloapps', qloAppsRoutes);
-apiV1Router.use('/v1/integrations/qloapps', qloAppsRoutes);

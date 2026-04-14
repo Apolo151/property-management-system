@@ -7,7 +7,7 @@ import type {
 import { logAction, logUpdate } from '../audit/audit_utils.js';
 
 /**
- * Clear all data except users and Beds24 token data
+ * Clear all data except users and integration settings data.
  * This is a dangerous operation - use with caution!
  */
 export async function clearAllDataHandler(
@@ -49,7 +49,7 @@ export async function clearAllDataHandler(
       await trx('housekeeping').del();
       console.log('Cleared housekeeping');
 
-      // 7. Clear room_types (new Beds24-style)
+      // 7. Clear room_types
       await trx('room_types').del();
       console.log('Cleared room_types');
 
@@ -75,15 +75,15 @@ export async function clearAllDataHandler(
 
       // Note: We keep:
       // - users (authentication data)
-      // - beds24_config (Beds24 token data)
-      // - hotel_settings (hotel configuration)
+      // - qloapps_config (integration configuration)
+      // - hotels (hotel configuration)
     });
 
     console.log('Data clearing completed successfully');
 
     res.json({
       success: true,
-      message: 'All data cleared successfully (users and Beds24 config preserved)',
+      message: 'All data cleared successfully (users and integration config preserved)',
     });
 
     // Audit log: all data cleared
