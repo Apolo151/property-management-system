@@ -85,14 +85,18 @@ const useInvoicesStore = create((set, get) => ({
     try {
       const payload = {
         reservation_id: invoiceData.reservationId || invoiceData.reservation_id || undefined,
-        guest_id: invoiceData.guestId || invoiceData.guest_id,
         issue_date: invoiceData.issueDate || invoiceData.issue_date,
         due_date: invoiceData.dueDate || invoiceData.due_date,
-        amount: invoiceData.amount,
         status: invoiceData.status || 'Pending',
         payment_method: invoiceData.paymentMethod || invoiceData.payment_method || undefined,
         notes: invoiceData.notes || undefined,
       };
+      const gid = invoiceData.guestId || invoiceData.guest_id;
+      if (gid) payload.guest_id = gid;
+      const amt = invoiceData.amount;
+      if (amt !== undefined && amt !== null && amt !== '') {
+        payload.amount = Number(amt);
+      }
 
       const data = await api.invoices.create(payload);
 

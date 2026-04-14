@@ -134,6 +134,8 @@ await db.transaction(async (trx) => {
 
 ## Database Schema
 
+**Feature 002 (2026-04)**: migration `20260415000001_add_noshow_reservation_status` adds **`No-show`** to `reservations.status` CHECK constraint.
+
 The database uses PostgreSQL with the following features:
 
 - **UUID primary keys** - Using uuid-ossp extension

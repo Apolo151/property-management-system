@@ -1,9 +1,11 @@
 export interface CreateInvoiceRequest {
   reservation_id?: string;
-  guest_id: string;
+  /** Required unless reservation_id is provided (guest taken from reservation) */
+  guest_id?: string;
   issue_date: string; // ISO date string
   due_date: string; // ISO date string
-  amount: number;
+  /** Required unless reservation_id is provided (defaults to reservation total_amount) */
+  amount?: number;
   status?: 'Pending' | 'Paid' | 'Cancelled';
   payment_method?: 'Cash' | 'Card' | 'Online' | 'Bank Transfer' | 'Other';
   notes?: string;

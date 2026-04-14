@@ -43,6 +43,7 @@ const PMS_STATUS_TO_BOOKING: Record<LegacyReservationStatus, QloAppsBookingStatu
   'Checked-in': 2,  // Map to COMPLETED (QloApps doesn't have checked-in)
   'Checked-out': 2,
   'Cancelled': 3,
+  'No-show': 3, // Treat as cancelled for channel sync
 };
 
 /**

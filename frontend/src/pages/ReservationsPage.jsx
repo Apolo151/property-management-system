@@ -15,6 +15,9 @@ import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 import { api } from '../utils/api'
 
+const reservationBlocksAvailability = (status) =>
+  status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
+
 const ReservationsPage = () => {
   const { rooms, fetchRooms } = useRoomsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
@@ -28,6 +31,7 @@ const ReservationsPage = () => {
     error: reservationsError,
     fetchReservations,
     createReservation,
+    updateReservation,
   } = useReservationsStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -256,26 +260,14 @@ const ReservationsPage = () => {
       return
     }
 
-    // Find guest by name or ID
-    const guest = guests.find(
-      (g) => g.name === reservation.guestName || String(g.id) === String(reservation.guestId)
-    )
-
-    if (!guest) {
-      toast.error('Guest not found. Please ensure the guest exists in the system.')
-      return
-    }
-
     const today = new Date()
     const dueDate = addDays(today, 30) // 30 days from today
 
     try {
       await createInvoice({
         reservationId: reservation.id,
-        guestId: String(guest.id),
         issueDate: format(today, 'yyyy-MM-dd'),
         dueDate: format(dueDate, 'yyyy-MM-dd'),
-        amount: reservation.totalAmount || 0,
         status: 'Pending',
         notes: `Invoice for reservation ${reservation.id}`,
       })
@@ -283,6 +275,22 @@ const ReservationsPage = () => {
       toast.success(`Invoice created successfully for reservation ${reservation.id}`)
     } catch (error) {
       toast.error(error.message || 'Failed to create invoice')
+    }
+  }
+
+  const handleMarkNoShow = async (reservation) => {
+    const confirmed = await confirmation({
+      title: 'Mark as No-show',
+      message: `Mark reservation ${reservation.id?.substring(0, 8)}… as No-show? The room will be released for inventory.`,
+      variant: 'warning',
+    })
+    if (!confirmed) return
+    try {
+      await updateReservation(reservation.id, { status: 'No-show' })
+      await fetchReservations()
+      toast.success('Reservation marked as No-show')
+    } catch (error) {
+      toast.error(error.message || 'Failed to update reservation')
     }
   }
 
@@ -363,7 +371,7 @@ const ReservationsPage = () => {
     let force = false
     if (newReservation.roomId) {
       const hasOverlap = reservations.some((res) => {
-        if (res.roomId !== newReservation.roomId || res.status === 'Cancelled') return false
+        if (res.roomId !== newReservation.roomId || reservationBlocksAvailability(res.status)) return false
         const resCheckIn = parseISO(res.checkIn)
         const resCheckOut = parseISO(res.checkOut)
         return (
@@ -473,6 +481,7 @@ const ReservationsPage = () => {
     { value: 'Checked-in', label: 'Checked-in' },
     { value: 'Checked-out', label: 'Checked-out' },
     { value: 'Cancelled', label: 'Cancelled' },
+    { value: 'No-show', label: 'No-show' },
   ]
 
   const handleSort = (column) => {
@@ -616,6 +625,11 @@ const ReservationsPage = () => {
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100" title={reservation.id}>
                       {reservation.id?.substring(0, 8)}...
                     </div>
+                    {reservation.checkinId && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" title={reservation.checkinId}>
+                        Check-in record: {reservation.checkinId.substring(0, 8)}…
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-gray-100">{reservation.guestName}</div>
@@ -643,12 +657,20 @@ const ReservationsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                     {reservation.status === 'Confirmed' && (
-                      <button
-                        onClick={() => handleOpenCheckIn(reservation)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Check In
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleOpenCheckIn(reservation)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Check In
+                        </button>
+                        <button
+                          onClick={() => handleMarkNoShow(reservation)}
+                          className="text-amber-700 hover:text-amber-900 ml-3"
+                        >
+                          No-show
+                        </button>
+                      </>
                     )}
                     {hasInvoice(reservation.id) ? (
                       <span className="text-gray-400 dark:text-gray-500 cursor-not-allowed" title="Invoice already exists">
@@ -1064,6 +1086,7 @@ const ReservationsPage = () => {
                   <option value="Checked-in">Checked-in</option>
                   <option value="Checked-out">Checked-out</option>
                   <option value="Cancelled">Cancelled</option>
+                  <option value="No-show">No-show</option>
                 </select>
               </div>
 

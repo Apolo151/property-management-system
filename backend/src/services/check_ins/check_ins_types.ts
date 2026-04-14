@@ -38,6 +38,8 @@ export interface CheckOutRequest {
   checkin_id: string;
   actual_checkout_time?: string; // ISO timestamp, defaults to now
   notes?: string;
+  /** Optional invoice total; defaults to reservation total_amount */
+  amount?: number;
 }
 
 /**
@@ -83,6 +85,19 @@ export interface CheckInResponse {
   // Related data
   reservation?: ReservationSummary;
   room_assignments?: RoomAssignment[];
+
+  /** Present after checkout when an invoice row was created */
+  checkout_invoice?: {
+    id: string;
+    amount: number;
+    issue_date: string;
+    due_date: string;
+    status: string;
+  };
+  /** When invoice creation failed or was skipped (checkout still succeeded) */
+  checkout_invoice_error?: string;
+  /** Set only on checkout response; stripped before HTTP response after audit */
+  checkout_invoice_calculated_amount?: number;
 }
 
 /**

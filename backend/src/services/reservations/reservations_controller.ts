@@ -63,7 +63,7 @@ async function hasOverlappingReservation(
 ): Promise<boolean> {
   const overlapping = await db('reservations')
     .where({ room_id: roomId })
-    .whereNotIn('status', ['Cancelled'])
+    .whereNotIn('status', ['Cancelled', 'No-show', 'Checked-out'])
     .whereNull('deleted_at')
     .where(function () {
       this.where(function () {
@@ -134,7 +134,13 @@ export async function getReservationsHandler(
       .orderBy('reservations.created_at', 'desc');
 
     if (status) {
-      query = query.where('reservations.status', status as string);
+      const raw = status as string;
+      const statuses = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        query = query.where('reservations.status', statuses[0]!);
+      } else if (statuses.length > 1) {
+        query = query.whereIn('reservations.status', statuses);
+      }
     }
 
     if (check_in) {
@@ -192,6 +198,7 @@ export async function getReservationsHandler(
         special_requests: res.special_requests,
         created_at: res.created_at,
         updated_at: res.updated_at,
+        checkin_id: res.checkin_id || null,
       };
     });
 
@@ -269,6 +276,7 @@ export async function getReservationHandler(
       special_requests: reservation.special_requests,
       created_at: reservation.created_at,
       updated_at: reservation.updated_at,
+      checkin_id: reservation.checkin_id || null,
     };
 
     res.json(response);
@@ -522,6 +530,7 @@ export async function createReservationHandler(
       special_requests: fullReservation.special_requests,
       created_at: fullReservation.created_at,
       updated_at: fullReservation.updated_at,
+      checkin_id: fullReservation.checkin_id || null,
     };
 
     res.status(201).json(response);
@@ -574,6 +583,40 @@ export async function updateReservationHandler(
       return;
     }
 
+    const terminalStatuses = ['Checked-out', 'Cancelled', 'No-show'];
+    if (terminalStatuses.includes(existing.status)) {
+      const blockedKeys = [
+        'check_in',
+        'check_out',
+        'room_id',
+        'room_type_id',
+        'assigned_unit_id',
+        'units_requested',
+        'status',
+      ] as const;
+      const touched = blockedKeys.filter((k) => (updates as Record<string, unknown>)[k] !== undefined);
+      if (touched.length > 0) {
+        res.status(409).json({
+          error:
+            'This reservation is closed; dates, room, unit, and status cannot be changed. Special requests may still be updated.',
+        } as any);
+        return;
+      }
+    }
+
+    if (
+      existing.status === 'Checked-in' &&
+      (updates.check_in !== undefined ||
+        updates.check_out !== undefined ||
+        updates.room_id !== undefined)
+    ) {
+      res.status(409).json({
+        error:
+          'Cannot change check-in/out dates or assigned room while checked in. Use the Check-ins API for room moves.',
+      } as any);
+      return;
+    }
+
     const updateData: any = {
       updated_at: new Date(),
     };
@@ -613,6 +656,19 @@ export async function updateReservationHandler(
     }
 
     if (updates.status !== undefined) {
+      const allowedStatuses = ['Confirmed', 'Checked-in', 'Checked-out', 'Cancelled', 'No-show'];
+      if (!allowedStatuses.includes(updates.status)) {
+        res.status(400).json({
+          error: 'Invalid reservation status',
+        } as any);
+        return;
+      }
+      if (updates.status === 'No-show' && existing.status !== 'Confirmed') {
+        res.status(409).json({
+          error: 'No-show can only be set from Confirmed reservations',
+        } as any);
+        return;
+      }
       updateData.status = updates.status;
     }
 
@@ -657,24 +713,36 @@ export async function updateReservationHandler(
         const room = await trx('rooms').where({ id: roomId }).first();
         if (room) {
           if (updates.status === 'Checked-in') {
-            console.warn(`[Reservation] Using legacy check-in flow for reservation ${id}. Consider using Check-ins API instead.`);
+            console.warn(
+              `[Reservation] DEPRECATED: PUT reservation status=Checked-in for ${id}. Use POST /api/v1/reservations/:id/check-in (Check-ins API) instead.`,
+            );
             await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
             await trx('housekeeping')
               .where({ room_id: roomId })
               .update({ status: 'Dirty', updated_at: new Date() });
           } else if (updates.status === 'Checked-out') {
-            console.warn(`[Reservation] Using legacy check-out flow for reservation ${id}. Consider using Check-ins API instead.`);
+            console.warn(
+              `[Reservation] DEPRECATED: PUT reservation status=Checked-out for ${id}. Use PATCH /api/v1/check-ins/:id/checkout instead.`,
+            );
             await trx('rooms').where({ id: roomId }).update({ status: 'Cleaning' });
             await trx('housekeeping')
               .where({ room_id: roomId })
               .update({ status: 'Dirty', updated_at: new Date() });
-          } else if (updates.status === 'Cancelled' && room.status === 'Occupied') {
-            // Only update if room was occupied by this reservation
+          } else if (
+            (updates.status === 'Cancelled' || updates.status === 'No-show') &&
+            room.status === 'Occupied'
+          ) {
             await trx('rooms').where({ id: roomId }).update({ status: 'Available' });
           }
         }
       }
     });
+
+    if (updates.status === 'No-show' && existing.status === 'Confirmed') {
+      logAction(req, 'RESERVATION_NO_SHOW', 'reservation', id, {
+        description: 'Reservation marked as No-show',
+      }).catch((err) => console.error('Audit log failed:', err));
+    }
 
     // Queue channel manager sync (non-blocking)
     queueReservationSync(id, 'update').catch((err) => {
@@ -735,6 +803,7 @@ export async function updateReservationHandler(
       special_requests: updated.special_requests,
       created_at: updated.created_at,
       updated_at: updated.updated_at,
+      checkin_id: updated.checkin_id || null,
     };
 
     res.json(response);

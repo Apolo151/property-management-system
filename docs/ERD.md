@@ -484,7 +484,7 @@ Represents guest reservations with check-in/out dates and status. Scoped to a ho
 **Key Attributes:**
 - `hotel_id`: FK to HOTELS
 - `check_in`, `check_out`: Reservation dates
-- `status`: Reservation status (Confirmed, Checked-in, Checked-out, Cancelled)
+- `status`: Reservation status (Confirmed, Checked-in, Checked-out, Cancelled, No-show)
 - `total_amount`: Calculated total
 - `source`: Booking source (Direct, QloApps, OTA)
 - `qloapps_booking_id`: External booking reference (formerly `beds24_booking_id`)

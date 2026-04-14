@@ -39,6 +39,7 @@ router.get(
   getCheckInHandler
 );
 
+// Checkout amount override: same roles as checkout per spec (FRONT_DESK may set custom total; audit on deviation).
 router.patch(
   '/check-ins/:id/checkout',
   requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'),

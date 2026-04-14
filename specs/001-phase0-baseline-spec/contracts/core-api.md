@@ -129,13 +129,15 @@ needs verification. Treat all these endpoints as requiring both middleware.
 | GET | `/api/v1/reservations` | List/search reservations | ✅ Implemented | UC-302, UC-307 |
 | POST | `/api/v1/reservations` | Create reservation | ✅ Implemented | UC-301 |
 | GET | `/api/v1/reservations/:id` | Get reservation details | ✅ Implemented | UC-302 |
-| PUT | `/api/v1/reservations/:id` | Update reservation | ⚠️ Partial | UC-303 — lifecycle consistency gap |
+| PUT | `/api/v1/reservations/:id` | Update reservation | ✅ Implemented | UC-303 — includes **No-show** from **Confirmed**; terminal states restricted |
 | DELETE | `/api/v1/reservations/:id` | Cancel/soft-delete | ⚠️ Partial | UC-304 — cancellation rules incomplete |
 | PUT | `/api/v1/reservations/:id/dates` | Modify reservation dates | ⚠️ Partial | UC-311 |
 | POST | `/api/v1/reservations/:id/guests` | Add second guest | ⚠️ Partial | UC-312 |
 | GET | `/api/v1/reservations/calendar` | Calendar view data | ✅ Implemented | UC-308 |
 
-**Reservation status enum**: `Confirmed` \| `Checked-in` \| `Checked-out` \| `Cancelled`
+**Reservation status enum**: `Confirmed` \| `Checked-in` \| `Checked-out` \| `Cancelled` \| `No-show`
+
+**List filter**: `GET ...?status=No-show` or comma-separated statuses (e.g. `Confirmed,Checked-in`).
 
 **Create reservation request**:
 ```json
@@ -159,9 +161,18 @@ needs verification. Treat all these endpoints as requiring both middleware.
 | GET | `/api/v1/check-ins` | List active check-ins | ✅ Implemented | — |
 | POST | `/api/v1/check-ins` | Check in a reservation | ✅ Implemented | UC-305 |
 | GET | `/api/v1/check-ins/:id` | Get check-in record | ✅ Implemented | — |
-| POST | `/api/v1/check-ins/:id/checkout` | Check out | ✅ Implemented | UC-306 |
-| POST | `/api/v1/check-ins/:id/room-change` | Move guest to different room | ✅ Implemented | — |
-| GET | `/api/v1/check-ins/eligible-rooms` | Rooms eligible for check-in | ✅ Implemented | — |
+| PATCH | `/api/v1/check-ins/:id/checkout` | Check out | ✅ Implemented | UC-306 — optional JSON body: `amount` (invoice override), `notes`, `actual_checkout_time`; creates invoice after checkout; response may include `checkout_invoice` / `checkout_invoice_error` |
+| POST | `/api/v1/check-ins/:id/change-room` | Move guest to different room | ✅ Implemented | — |
+| GET | `/api/v1/reservations/:id/eligible-rooms` | Rooms eligible for check-in | ✅ Implemented | — |
+
+**Check-out body (optional)**:
+```json
+{
+  "amount": 199.99,
+  "notes": "Late checkout",
+  "actual_checkout_time": "2026-04-15T14:00:00.000Z"
+}
+```
 
 ---
 
@@ -170,7 +181,7 @@ needs verification. Treat all these endpoints as requiring both middleware.
 | Method | Path | Description | Status | Notes |
 |---|---|---|---|---|
 | GET | `/api/v1/invoices` | List invoices (filtered) | ✅ Implemented | UC-402, UC-408 |
-| POST | `/api/v1/invoices` | Create invoice | ✅ Implemented | UC-401 |
+| POST | `/api/v1/invoices` | Create invoice | ✅ Implemented | UC-401 — with `reservation_id`, `guest_id` and `amount` may be omitted (defaults from reservation); override audited when explicit `amount` ≠ reservation total |
 | GET | `/api/v1/invoices/:id` | Get invoice | ✅ Implemented | UC-402 |
 | PUT | `/api/v1/invoices/:id` | Update invoice | ✅ Implemented | UC-403 |
 | POST | `/api/v1/invoices/:id/pay` | Mark invoice paid + record payment method | ✅ Implemented | UC-404, UC-405 |

@@ -24,6 +24,7 @@ import {
   queueQloAppsCheckOutSyncHook,
   queueQloAppsRoomChangeSyncHook,
 } from '../../integrations/qloapps/hooks/sync_hooks.js';
+import { getHotelTimezone, getLocalDateStringForTimezone } from '../../utils/hotel_date.js';
 
 /**
  * Check in a guest
@@ -50,8 +51,22 @@ export async function checkInGuest(
       throw new Error('Reservation not found');
     }
 
+    if (reservation.status === 'Cancelled' || reservation.status === 'No-show') {
+      throw new Error(`Cannot check in a reservation marked as ${reservation.status}`);
+    }
+
     if (reservation.status !== 'Confirmed') {
       throw new Error(`Cannot check in reservation with status: ${reservation.status}. Must be Confirmed.`);
+    }
+
+    const hotelTz = await getHotelTimezone(trx, hotelId);
+    const hotelToday = getLocalDateStringForTimezone(new Date(), hotelTz);
+    const resCheckIn =
+      typeof reservation.check_in === 'string' ? reservation.check_in : String(reservation.check_in);
+    if (resCheckIn > hotelToday) {
+      throw new Error(
+        `Cannot check in before scheduled arrival date (${resCheckIn}). Hotel local date: ${hotelToday}.`,
+      );
     }
 
     if (reservation.checkin_id) {
@@ -167,7 +182,7 @@ export async function checkOutGuest(
   request: CheckOutRequest,
   hotelId: string,
 ): Promise<CheckInResponse> {
-  return await db.transaction(async (trx: Knex.Transaction) => {
+  await db.transaction(async (trx: Knex.Transaction) => {
     // 1. Validate check-in exists
     const checkIn = await trx('check_ins')
       .where({ id: request.checkin_id, hotel_id: hotelId })
@@ -179,6 +194,25 @@ export async function checkOutGuest(
 
     if (checkIn.status !== 'checked_in') {
       throw new Error(`Cannot check out. Check-in status is: ${checkIn.status}`);
+    }
+
+    const reservation = await trx('reservations')
+      .where({ id: checkIn.reservation_id })
+      .whereNull('deleted_at')
+      .first();
+
+    if (!reservation) {
+      throw new Error('Reservation not found for this check-in');
+    }
+
+    const hotelTz = await getHotelTimezone(trx, hotelId);
+    const hotelToday = getLocalDateStringForTimezone(new Date(), hotelTz);
+    const resCheckOut =
+      typeof reservation.check_out === 'string' ? reservation.check_out : String(reservation.check_out);
+    if (resCheckOut > hotelToday) {
+      throw new Error(
+        `Cannot check out before scheduled departure date (${resCheckOut}). Hotel local date: ${hotelToday}.`,
+      );
     }
 
     // 2. Update check-in record
@@ -223,19 +257,80 @@ export async function checkOutGuest(
         updated_at: trx.fn.now(),
       });
 
-    // 6. Fetch and return updated check-in details
-    const checkInDetails = await getCheckInDetails(request.checkin_id, hotelId, trx);
-    
-    // 7. Queue QloApps sync (after transaction commits)
-    // This is non-blocking and happens outside the transaction
-    setImmediate(() => {
-      queueQloAppsCheckOutSyncHook(request.checkin_id).catch((err) => {
-        console.error(`[CheckOut] Failed to queue QloApps sync for checkout ${request.checkin_id}:`, err);
-      });
-    });
-    
-    return checkInDetails;
   });
+
+  const checkInDetails = await getCheckInDetails(request.checkin_id, hotelId);
+
+  const reservationRow = await db('reservations')
+    .where({ id: checkInDetails.reservation_id })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!reservationRow) {
+    return {
+      ...checkInDetails,
+      checkout_invoice_error: 'Invoice not created: reservation not found',
+      checkout_invoice_calculated_amount: 0,
+    };
+  }
+
+  const calculated = parseFloat(String(reservationRow.total_amount ?? 0)) || 0;
+  const amountExplicit = request.amount !== undefined && request.amount !== null;
+  let finalAmount = amountExplicit ? Number(request.amount) : calculated;
+  if (Number.isNaN(finalAmount)) {
+    finalAmount = calculated;
+  }
+
+  let checkout_invoice: CheckInResponse['checkout_invoice'];
+  let checkout_invoice_error: string | undefined;
+
+  if (finalAmount <= 0) {
+    checkout_invoice_error = 'Invoice not created: amount must be greater than 0';
+  } else {
+    try {
+      const issueDate = new Date();
+      const dueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const [inv] = await db('invoices')
+        .insert({
+          hotel_id: hotelId,
+          reservation_id: checkInDetails.reservation_id,
+          guest_id: reservationRow.primary_guest_id,
+          issue_date: issueDate.toISOString().split('T')[0],
+          due_date: dueDate.toISOString().split('T')[0],
+          amount: finalAmount,
+          status: 'Pending',
+          payment_method: null,
+          notes: null,
+          paid_at: null,
+        })
+        .returning('*');
+
+      checkout_invoice = {
+        id: inv.id,
+        amount: parseFloat(String(inv.amount)),
+        issue_date: inv.issue_date,
+        due_date: inv.due_date,
+        status: inv.status,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      checkout_invoice_error = msg || 'Failed to create checkout invoice';
+      console.error(`[CheckOut] Invoice creation failed for check-in ${request.checkin_id}:`, err);
+    }
+  }
+
+  setImmediate(() => {
+    queueQloAppsCheckOutSyncHook(request.checkin_id).catch((err) => {
+      console.error(`[CheckOut] Failed to queue QloApps sync for checkout ${request.checkin_id}:`, err);
+    });
+  });
+
+  return {
+    ...checkInDetails,
+    ...(checkout_invoice ? { checkout_invoice } : {}),
+    ...(checkout_invoice_error ? { checkout_invoice_error } : {}),
+    checkout_invoice_calculated_amount: calculated,
+  };
 }
 
 /**
@@ -273,6 +368,27 @@ export async function changeRoom(
 
     if (newRoom.status === 'Out of Service') {
       throw new Error('Cannot move guest to a room that is Out of Service');
+    }
+
+    const stay = await trx('reservations')
+      .where({ id: checkIn.reservation_id })
+      .whereNull('deleted_at')
+      .first();
+
+    if (stay) {
+      const conflicting = await trx('reservations')
+        .where({ room_id: request.new_room_id })
+        .whereNull('deleted_at')
+        .whereNotIn('status', ['Cancelled', 'No-show', 'Checked-out'])
+        .whereNot({ id: stay.id })
+        .where(function () {
+          this.where('check_in', '<', stay.check_out).andWhere('check_out', '>', stay.check_in);
+        })
+        .first();
+
+      if (conflicting) {
+        throw new Error('Target room has a conflicting reservation during this stay period');
+      }
     }
 
     // 3. Validate new room is not occupied
