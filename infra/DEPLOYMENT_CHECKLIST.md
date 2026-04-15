@@ -2,6 +2,8 @@
 
 Use this checklist to ensure a smooth deployment of the Hotel PMS to Azure.
 
+**Local / portable Compose**: Development and prod-like merges are defined at the **repository root** (`docker-compose.yml`, `docker-compose.prod.yml`). This checklist’s `docker exec …` steps assume the **VM** layout from `infra/docker/docker-compose.prod.yml` (container names like `hotel-pms-api`). Use a `.env` file for secrets; never commit real credentials. Do **not** set `ALLOW_DEFAULT_HOTEL=true` or other dev-only shortcuts in production.
+
 ## Pre-Deployment
 
 - [ ] Azure CLI installed and logged in (`az login`)
@@ -45,7 +47,7 @@ Use this checklist to ensure a smooth deployment of the Hotel PMS to Azure.
 - [ ] Verify all containers are running: `docker ps`
 - [ ] Check API logs: `docker logs hotel-pms-api`
 - [ ] Check Postgres logs: `docker logs hotel-pms-postgres`
-- [ ] Check nginx logs: `docker logs hotel-pms-nginx`
+- [ ] Check Caddy logs: `docker logs hotel-pms-caddy`
 - [ ] Monitor SSL certificate setup: `sudo journalctl -u certbot-init -f`
 - [ ] Wait for SSL certificate to be issued (may take 2-5 minutes)
 

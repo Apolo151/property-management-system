@@ -110,7 +110,7 @@ or Could (Phase 2 or later). See `docs/specs/00-gap-analysis.md` for full matrix
 | Infrastructure | Terraform | Single VM cloud target in `infra/` |
 
 **Rationale**: Direct inspection of `backend/tsconfig.json`, `backend/package.json`,
-`frontend/src/App.jsx`, `backend/docker-compose.yml`, and `backend/README.md`.
+`frontend/src/App.jsx`, root `docker-compose.yml`, and `backend/README.md`.
 
 ---
 

@@ -12,58 +12,59 @@ work end-to-end before proceeding to Phase 1 design.
 
 - Docker and Docker Compose installed
 - Node.js 18+ and npm
-- Ports available: `3000` (API), `5432` (PostgreSQL), `5672`/`15672` (RabbitMQ), `5173` (frontend)
+- Ports available: `3000` (API), `5432` or `HOST_DB_PORT` (PostgreSQL on host), `5672`/`15672` (RabbitMQ), `5173` (frontend)
 
 ---
 
-## 1. Start Infrastructure
+## 1. Start stack (repository root)
+
+All `docker compose` commands run from the **repository root** (not `backend/`).
 
 ```bash
-cd backend
-cp .env.docker .env          # adjust DB/RabbitMQ/JWT secrets if needed
-docker compose --profile infra up -d postgres rabbitmq
-docker compose ps            # confirm postgres and rabbitmq are healthy
+cp .env.example .env          # sets COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml; adjust HOST_DB_PORT if 5432 is busy
+docker compose up -d          # postgres, rabbitmq, api, frontend (Vite with bind mounts)
+docker compose ps             # wait until postgres + rabbitmq are healthy, api + frontend running
 ```
 
 ---
 
-## 2. Run Migrations and Seeds
+## 2. Run migrations and seeds
 
 ```bash
-docker compose --profile infra --profile tools run --rm migrate
-docker compose --profile infra --profile tools run --rm seed
+docker compose --profile tools run --rm migrate
+docker compose --profile tools run --rm seed
 ```
 
 Expected: migrations complete without errors, seed data inserts baseline rooms/users.
 
 ---
 
-## 3. Start Backend API
+## 3. API and frontend URLs
+
+- API: `http://localhost:3000`
+- Frontend (container): `http://localhost:5173` with `VITE_API_URL` defaulting to `http://localhost:3000/api` for the browser
+
+Optional workers + QloApps:
 
 ```bash
-docker compose --profile infra --profile workers up -d api
-docker compose logs -f api   # watch for "Server running on port 3000"
+docker compose --profile workers up -d
+docker compose --profile infra up -d    # optional local QloApps image
 ```
 
-Alternatively, for local dev (outside Docker):
+Alternatively, run **backend only** on the host (no Docker API):
 
 ```bash
-npm install
-npm run dev
+cd backend && npm install && npm run dev
 ```
-
-API is available at `http://localhost:3000`.
 
 ---
 
-## 4. Start Frontend
+## 4. Frontend on the host (optional)
 
-In a second terminal:
+If you prefer not to use the compose `frontend` service:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 ```
 
 Frontend available at `http://localhost:5173`.

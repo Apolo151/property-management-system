@@ -1,0 +1,12 @@
+# API-only reverse proxy for VM / infra/docker/docker-compose.prod.yml
+# Keep in sync with repo root caddy/Caddyfile (same site block shape; no SPA upstream here).
+# PUBLIC_APP_DOMAIN and CADDY_EMAIL are set by the deployment environment / .env
+
+{
+	email {$CADDY_EMAIL}
+}
+
+{$PUBLIC_APP_DOMAIN} {
+	encode gzip
+	reverse_proxy api:3000
+}

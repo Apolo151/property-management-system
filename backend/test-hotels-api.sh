@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Test script for hotel listing functionality
-# This script will test the hotel creation and listing endpoints
+# Test script for hotel listing functionality.
+# Expects API reachable at localhost (e.g. root `docker compose up` publishing port 3000).
 
-API_URL="http://localhost:3000/api"
+API_URL="${API_URL:-http://localhost:3000/api}"
 
 echo "=== Hotel Management API Test ==="
 echo ""

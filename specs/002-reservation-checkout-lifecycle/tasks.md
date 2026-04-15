@@ -28,7 +28,7 @@ description: "Task list — Reservation to Check-out Lifecycle (Feature 002)"
 
 **Purpose**: Confirm repo and runtime ready before schema and code changes.
 
-- [X] T001 Verify API + Postgres start for local dev per `docker-compose.yml` and `backend/README.md`
+- [X] T001 Verify API + Postgres start for local dev per repository root `docker-compose.yml` and `backend/README.md`
 - [X] T002 [P] Run `backend` TypeScript build (`npm run build` or project equivalent) and fix any pre-existing failures before feature edits
 
 ---
