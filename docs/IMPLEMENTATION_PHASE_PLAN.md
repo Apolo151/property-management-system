@@ -198,7 +198,9 @@ The system is proven ready for go-live with documented evidence, approved signof
 - backend/src/routes.ts
 - backend/src/integrations/qloapps/
 - frontend/src/pages/
-- backend/docker-compose.yml
+- docker-compose.yml (repository root)
+- docker-compose.dev.yml (repository root)
+- docker-compose.prod.yml (repository root)
 - infra/main.tf
 - infra/vm.tf
 - infra/docker/docker-compose.prod.yml

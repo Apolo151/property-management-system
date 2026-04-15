@@ -2,6 +2,10 @@
 
 A modern, responsive hotel management system frontend built with React.js, featuring room management, reservations, calendar view, and guest tracking.
 
+## Run with Docker (recommended)
+
+From the **repository root**, the `frontend` service in `docker-compose.yml` runs Vite with `server.host` `0.0.0.0`. Set `VITE_API_URL` in the root `.env` (see `frontend/.env.example`) so the browser can reach the API (default `http://localhost:3000/api`).
+
 ## 🚀 Features
 
 - **Dashboard**: Overview of key metrics (rooms, check-ins, check-outs, revenue)

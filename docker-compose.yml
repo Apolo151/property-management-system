@@ -1,18 +1,11 @@
-services:
-  # Profile guide:
-  # - default: api + postgres + rabbitmq
-  # - workers: add qloapps workers
-  # - infra: add optional qloapps container
+# Run from repository root. For hot reload, set COMPOSE_FILE in .env — see .env.example
+# Profiles: workers (QloApps workers), infra (optional QloApps container), tools (migrate/seed)
 
-  # ===================
-  # Main Application
-  # ===================
+services:
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
-    ports:
-      - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
@@ -28,11 +21,6 @@ services:
       - SYNC_ENABLED=${SYNC_ENABLED:-true}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,12 +32,21 @@ services:
     networks:
       - hotel-network
 
-  # ===================
-  # Workers
-  # ===================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3000/api}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - hotel-network
+
   worker-inbound:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
     command: npm run worker:qloapps-inbound
     environment:
@@ -62,11 +59,6 @@ services:
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,7 +74,7 @@ services:
 
   worker-outbound:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
     command: npm run worker:qloapps-outbound
     environment:
@@ -95,11 +87,6 @@ services:
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,7 +102,7 @@ services:
 
   worker-scheduler:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
     command: npm run worker:qloapps-scheduler
     environment:
@@ -129,11 +116,6 @@ services:
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-EGP}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - QLOAPPS_SYNC_INTERVAL_MS=${QLOAPPS_SYNC_INTERVAL_MS:-300000}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,9 +129,6 @@ services:
     networks:
       - hotel-network
 
-  # ===================
-  # Infrastructure
-  # ===================
   postgres:
     image: postgres:16-alpine
     environment:
@@ -157,7 +136,8 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=${DB_NAME:-hotel_pms_dev}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      # Host port only — keep DB_PORT=5432 inside the stack for api → postgres DNS
+      - "${HOST_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -203,12 +183,9 @@ services:
     networks:
       - hotel-network
 
-  # ===================
-  # Database Migration Runner
-  # ===================
   migrate:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
     command: npm run db:migrate
     environment:
@@ -218,9 +195,6 @@ services:
       - DB_NAME=${DB_NAME:-hotel_pms_dev}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -231,7 +205,7 @@ services:
 
   seed:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.dev
     command: npm run db:seed
     environment:
@@ -241,9 +215,6 @@ services:
       - DB_NAME=${DB_NAME:-hotel_pms_dev}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -255,6 +226,8 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  backend_node_modules:
+  frontend_node_modules:
 
 networks:
   hotel-network:

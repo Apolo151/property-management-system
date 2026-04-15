@@ -45,7 +45,6 @@ prettier.config.js
 
 # Scripts not needed in container
 scripts/
-setup-db.sh
 test-db.js
 
 # Docker files (prevent recursive copy)

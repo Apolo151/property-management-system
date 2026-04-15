@@ -1,0 +1,10 @@
+# Root context (if building from repo root in future)
+.git
+node_modules
+**/node_modules
+.env
+.env.*
+*.log
+dist
+**/dist
+coverage

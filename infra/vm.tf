@@ -60,8 +60,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     domain_name        = var.domain_name != "" ? var.domain_name : azurerm_public_ip.main.fqdn
     letsencrypt_email  = var.letsencrypt_email
     docker_compose_b64 = base64encode(file("${path.module}/docker/docker-compose.prod.yml"))
-    nginx_conf_b64     = base64encode(file("${path.module}/nginx/nginx.conf"))
-    certbot_script_b64 = base64encode(file("${path.module}/nginx/certbot-init.sh"))
+    caddyfile_b64      = base64encode(file("${path.module}/docker/caddy/Caddyfile"))
   }))
 
   # Ensure VM is recreated if cloud-init changes

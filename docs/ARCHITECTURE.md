@@ -92,17 +92,24 @@ Runs periodic pull syncs for configured hotels with lock + backoff behavior.
 
 ## Development Runtime
 
-`docker-compose.yml` supports:
+Orchestration lives at the **repository root**:
 
-- Default profile: API + PostgreSQL + RabbitMQ
-- `workers` profile: QloApps workers
-- `infra` profile: optional local QloApps container
+- `docker-compose.yml` — service definitions (no bind mounts; image + named volumes only)
+- `docker-compose.dev.yml` — **bind mounts**, Vite port `5173`, and `host.docker.internal` for API/workers (hot reload)
+- `.env` / `.env.example`: `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` so `docker compose up` uses both files by default
+- `workers` profile: QloApps workers (`worker-inbound`, `worker-outbound`, `worker-scheduler`)
+- `infra` profile: optional local QloApps container (`qloapps`)
+- `tools` profile: one-shot `migrate` and `seed` services
+
+Published PostgreSQL uses `HOST_DB_PORT` on the host (default `5432`); inside the compose network the API still uses `DB_HOST=postgres` and `DB_PORT=5432`.
+
+Production-like overrides: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d` (overrides `COMPOSE_FILE` when `-f` is passed). Uses production `Dockerfile` builds without dev bind mounts; **Caddy** listens on `CADDY_HTTP_PORT` / `CADDY_HTTPS_PORT` (defaults 80/443), terminates TLS automatically for real DNS names (`PUBLIC_APP_DOMAIN`), routes `/api*` to the API and other paths to the static SPA. Set `VITE_PROD_API_URL` (typically `https://<PUBLIC_APP_DOMAIN>/api`) for the frontend build. VM deployments use the same Caddy pattern under `infra/docker/` (API-only Caddyfile). Do not enable dev-only flags such as `ALLOW_DEFAULT_HOTEL` in production.
 
 Common local flow:
 
-1. Start infrastructure
-2. Run API
-3. Run workers (or use combined dev script)
+1. From repo root: `cp .env.example .env`, then `docker compose up -d`
+2. Once Postgres is healthy: `docker compose --profile tools run --rm migrate` then `seed` as needed
+3. Optional: `docker compose --profile workers up -d` and/or `--profile infra`
 
 ## Design Decisions
 

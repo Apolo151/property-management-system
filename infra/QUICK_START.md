@@ -84,7 +84,7 @@ docker ps
 ```
 
 You should see 7 containers:
-- `hotel-pms-nginx` - Reverse proxy with SSL
+- `hotel-pms-caddy` - Reverse proxy with automatic HTTPS (Caddy)
 - `hotel-pms-api` - Main API service
 - `hotel-pms-worker-inbound` - Inbound sync worker
 - `hotel-pms-worker-outbound` - Outbound sync worker
@@ -122,8 +122,9 @@ dig +short api.example.com
 ### SSL certificate failed?
 ```bash
 # Check if DNS is correct first!
-# Then retry:
-sudo /opt/hotel-pms/nginx/certbot-init.sh
+# Caddy obtains certificates automatically. Verify PUBLIC_APP_DOMAIN and CADDY_EMAIL in /opt/hotel-pms/.env, then:
+docker logs hotel-pms-caddy
+docker restart hotel-pms-caddy
 ```
 
 ### Containers not running?

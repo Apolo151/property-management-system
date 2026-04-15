@@ -64,99 +64,61 @@ A comprehensive Property Management System (PMS) designed to streamline hotel op
 
 7. **Access the API at** `http://localhost:3000`
 
-## Running the Full System with Docker
+## Running the full system with Docker
 
-To run the **full integration environment** – backend PMS (API + workers), infrastructure (**PostgreSQL + RabbitMQ**), and the external **QloApps PMS** (via official Docker image) – use Docker and Docker Compose.
-
-For more Docker details, see [`DOCKER.md`](./DOCKER.md). The summary below focuses on the “everything running together” path.
+Compose files live at the **repository root**: `docker-compose.yml`, `docker-compose.dev.yml` (bind mounts / Vite), and `docker-compose.prod.yml` (production-like merge). After `cp .env.example .env`, `COMPOSE_FILE` selects base+dev by default. Run all `docker compose` commands from the repo root, not from `backend/`.
 
 ### 1. Prerequisites
 
-- Docker and Docker Compose installed
-- Port availability:
-  - `3000` for the backend API
-  - `5432` for PostgreSQL
-  - `5672` and `15672` for RabbitMQ
-  - `80` / `3306` / `2222` (or alternates) for the QloApps container
+- Docker and Docker Compose v2
+- Ports (adjust via `.env` at repo root): `3000` (API), `HOST_DB_PORT`→`5432` (Postgres on host), `5173` (Vite), `5672` / `15672` (RabbitMQ), and if using optional QloApps: `8080` (or `QLOAPPS_PORT`), `3306`, `2222`
 
-### 2. Backend environment for Docker
-
-In the `backend/` directory:
-
-1. **Create a Docker env file** (based on `.env.docker`):
-
-   ```bash
-   cd backend
-   cp .env.docker .env
-   ```
-
-2. **Adjust key variables** in `.env` as needed (DB, RabbitMQ, JWT, QloApps/Beds24 keys, etc.).  
-   The Docker compose file already defaults `DB_HOST=postgres` and `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672`.
-
-### 3. Start infrastructure (PostgreSQL + RabbitMQ)
-
-From `backend/`:
+### 2. Environment
 
 ```bash
-docker compose --profile infra up -d postgres rabbitmq
+# From repository root
+cp .env.example .env
+# Edit .env — set JWT_SECRET, HOST_DB_PORT if 5432 is taken, etc.
 ```
 
-This will start:
+Backend-specific samples remain in `backend/.env.docker` for reference; Compose reads variables from the **root** `.env` when present.
 
-- `postgres` on port `5432`
-- `rabbitmq` on ports `5672` (AMQP) and `15672` (management UI)
-
-You can verify with:
+### 3. Start default stack (API + frontend + Postgres + RabbitMQ)
 
 ```bash
+docker compose up -d
 docker compose ps
 ```
 
-### 4. Run database migrations and seeds (inside Docker)
-
-With infra running:
+### 4. Migrations and seeds
 
 ```bash
-# Run migrations
-docker compose --profile infra --profile tools run --rm migrate
-
-# Run seeds (optional but recommended for initial data)
-docker compose --profile infra --profile tools run --rm seed
+docker compose --profile tools run --rm migrate
+docker compose --profile tools run --rm seed
 ```
 
-These commands use the `migrate` and `seed` services defined in `docker-compose.yml` and connect to the `postgres` container.
-
-### 5. Start backend API and workers (PMS side)
-
-To run the API plus all QloApps workers:
+### 5. Workers and optional QloApps
 
 ```bash
-docker compose \
-  --profile infra \
-  --profile workers \
-  up -d api worker-inbound worker-outbound worker-scheduler
+docker compose --profile workers up -d
+docker compose --profile infra up -d   # optional qloapps service
 ```
-
-What you get:
-
-- `api` at `http://localhost:3000`
-- `worker-inbound`, `worker-outbound`, `worker-scheduler` connected to RabbitMQ and PostgreSQL
 
 Logs:
 
 ```bash
 docker compose logs -f api
 docker compose logs -f worker-inbound
-docker compose logs -f worker-outbound
-docker compose logs -f worker-scheduler
 ```
 
-### 5.1 Run all once
+### 5.1 Production-like merge (Caddy)
 
-To run all once:
 ```bash
-docker compose --profile infra --profile workers up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+Set `PUBLIC_APP_DOMAIN`, `CADDY_EMAIL`, and `VITE_PROD_API_URL` (see root `.env.example`). Caddy publishes HTTP/HTTPS and proxies `/api*` to the API and `/` to the SPA. VM deployment uses Caddy as well — see `infra/docker/docker-compose.prod.yml` and `infra/docker/caddy/Caddyfile`.
 
 ### 6. Run QloApps PMS via official Docker image
 
@@ -204,19 +166,23 @@ To start a standalone QloApps PMS instance (used by this backend as an external 
    - Use the admin UI / API endpoints to configure QloApps connection settings (base URL, API key, QloApps hotel ID).
    - **Note**: QloApps base URL and API key are stored in the `qloapps_config` database table (configured via the frontend Settings page), not in environment variables. The API and workers read these settings from the database at runtime.
 
-### 7. Run the frontend (PMS UI)
+### 7. Frontend (PMS UI)
 
-The frontend currently runs as a Vite dev server (not yet containerized). In a second terminal:
+By default the **frontend** service runs in Compose (Vite on port `5173`). Override `VITE_API_URL` in root `.env` if the browser cannot reach the API at `http://localhost:3000/api`.
+
+To run Vite on the host instead:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 ```
 
-By default, the frontend will be available at `http://localhost:5173` and should be configured to talk to the backend API at `http://localhost:3000`.
+## Host PostgreSQL (no Docker DB)
 
-> Note: Backend services (API + workers), infrastructure (PostgreSQL + RabbitMQ), and QloApps PMS are all running in Docker. The frontend runs via Vite on the host; you can add a small Dockerfile/frontend compose service later if you want a fully containerized UI as well.
+To create dev databases on a local Postgres installation:
+
+```bash
+./scripts/setup-local-postgres.sh
+```
 
 ## Available Scripts
 

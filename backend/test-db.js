@@ -59,7 +59,7 @@ async function testConnection() {
     console.error('\nPlease check:');
     console.error('  1. PostgreSQL is running');
     console.error('  2. Database credentials in .env are correct');
-    console.error('  3. Database exists (run setup-db.sh)');
+    console.error('  3. Database exists (Docker: docker compose --profile tools run --rm migrate; host PG: ./scripts/setup-local-postgres.sh)');
     process.exit(1);
   }
 }
