@@ -1,10 +1,11 @@
 # Production-like overrides — merge with base:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
-# Caddy terminates TLS (automatic HTTPS for real domains) and routes:
+# Caddy serves static frontend files directly and proxies API requests:
 #   /api* → api:8000
-#   /*    → frontend:80 (static SPA)
+#   /*    → static files (built by frontend-builder, mounted via volume)
 #
+# Frontend is built at compose build time via frontend-builder service.
 # Set PUBLIC_APP_DOMAIN in .env (hostname clients use). Optional: CADDY_EMAIL for ACME account.
 # Build-time API URL for the SPA defaults from VITE_PROD_API_URL (see .env.example).
 #
@@ -22,11 +23,12 @@ services:
       CADDY_EMAIL: ${CADDY_EMAIL:-internal@localhost}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend_build:/frontend:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - api
-      - frontend
+      - frontend-builder
     restart: unless-stopped
     networks:
       - hotel-network
@@ -51,18 +53,27 @@ services:
       - QLO_API_URL=${QLO_API_URL:-}
       - QLO_API_KEY=${QLO_API_KEY:-}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-USD}
-      - BEDS24_API_KEY=${BEDS24_API_KEY:-}
-      - BEDS24_PROP_KEY=${BEDS24_PROP_KEY:-}
-      - BEDS24_API_URL=${BEDS24_API_URL:-https://api.beds24.com/v2}
-      - BEDS24_WEBHOOK_SECRET=${BEDS24_WEBHOOK_SECRET:-}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
 
+  # Override base frontend service — not used in production
   frontend:
+    profiles:
+      - disabled
+
+  frontend-builder:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.builder
       args:
         VITE_API_URL: ${VITE_PROD_API_URL:-https://localhost/api}
+    volumes:
+      - frontend_build:/app/dist
+    restart: "no"
+    networks:
+      - hotel-network
 
   worker-inbound:
     build:
@@ -108,6 +119,32 @@ services:
       - SYNC_INTERVAL_MS=${SYNC_INTERVAL_MS:-60000}
       - SYNC_ENABLED=${SYNC_ENABLED:-true}
 
+  # Production overrides for migrate and seed (use dev Dockerfile to access devDependencies like tsx)
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+
 volumes:
   caddy_data:
   caddy_config:
+  frontend_build:
