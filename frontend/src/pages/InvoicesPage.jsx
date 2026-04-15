@@ -1,14 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
 import Modal from '../components/Modal'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, isValid } from 'date-fns'
 import StatusBadge from '../components/StatusBadge'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import useInvoicesStore from '../store/invoicesStore'
+import useAuthStore from '../store/authStore'
+import { api } from '../utils/api'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 
 const InvoicesPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const {
     invoices,
     loading: invoicesLoading,
@@ -37,29 +40,62 @@ const InvoicesPage = () => {
     }, searchTerm ? 300 : 0); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [statusFilter, searchTerm, fetchInvoices]);
+  }, [activeHotelId, statusFilter, searchTerm, fetchInvoices]);
 
   const filteredAndSortedInvoices = useMemo(() => {
     // API handles search and status filtering, so we just sort the results
     let filtered = [...invoices]
 
+    const parseDateMs = (v) => {
+      if (v == null || v === '') return null
+      const d = parseISO(v)
+      return isValid(d) ? d.getTime() : null
+    }
+
     // Sort
     filtered.sort((a, b) => {
       let comparison = 0
       if (sortBy === 'issueDate') {
-        comparison = parseISO(a.issueDate).getTime() - parseISO(b.issueDate).getTime()
+        const ta = parseDateMs(a.issueDate)
+        const tb = parseDateMs(b.issueDate)
+        if (ta == null && tb == null) comparison = 0
+        else if (ta == null) comparison = 1
+        else if (tb == null) comparison = -1
+        else comparison = ta - tb
       } else if (sortBy === 'dueDate') {
-        comparison = parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime()
+        const ta = parseDateMs(a.dueDate)
+        const tb = parseDateMs(b.dueDate)
+        if (ta == null && tb == null) comparison = 0
+        else if (ta == null) comparison = 1
+        else if (tb == null) comparison = -1
+        else comparison = ta - tb
       } else if (sortBy === 'amount') {
         comparison = a.amount - b.amount
       } else if (sortBy === 'id') {
-        comparison = a.id.localeCompare(b.id)
+        comparison = String(a.id).localeCompare(String(b.id))
       }
       return sortOrder === 'desc' ? -comparison : comparison
     })
 
     return filtered
   }, [invoices, sortBy, sortOrder])
+
+  const handleDownloadPdf = async (invoice) => {
+    try {
+      const blob = await api.invoices.downloadPdf(invoice.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `invoice-${String(invoice.id).slice(0, 8)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success('PDF downloaded')
+    } catch (err) {
+      toast.error(err.message || 'Failed to download PDF')
+    }
+  }
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -262,28 +298,35 @@ const InvoicesPage = () => {
                       {invoice.paymentMethod || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {invoice.status === 'Pending' && (
-                        <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {invoice.status !== 'Cancelled' && (
                           <button
-                            onClick={() => handleStatusChange(invoice.id, 'Paid')}
-                            className="text-green-600 hover:text-green-900"
+                            type="button"
+                            onClick={() => handleDownloadPdf(invoice)}
+                            className="text-primary-600 hover:text-primary-900"
                           >
-                            Mark Paid
+                            Download PDF
                           </button>
-                          <button
-                            onClick={() => handleStatusChange(invoice.id, 'Cancelled')}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                      {invoice.status === 'Paid' && (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                      {invoice.status === 'Cancelled' && (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
+                        )}
+                        {invoice.status === 'Pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(invoice.id, 'Paid')}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              Mark Paid
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(invoice.id, 'Cancelled')}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

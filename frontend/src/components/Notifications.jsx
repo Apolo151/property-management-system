@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import api from '../utils/api'
+import { usePolling } from '../hooks/usePolling'
 
 function mapUiType(serverType) {
   const t = (serverType || '').toUpperCase()
@@ -45,6 +46,28 @@ export default function Notifications() {
       setLoading(false)
     }
   }, [])
+
+  const inFlight = useRef(false)
+  const poll = useCallback(async () => {
+    if (inFlight.current || !localStorage.getItem('token')) return
+    inFlight.current = true
+    try {
+      await load()
+    } finally {
+      inFlight.current = false
+    }
+  }, [load])
+
+  const [tabVisible, setTabVisible] = useState(
+    () => typeof document !== 'undefined' && document.visibilityState === 'visible',
+  )
+  useEffect(() => {
+    const handler = () => setTabVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
+
+  usePolling(poll, 30_000, tabVisible)
 
   useEffect(() => {
     load()

@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useMaintenanceStore = create((set, get) => ({
+const useMaintenanceStore = create((set, get, storeApi) => ({
   maintenanceRequests: [],
   loading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all maintenance requests
   fetchMaintenanceRequests: async (filters = {}) => {
@@ -180,6 +183,8 @@ const useMaintenanceStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useMaintenanceStore.getState().reset());
 
 export default useMaintenanceStore;
 

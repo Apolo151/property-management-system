@@ -18,16 +18,13 @@ import ReportsPage from './pages/ReportsPage'
 import AuditLogsPage from './pages/AuditLogsPage'
 import SettingsPage from './pages/SettingsPage'
 import MainLayout from './layouts/MainLayout'
-import useStore from './store/useStore'
 import useAuthStore from './store/authStore'
-import { parseISO, isToday, isPast } from 'date-fns'
 import ToastContainer from './components/ToastContainer'
 import ConfirmationDialog from './components/ConfirmationDialog'
 import PromptDialog from './components/PromptDialog'
 
 function App() {
-  const { isAuthenticated, initialize, ensureValidToken } = useAuthStore()
-  const { reservations, invoices, housekeeping, addNotification } = useStore()
+  const { isAuthenticated, initialize, ensureValidToken, logout } = useAuthStore()
 
   // Initialize auth on mount
   useEffect(() => {
@@ -50,82 +47,6 @@ function App() {
 
     return () => clearInterval(interval)
   }, [isAuthenticated, ensureValidToken])
-
-  // Generate notifications
-  useEffect(() => {
-    if (!isAuthenticated) return
-
-    const generateNotifications = () => {
-      const today = new Date()
-
-      // Check for today's check-ins
-      const todaysCheckIns = reservations.filter((res) => {
-        if (res.status === 'Cancelled') return false
-        const checkIn = parseISO(res.checkIn)
-        return isToday(checkIn) && (res.status === 'Confirmed' || res.status === 'Checked-in')
-      })
-
-      todaysCheckIns.forEach((res) => {
-        addNotification({
-          type: 'checkin',
-          title: 'Check-in Today',
-          message: `${res.guestName} - Room ${res.roomNumber}`,
-          link: `/reservations`,
-        })
-      })
-
-      // Check for today's check-outs
-      const todaysCheckOuts = reservations.filter((res) => {
-        if (res.status === 'Cancelled') return false
-        const checkOut = parseISO(res.checkOut)
-        return isToday(checkOut) && (res.status === 'Checked-in' || res.status === 'Checked-out')
-      })
-
-      todaysCheckOuts.forEach((res) => {
-        addNotification({
-          type: 'checkout',
-          title: 'Check-out Today',
-          message: `${res.guestName} - Room ${res.roomNumber}`,
-          link: `/reservations`,
-        })
-      })
-
-      // Check for overdue invoices
-      const overdueInvoices = invoices.filter((inv) => {
-        if (inv.status === 'Paid' || inv.status === 'Cancelled') return false
-        const dueDate = parseISO(inv.dueDate)
-        return isPast(dueDate)
-      })
-
-      overdueInvoices.forEach((inv) => {
-        addNotification({
-          type: 'invoice',
-          title: 'Overdue Invoice',
-          message: `Invoice ${inv.id} is overdue`,
-          link: `/invoices`,
-        })
-      })
-
-      // Check for rooms requiring cleaning
-      const dirtyRooms = housekeeping.filter((hk) => hk.status === 'Dirty')
-
-      dirtyRooms.forEach((hk) => {
-        addNotification({
-          type: 'cleaning',
-          title: 'Room Requires Cleaning',
-          message: `Room ${hk.roomId} is marked as dirty`,
-          link: `/rooms?tab=housekeeping`,
-        })
-      })
-    }
-
-    generateNotifications()
-    // Check every hour
-    const interval = setInterval(generateNotifications, 60 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [isAuthenticated, reservations, invoices, housekeeping, addNotification])
-
-  const { logout } = useAuthStore()
 
   return (
     <>
@@ -181,4 +102,3 @@ function App() {
 }
 
 export default App
-

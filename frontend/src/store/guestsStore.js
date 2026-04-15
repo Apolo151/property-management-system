@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useGuestsStore = create((set, get) => ({
+const useGuestsStore = create((set, get, storeApi) => ({
   guests: [],
   loading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all guests
   fetchGuests: async (filters = {}) => {
@@ -50,13 +53,14 @@ const useGuestsStore = create((set, get) => ({
         updatedAt: data.updated_at,
       };
 
-      // Update in list if exists
-      set((state) => ({
-        guests: state.guests.map((g) =>
-          g.id === id ? transformed : g
-        ),
-        loading: false,
-      }));
+      // Upsert into list (direct URL /profile when guest not yet loaded)
+      set((state) => {
+        const has = state.guests.some((g) => String(g.id) === String(id));
+        const guests = has
+          ? state.guests.map((g) => (String(g.id) === String(id) ? transformed : g))
+          : [...state.guests, transformed];
+        return { guests, loading: false };
+      });
 
       return transformed;
     } catch (error) {
@@ -160,6 +164,8 @@ const useGuestsStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useGuestsStore.getState().reset());
 
 export default useGuestsStore;
 

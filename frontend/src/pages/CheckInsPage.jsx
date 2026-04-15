@@ -1,15 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+import { safeFormat } from '../utils/dateUtils';
 import StatusBadge from '../components/StatusBadge';
 import SearchInput from '../components/SearchInput';
 import FilterSelect from '../components/FilterSelect';
 import Modal from '../components/Modal';
 import useCheckInsStore from '../store/checkInsStore';
 import useRoomsStore from '../store/roomsStore';
+import useAuthStore from '../store/authStore';
 import { useToast } from '../hooks/useToast';
 import { useConfirmation } from '../hooks/useConfirmation';
 
 const CheckInsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId);
   const toast = useToast();
   const confirmation = useConfirmation();
   
@@ -46,7 +49,7 @@ const CheckInsPage = () => {
   useEffect(() => {
     fetchCheckIns();
     fetchRooms();
-  }, [fetchCheckIns, fetchRooms]);
+  }, [activeHotelId, fetchCheckIns, fetchRooms]);
 
   // Filter and sort check-ins
   const filteredAndSortedCheckIns = useMemo(() => {
@@ -174,14 +177,8 @@ const CheckInsPage = () => {
   };
 
   // Format date/time
-  const formatDateTime = (dateTime) => {
-    if (!dateTime) return '-';
-    try {
-      return format(parseISO(dateTime), 'MMM dd, yyyy HH:mm');
-    } catch {
-      return '-';
-    }
-  };
+  const formatDateTime = (dateTime) =>
+    safeFormat(dateTime, 'MMM dd, yyyy HH:mm', '-');
 
   return (
     <div>
@@ -231,29 +228,27 @@ const CheckInsPage = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-blue-600 text-sm font-medium">Active Check-ins</div>
-          <div className="text-2xl font-bold text-blue-900">
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">Active Check-ins</div>
+          <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
             {checkIns.filter((c) => c.status === 'checked_in').length}
           </div>
         </div>
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="text-green-600 text-sm font-medium">Checked Out Today</div>
-          <div className="text-2xl font-bold text-green-900">
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+          <div className="text-green-600 dark:text-green-300 text-sm font-medium">Checked Out Today</div>
+          <div className="text-2xl font-bold text-green-900 dark:text-green-100">
             {
-              checkIns.filter(
-                (c) =>
-                  c.status === 'checked_out' &&
-                  c.actual_checkout_time &&
-                  format(parseISO(c.actual_checkout_time), 'yyyy-MM-dd') ===
-                    format(new Date(), 'yyyy-MM-dd')
-              ).length
+              checkIns.filter((c) => {
+                if (c.status !== 'checked_out' || !c.actual_checkout_time) return false;
+                const d = parseISO(c.actual_checkout_time);
+                return isValid(d) && format(d, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              }).length
             }
           </div>
         </div>
-        <div className="bg-purple-50 rounded-lg p-4">
-          <div className="text-purple-600 text-sm font-medium">Total Check-ins</div>
-          <div className="text-2xl font-bold text-purple-900">{checkIns.length}</div>
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+          <div className="text-purple-600 dark:text-purple-300 text-sm font-medium">Total Check-ins</div>
+          <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{checkIns.length}</div>
         </div>
       </div>
 
@@ -311,7 +306,7 @@ const CheckInsPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {checkIn.status === 'checked_out'
                         ? formatDateTime(checkIn.actual_checkout_time)
-                        : format(parseISO(checkIn.expected_checkout_time), 'MMM dd, yyyy')}
+                        : safeFormat(checkIn.expected_checkout_time, 'MMM dd, yyyy')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge
@@ -381,7 +376,8 @@ const CheckInsPage = () => {
                 Check-in: {formatDateTime(selectedCheckIn.check_in_time)}
               </p>
               <p className="text-sm text-gray-900 dark:text-gray-100">
-                Expected Checkout: {format(parseISO(selectedCheckIn.expected_checkout_time), 'MMM dd, yyyy')}
+                Expected Checkout:{' '}
+                {safeFormat(selectedCheckIn.expected_checkout_time, 'MMM dd, yyyy')}
               </p>
               {selectedCheckIn.status === 'checked_out' && (
                 <p className="text-sm text-gray-900 dark:text-gray-100">

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../utils/api.js';
+import { resetAllDomainStores } from './storeRegistry.js';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -180,10 +181,11 @@ const useAuthStore = create((set, get) => ({
       return false;
     }
     
-    // Update state and localStorage
+    // Update state and localStorage, then clear domain stores so pages refetch for the new tenant
     localStorage.setItem('activeHotelId', hotelId);
     set({ activeHotelId: hotelId });
-    
+    resetAllDomainStores();
+
     return true;
   },
 

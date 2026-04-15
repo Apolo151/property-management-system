@@ -7,8 +7,10 @@ import GuestSelect from './GuestSelect'
 import Modal from './Modal'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
+import useAuthStore from '../store/authStore'
 
 const BookingTimeline = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
   const { roomTypes, fetchRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests, createGuest } = useGuestsStore()
@@ -35,7 +37,7 @@ const BookingTimeline = () => {
     fetchReservations()
     fetchRoomTypes()
     fetchGuests()
-  }, [fetchReservations, fetchRoomTypes, fetchGuests])
+  }, [activeHotelId, fetchReservations, fetchRoomTypes, fetchGuests])
 
   // Generate flat list of all individual rooms from room types
   const allRooms = useMemo(() => {

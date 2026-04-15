@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import api from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useCheckInsStore = create((set, get) => ({
+const useCheckInsStore = create((set, get, storeApi) => ({
   checkIns: [],
   activeCheckIns: [],
   currentCheckIn: null,
@@ -256,7 +257,11 @@ const useCheckInsStore = create((set, get) => ({
 
   // Clear error
   clearError: () => set({ error: null }),
+
+  reset: () => set(storeApi.getInitialState(), true),
 }));
+
+registerDomainReset(() => useCheckInsStore.getState().reset());
 
 export default useCheckInsStore;
 

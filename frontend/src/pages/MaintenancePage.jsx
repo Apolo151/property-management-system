@@ -10,6 +10,7 @@ import { useToast } from '../hooks/useToast'
 import useAuthStore from '../store/authStore'
 
 const MaintenancePage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const activeHotel = useAuthStore((state) =>
     state.hotels.find((h) => h.id === state.activeHotelId),
   )
@@ -39,7 +40,7 @@ const MaintenancePage = () => {
   // Fetch data on mount and when filters change
   useEffect(() => {
     fetchRooms()
-  }, [fetchRooms])
+  }, [activeHotelId, fetchRooms])
 
   useEffect(() => {
     const filters = {};
@@ -52,7 +53,7 @@ const MaintenancePage = () => {
     }, searchTerm ? 300 : 0); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [statusFilter, priorityFilter, searchTerm, fetchMaintenanceRequests]);
+  }, [activeHotelId, statusFilter, priorityFilter, searchTerm, fetchMaintenanceRequests]);
 
   const filteredAndSortedRequests = useMemo(() => {
     // API handles search, status, and priority filtering, so we just sort the results

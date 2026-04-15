@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import useGuestsStore from '../store/guestsStore'
+import useAuthStore from '../store/authStore'
 import useReservationsStore from '../store/reservationsStore'
 import useInvoicesStore from '../store/invoicesStore'
 import StatusBadge from '../components/StatusBadge'
@@ -10,7 +11,13 @@ import Modal from '../components/Modal'
 const GuestProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { guests, updateGuest } = useGuestsStore()
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
+  const { guests, loading: guestsLoading, updateGuest, fetchGuest } = useGuestsStore()
+
+  useEffect(() => {
+    if (!id) return
+    fetchGuest(id).catch(() => {})
+  }, [id, activeHotelId, fetchGuest])
   const { reservations } = useReservationsStore()
   const { invoices } = useInvoicesStore()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -42,6 +49,11 @@ const GuestProfilePage = () => {
   const availableTags = ['VIP', 'Returning', 'Corporate', 'Blacklist', 'Loyalty', 'Group']
 
   if (!guest) {
+    if (guestsLoading) {
+      return (
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading guest…</div>
+      )
+    }
     return (
       <div className="text-center py-12">
         <p className="text-gray-500 dark:text-gray-400 mb-4">Guest not found</p>

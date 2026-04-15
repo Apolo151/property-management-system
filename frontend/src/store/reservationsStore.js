@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useReservationsStore = create((set, get) => ({
+const useReservationsStore = create((set, get, storeApi) => ({
   reservations: [],
   loading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all reservations
   fetchReservations: async (filters = {}) => {
@@ -256,6 +259,8 @@ const useReservationsStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useReservationsStore.getState().reset());
 
 export default useReservationsStore;
 

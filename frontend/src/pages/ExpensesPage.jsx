@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import useExpensesStore from '../store/expensesStore'
+import useAuthStore from '../store/authStore'
 import Modal from '../components/Modal'
 import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 import { useToast } from '../hooks/useToast'
 
 const ExpensesPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const {
     expenses,
     loading: expensesLoading,
@@ -38,7 +40,7 @@ const ExpensesPage = () => {
     }, searchTerm ? 300 : 0); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [categoryFilter, searchTerm, fetchExpenses]);
+  }, [activeHotelId, categoryFilter, searchTerm, fetchExpenses]);
 
   const categories = [
     'Utilities',

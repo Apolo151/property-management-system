@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import useStore from '../store/useStore'
 import useAuthStore from '../store/authStore'
+import { usePermissions } from '../hooks/usePermissions'
 import Notifications from '../components/Notifications'
 
 const MainLayout = ({ children, onLogout }) => {
@@ -9,6 +10,7 @@ const MainLayout = ({ children, onLogout }) => {
   const navigate = useNavigate()
   const { darkMode, toggleDarkMode } = useStore()
   const { hotels, activeHotelId, switchHotel, getActiveHotel } = useAuthStore()
+  const { canViewFinancials, canViewAuditLogs, canManageSettings } = usePermissions()
   const [isHotelDropdownOpen, setIsHotelDropdownOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -21,15 +23,13 @@ const MainLayout = ({ children, onLogout }) => {
     const success = switchHotel(hotelId)
     if (success) {
       setIsHotelDropdownOpen(false)
-      // Reload the page to refresh all data stores
-      window.location.reload()
     }
   }
 
   const activeHotel = getActiveHotel()
   const needsHotelPick = hotels.length > 1 && !activeHotelId
 
-  const navigation = [
+  const allNav = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Rooms', path: '/rooms', icon: '🛏️' },
     { name: 'Room Types', path: '/room-types', icon: '🏨' },
@@ -39,13 +39,20 @@ const MainLayout = ({ children, onLogout }) => {
     { name: 'Availability', path: '/availability', icon: '🔍' },
     { name: 'Timeline', path: '/timeline', icon: '📊' },
     { name: 'Guests', path: '/guests', icon: '👥' },
-    { name: 'Invoices', path: '/invoices', icon: '💰' },
-    { name: 'Expenses', path: '/expenses', icon: '💸' },
+    { name: 'Invoices', path: '/invoices', icon: '💰', needsFinancials: true },
+    { name: 'Expenses', path: '/expenses', icon: '💸', needsFinancials: true },
     { name: 'Maintenance', path: '/maintenance', icon: '🔧' },
-    { name: 'Reports', path: '/reports', icon: '📄' },
-    { name: 'Audit Logs', path: '/audit-logs', icon: '📋' },
-    { name: 'Settings', path: '/settings', icon: '⚙️' },
+    { name: 'Reports', path: '/reports', icon: '📄', needsFinancials: true },
+    { name: 'Audit Logs', path: '/audit-logs', icon: '📋', needsAudit: true },
+    { name: 'Settings', path: '/settings', icon: '⚙️', needsSettings: true },
   ]
+
+  const navigation = allNav.filter((item) => {
+    if (item.needsFinancials && !canViewFinancials) return false
+    if (item.needsAudit && !canViewAuditLogs) return false
+    if (item.needsSettings && !canManageSettings) return false
+    return true
+  })
 
   const isActive = (path) => location.pathname === path
 
