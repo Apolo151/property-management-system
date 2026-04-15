@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useAuditLogsStore = create((set, get) => ({
+const useAuditLogsStore = create((set, get, storeApi) => ({
   auditLogs: [],
   loading: false,
   error: null,
   total: 0,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch audit logs with optional filters
   fetchAuditLogs: async (filters = {}) => {
@@ -85,6 +88,8 @@ const useAuditLogsStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useAuditLogsStore.getState().reset());
 
 export default useAuditLogsStore;
 

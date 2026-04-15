@@ -4,9 +4,11 @@ import useReservationsStore from '../store/reservationsStore'
 import useGuestsStore from '../store/guestsStore'
 import useInvoicesStore from '../store/invoicesStore'
 import useExpensesStore from '../store/expensesStore'
+import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
 
 const ReportsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { reservations, fetchReservations } = useReservationsStore()
   const { guests, fetchGuests } = useGuestsStore()
   const { invoices, fetchInvoices } = useInvoicesStore()
@@ -19,7 +21,7 @@ const ReportsPage = () => {
     fetchGuests()
     fetchInvoices()
     fetchExpenses()
-  }, [fetchReservations, fetchGuests, fetchInvoices, fetchExpenses])
+  }, [activeHotelId, fetchReservations, fetchGuests, fetchInvoices, fetchExpenses])
 
   const exportToCSV = (data, filename) => {
     console.log('Exporting CSV:', { dataLength: data?.length, filename })

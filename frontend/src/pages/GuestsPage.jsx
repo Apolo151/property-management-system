@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import SearchInput from '../components/SearchInput'
 import Modal from '../components/Modal'
 import useGuestsStore from '../store/guestsStore'
+import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
 
 const GuestsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const {
     guests,
     loading: guestsLoading,
@@ -34,7 +36,7 @@ const GuestsPage = () => {
     }, 300) // Debounce search
 
     return () => clearTimeout(timeoutId)
-  }, [searchTerm, fetchGuests])
+  }, [activeHotelId, searchTerm, fetchGuests])
 
   const filteredAndSortedGuests = useMemo(() => {
     // API handles search, so we just sort the results
@@ -52,7 +54,7 @@ const GuestsPage = () => {
       } else if (sortBy === 'pastStays') {
         comparison = (a.pastStays || 0) - (b.pastStays || 0)
       } else if (sortBy === 'id') {
-        comparison = Number(a.id) - Number(b.id)
+        comparison = String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
       }
       return sortOrder === 'desc' ? -comparison : comparison
     })

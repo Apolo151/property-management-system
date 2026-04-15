@@ -4,12 +4,14 @@ import useReservationsStore from '../store/reservationsStore'
 import useRoomTypesStore from '../store/roomTypesStore'
 import useGuestsStore from '../store/guestsStore'
 import { api } from '../utils/api'
+import useAuthStore from '../store/authStore'
 import StatusBadge from '../components/StatusBadge'
 import GuestSelect from '../components/GuestSelect'
 import Modal from '../components/Modal'
 import { useToast } from '../hooks/useToast'
 
 const AvailabilityPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { createReservation } = useReservationsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests, createGuest } = useGuestsStore()
@@ -30,7 +32,7 @@ const AvailabilityPage = () => {
   // Fetch data on mount
   useEffect(() => {
     fetchGuests()
-  }, [fetchGuests])
+  }, [activeHotelId, fetchGuests])
 
   // Check availability when dates change
   useEffect(() => {

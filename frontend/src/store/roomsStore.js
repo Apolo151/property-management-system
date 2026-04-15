@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import { api } from '../utils/api.js';
+import { registerDomainReset } from './storeRegistry.js';
 
-const useRoomsStore = create((set, get) => ({
+const useRoomsStore = create((set, get, storeApi) => ({
   rooms: [],
   housekeeping: [],
   isLoading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all rooms
   fetchRooms: async (filters = {}) => {
@@ -202,6 +205,8 @@ const useRoomsStore = create((set, get) => ({
     await Promise.all([get().fetchRooms(), get().fetchHousekeeping()]);
   },
 }));
+
+registerDomainReset(() => useRoomsStore.getState().reset());
 
 export default useRoomsStore;
 

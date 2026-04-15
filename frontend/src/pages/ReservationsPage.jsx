@@ -11,6 +11,8 @@ import useRoomsStore from '../store/roomsStore'
 import useRoomTypesStore from '../store/roomTypesStore'
 import useGuestsStore from '../store/guestsStore'
 import useInvoicesStore from '../store/invoicesStore'
+import useAuthStore from '../store/authStore'
+import usePermissions from '../hooks/usePermissions'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 import { api } from '../utils/api'
@@ -19,6 +21,8 @@ const reservationBlocksAvailability = (status) =>
   status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
 
 const ReservationsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
+  const { canCreate, canEdit, canDelete, canViewFinancials } = usePermissions()
   const { rooms, fetchRooms } = useRoomsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests, createGuest } = useGuestsStore()
@@ -76,13 +80,18 @@ const ReservationsPage = () => {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
   const [selectedReservationForCheckIn, setSelectedReservationForCheckIn] = useState(null)
 
+  const [isEditDatesOpen, setIsEditDatesOpen] = useState(false)
+  const [reservationForDates, setReservationForDates] = useState(null)
+  const [editCheckIn, setEditCheckIn] = useState('')
+  const [editCheckOut, setEditCheckOut] = useState('')
+
   // Fetch reservations, guests, rooms, and invoices on mount
   useEffect(() => {
     fetchReservations()
     fetchGuests()
     fetchRooms()
     fetchInvoices()
-  }, [fetchReservations, fetchGuests, fetchRooms, fetchInvoices])
+  }, [activeHotelId, fetchReservations, fetchGuests, fetchRooms, fetchInvoices])
 
   // Check availability when dates change - runs immediately when dates are valid
   useEffect(() => {
@@ -157,8 +166,6 @@ const ReservationsPage = () => {
 
     const fetchRoomsForType = async () => {
       try {
-        // Get rooms that match the selected room type
-        // Match by room_type_id (UUID), room_type name, or legacy type
         const roomsForType = rooms.filter((room) => {
           const roomTypeMatch = room.roomType === selectedRoomType.room_type_id || 
                                room.roomType === selectedRoomType.room_type ||
@@ -166,39 +173,35 @@ const ReservationsPage = () => {
           const legacyTypeMatch = room.type?.toLowerCase() === selectedRoomType.room_type?.toLowerCase()
           return roomTypeMatch || legacyTypeMatch
         })
-        
-        // Check availability for each room
-        const availableRoomsList = []
-        for (const room of roomsForType) {
-          try {
-            const availability = await api.reservations.checkAvailability({
-              check_in: checkIn,
-              check_out: checkOut,
-              room_id: room.id,
-            })
-            
-            if (availability.available) {
-              availableRoomsList.push({
-                ...room,
-                available: true,
-              })
-            }
-          } catch (error) {
-            console.error(`Error checking availability for room ${room.roomNumber}:`, error)
-          }
+
+        const roomTypeId = selectedRoomType.room_type_id || selectedRoomType.id
+        if (!roomTypeId) {
+          setAvailableRooms([])
+          return
         }
-        
-        setAvailableRooms(availableRoomsList)
+
+        const data = await api.roomTypes.getAvailability(roomTypeId, checkIn, checkOut)
+        const byDate = data?.availability || {}
+        const counts = Object.values(byDate).map((n) => Number(n))
+        if (counts.length === 0) {
+          setAvailableRooms([])
+          return
+        }
+        const minAvail = Math.min(...counts)
+        if (minAvail < (unitsRequested || 1)) {
+          setAvailableRooms([])
+          return
+        }
+
+        setAvailableRooms(roomsForType.map((room) => ({ ...room, available: true })))
       } catch (error) {
         console.error('Error fetching rooms:', error)
-        // Don't show error toast - it's okay if no specific rooms are available
-        // User can still proceed with auto-assignment
         setAvailableRooms([])
       }
     }
 
     fetchRoomsForType()
-  }, [selectedRoomType, checkIn, checkOut, rooms])
+  }, [selectedRoomType, checkIn, checkOut, rooms, unitsRequested])
 
   const filteredAndSortedReservations = useMemo(() => {
     let filtered = reservations.filter((res) => {
@@ -234,7 +237,7 @@ const ReservationsPage = () => {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, sortBy, reservations])
+  }, [searchTerm, statusFilter, sortBy, sortOrder, reservations])
 
   // Check if an invoice already exists for a reservation
   const hasInvoice = (reservationId) => {
@@ -275,6 +278,69 @@ const ReservationsPage = () => {
       toast.success(`Invoice created successfully for reservation ${reservation.id}`)
     } catch (error) {
       toast.error(error.message || 'Failed to create invoice')
+    }
+  }
+
+  const canCancelReservation = (r) =>
+    ['Confirmed', 'Checked-in', 'No-show'].includes(r.status)
+
+  const canEditReservationDates = (r) =>
+    r.status !== 'Checked-out' && r.status !== 'Cancelled'
+
+  const handleCancelReservation = async (reservation) => {
+    if (!canCancelReservation(reservation)) return
+    const confirmed = await confirmation({
+      title: 'Cancel reservation',
+      message: `Cancel reservation for ${reservation.guestName}? The room will be released for inventory.`,
+      variant: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      await updateReservation(reservation.id, { status: 'Cancelled' })
+      await fetchReservations()
+      toast.success('Reservation cancelled')
+    } catch (error) {
+      toast.error(error.message || 'Failed to cancel reservation')
+    }
+  }
+
+  const openEditDates = (reservation) => {
+    if (!canEditReservationDates(reservation)) return
+    setReservationForDates(reservation)
+    const ci = reservation.checkIn?.includes('T')
+      ? reservation.checkIn.split('T')[0]
+      : reservation.checkIn
+    const co = reservation.checkOut?.includes('T')
+      ? reservation.checkOut.split('T')[0]
+      : reservation.checkOut
+    setEditCheckIn(ci || '')
+    setEditCheckOut(co || '')
+    setIsEditDatesOpen(true)
+  }
+
+  const handleSaveEditDates = async () => {
+    if (!reservationForDates) return
+    const checkInDate = parseISO(editCheckIn)
+    const checkOutDate = parseISO(editCheckOut)
+    if (Number.isNaN(checkInDate.getTime()) || Number.isNaN(checkOutDate.getTime())) {
+      toast.error('Invalid dates')
+      return
+    }
+    if (checkOutDate <= checkInDate) {
+      toast.error('Check-out date must be after check-in date')
+      return
+    }
+    try {
+      await updateReservation(reservationForDates.id, {
+        checkIn: editCheckIn,
+        checkOut: editCheckOut,
+      })
+      await fetchReservations()
+      toast.success('Reservation dates updated')
+      setIsEditDatesOpen(false)
+      setReservationForDates(null)
+    } catch (error) {
+      toast.error(error.message || 'Failed to update reservation dates')
     }
   }
 
@@ -511,12 +577,14 @@ const ReservationsPage = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Reservations</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">View and manage all hotel reservations</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn btn-primary"
-        >
-          + Add Reservation
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn btn-primary"
+          >
+            + Add Reservation
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -656,7 +724,25 @@ const ReservationsPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
-                    {reservation.status === 'Confirmed' && (
+                    {canEdit && canEditReservationDates(reservation) && (
+                      <button
+                        type="button"
+                        onClick={() => openEditDates(reservation)}
+                        className="text-primary-600 hover:text-primary-900 mr-3"
+                      >
+                        Edit dates
+                      </button>
+                    )}
+                    {canDelete && canCancelReservation(reservation) && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelReservation(reservation)}
+                        className="text-red-600 hover:text-red-900 mr-3"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {canEdit && reservation.status === 'Confirmed' && (
                       <>
                         <button
                           onClick={() => handleOpenCheckIn(reservation)}
@@ -664,26 +750,29 @@ const ReservationsPage = () => {
                         >
                           Check In
                         </button>
-                        <button
-                          onClick={() => handleMarkNoShow(reservation)}
-                          className="text-amber-700 hover:text-amber-900 ml-3"
-                        >
-                          No-show
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleMarkNoShow(reservation)}
+                            className="text-amber-700 hover:text-amber-900 ml-3"
+                          >
+                            No-show
+                          </button>
+                        )}
                       </>
                     )}
-                    {hasInvoice(reservation.id) ? (
-                      <span className="text-gray-400 dark:text-gray-500 cursor-not-allowed" title="Invoice already exists">
-                        Invoice Created
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleCreateInvoice(reservation)}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        Create Invoice
-                      </button>
-                    )}
+                    {canViewFinancials &&
+                      (hasInvoice(reservation.id) ? (
+                        <span className="text-gray-400 dark:text-gray-500 cursor-not-allowed" title="Invoice already exists">
+                          Invoice Created
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleCreateInvoice(reservation)}
+                          className="text-primary-600 hover:text-primary-900"
+                        >
+                          Create Invoice
+                        </button>
+                      ))}
                   </td>
                 </tr>
               ))}
@@ -1103,6 +1192,55 @@ const ReservationsPage = () => {
               </div>
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditDatesOpen}
+        onClose={() => {
+          setIsEditDatesOpen(false)
+          setReservationForDates(null)
+        }}
+        title={reservationForDates ? `Edit dates — ${reservationForDates.guestName}` : 'Edit dates'}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Check-in
+            </label>
+            <input
+              type="date"
+              className="input w-full"
+              value={editCheckIn}
+              onChange={(e) => setEditCheckIn(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Check-out
+            </label>
+            <input
+              type="date"
+              className="input w-full"
+              value={editCheckOut}
+              onChange={(e) => setEditCheckOut(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setIsEditDatesOpen(false)
+                setReservationForDates(null)
+              }}
+            >
+              Close
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleSaveEditDates}>
+              Save
+            </button>
+          </div>
         </div>
       </Modal>
 

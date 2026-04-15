@@ -6,6 +6,7 @@ import SearchInput from '../components/SearchInput'
 import FilterSelect from '../components/FilterSelect'
 
 const AuditLogsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const activeHotel = useAuthStore((state) =>
     state.hotels.find((h) => h.id === state.activeHotelId),
   )
@@ -31,7 +32,7 @@ const AuditLogsPage = () => {
     }, searchTerm ? 300 : 0); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [actionFilter, entityFilter, searchTerm, sortBy, sortOrder, fetchAuditLogs])
+  }, [activeHotelId, actionFilter, entityFilter, searchTerm, sortBy, sortOrder, fetchAuditLogs])
 
   const filteredAndSortedLogs = useMemo(() => {
     // Server-side filtering is already done, but we can do additional client-side filtering if needed

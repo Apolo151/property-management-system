@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api.js';
+import { registerDomainReset } from './storeRegistry.js';
 
-const useRoomTypesStore = create((set, get) => ({
+const useRoomTypesStore = create((set, get, storeApi) => ({
   roomTypes: [],
   isLoading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Helper function to transform backend format (snake_case) to frontend format (camelCase)
   transformRoomType: (rt) => ({
@@ -166,6 +169,8 @@ const useRoomTypesStore = create((set, get) => ({
     await get().fetchRoomTypes();
   },
 }));
+
+registerDomainReset(() => useRoomTypesStore.getState().reset());
 
 export default useRoomTypesStore;
 

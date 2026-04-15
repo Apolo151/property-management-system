@@ -7,6 +7,7 @@ import useReservationsStore from '../store/reservationsStore'
 import useRoomsStore from '../store/roomsStore'
 import useRoomTypesStore from '../store/roomTypesStore'
 import useGuestsStore from '../store/guestsStore'
+import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 
@@ -14,6 +15,7 @@ const reservationBlocksAvailability = (status) =>
   status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
 
 const CalendarPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { reservations, fetchReservations, createReservation } = useReservationsStore()
   const { rooms, fetchRooms } = useRoomsStore()
   const { getAvailableRoomTypes } = useRoomTypesStore()
@@ -63,7 +65,7 @@ const CalendarPage = () => {
     fetchReservations()
     fetchRooms()
     fetchGuests()
-  }, [fetchReservations, fetchRooms, fetchGuests])
+  }, [activeHotelId, fetchReservations, fetchRooms, fetchGuests])
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)

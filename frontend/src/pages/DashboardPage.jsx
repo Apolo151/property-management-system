@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import StatCard from '../components/StatCard'
 import { api } from '../utils/api.js'
+import useAuthStore from '../store/authStore.js'
 import useReservationsStore from '../store/reservationsStore.js'
 import useInvoicesStore from '../store/invoicesStore.js'
 import useExpensesStore from '../store/expensesStore.js'
@@ -9,6 +10,7 @@ import { format, eachDayOfInterval, addDays, getMonth, getYear } from 'date-fns'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 const DashboardPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { reservations, fetchReservations, loading: reservationsLoading } = useReservationsStore()
   const { invoices, fetchInvoices, loading: invoicesLoading } = useInvoicesStore()
   const { expenses, fetchExpenses, loading: expensesLoading } = useExpensesStore()
@@ -59,7 +61,7 @@ const DashboardPage = () => {
     }
 
     fetchDashboardData()
-  }, [fetchReservations, fetchInvoices, fetchExpenses, fetchCheckIns])
+  }, [activeHotelId, fetchReservations, fetchInvoices, fetchExpenses, fetchCheckIns])
 
   const loading = statsLoading || reservationsLoading || invoicesLoading || expensesLoading || checkInsLoading
 
@@ -107,7 +109,7 @@ const DashboardPage = () => {
       todaysCheckOuts: todaysCheckOutsCount,
       todaysRevenue,
     }
-  }, [roomTypes, reportStats, invoices, checkIns, activeCheckIns])
+  }, [roomTypes, invoices, checkIns, activeCheckIns])
 
   // Financial calculations from backend stats (always use backend data)
   const financialStats = useMemo(() => {
@@ -422,10 +424,7 @@ const DashboardPage = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Cancellation Rate</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={[
-              { period: 'This Month', rate: cancellationRate },
-              { period: 'Last Month', rate: cancellationRate * 1.1 },
-            ]}>
+            <BarChart data={[{ period: 'Current period', rate: cancellationRate }]}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" />
               <YAxis />

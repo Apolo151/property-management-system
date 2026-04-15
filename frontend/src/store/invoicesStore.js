@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useInvoicesStore = create((set, get) => ({
+const useInvoicesStore = create((set, get, storeApi) => ({
   invoices: [],
   loading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all invoices
   fetchInvoices: async (filters = {}) => {
@@ -212,6 +215,8 @@ const useInvoicesStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useInvoicesStore.getState().reset());
 
 export default useInvoicesStore;
 

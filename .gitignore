@@ -46,6 +46,7 @@ node_modules
 
 # Distributables
 dist/
+frontend/storybook-static/
 .nyc_output/
 .cache
 .mocha-puppeteer

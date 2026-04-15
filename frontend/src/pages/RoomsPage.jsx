@@ -8,9 +8,11 @@ import useRoomTypesStore from '../store/roomTypesStore'
 import useRoomsStore from '../store/roomsStore'
 import useCheckInsStore from '../store/checkInsStore'
 import { api } from '../utils/api'
+import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
 
 const RoomsPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { roomTypes, fetchRoomTypes, isLoading: roomTypesLoading } = useRoomTypesStore()
   const { rooms, housekeeping, fetchRooms, fetchHousekeeping, updateHousekeepingStatus, isLoading: housekeepingLoading } = useRoomsStore()
   const { checkIns, fetchCheckIns, getCheckInByRoom } = useCheckInsStore()
@@ -28,7 +30,7 @@ const RoomsPage = () => {
     fetchHousekeeping()
     fetchCheckIns()
     fetchStaff()
-  }, [fetchRoomTypes, fetchHousekeeping, fetchCheckIns])
+  }, [activeHotelId, fetchRoomTypes, fetchRooms, fetchHousekeeping, fetchCheckIns])
 
   // Fetch rooms with loading state
   const fetchRoomsData = async () => {

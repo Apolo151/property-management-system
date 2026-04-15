@@ -7,6 +7,7 @@ import { usePrompt } from '../hooks/usePrompt'
 
 const SettingsPage = () => {
   const { user } = useAuthStore()
+  const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const toast = useToast()
   const confirmation = useConfirmation()
   const prompt = usePrompt()
@@ -86,7 +87,7 @@ const SettingsPage = () => {
     }
 
     fetchSettings()
-  }, [])
+  }, [activeHotelId])
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -110,7 +111,7 @@ const SettingsPage = () => {
     }
 
     fetchStaff()
-  }, [activeTab])
+  }, [activeTab, activeHotelId])
 
   // Channel Manager useEffect
   useEffect(() => {
@@ -130,7 +131,7 @@ const SettingsPage = () => {
     }
 
     fetchChannelManagerStatus()
-  }, [activeTab])
+  }, [activeTab, activeHotelId])
 
   // Fetch QloApps config details when configured
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import useRoomTypesStore from '../store/roomTypesStore';
+import useAuthStore from '../store/authStore';
 import Modal from '../components/Modal';
 import SearchInput from '../components/SearchInput';
 import FilterSelect from '../components/FilterSelect';
@@ -7,13 +8,14 @@ import { useToast } from '../hooks/useToast';
 import { useConfirmation } from '../hooks/useConfirmation';
 
 const RoomTypesPage = () => {
+  const activeHotelId = useAuthStore((s) => s.activeHotelId);
   const { roomTypes, addRoomType, updateRoomType, deleteRoomType, isLoading, initialize } = useRoomTypesStore();
   const toast = useToast();
   const confirmation = useConfirmation();
 
   useEffect(() => {
     initialize();
-  }, [initialize]);
+  }, [activeHotelId, initialize]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roomTypeFilter, setRoomTypeFilter] = useState('');

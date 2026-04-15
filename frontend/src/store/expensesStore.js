@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { registerDomainReset } from './storeRegistry';
 
-const useExpensesStore = create((set, get) => ({
+const useExpensesStore = create((set, get, storeApi) => ({
   expenses: [],
   loading: false,
   error: null,
+
+  reset: () => set(storeApi.getInitialState(), true),
 
   // Fetch all expenses
   fetchExpenses: async (filters = {}) => {
@@ -164,6 +167,8 @@ const useExpensesStore = create((set, get) => ({
     }
   },
 }));
+
+registerDomainReset(() => useExpensesStore.getState().reset());
 
 export default useExpensesStore;
 
