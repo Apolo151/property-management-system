@@ -218,3 +218,45 @@ export async function getReportStatsHandler(
   }
 }
 
+/** UC-806: minimal CSV summary export for the same date window as stats. */
+export async function exportReportsCsvHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { start_date, end_date } = req.query;
+    const hotelId = (req as any).hotelId;
+
+    let resQ = db('reservations').where('hotel_id', hotelId).whereNull('deleted_at');
+    if (start_date) resQ = resQ.whereRaw('check_in >= ?', [start_date as string]);
+    if (end_date) resQ = resQ.whereRaw('check_out <= ?', [end_date as string]);
+    const resCount = await resQ.count('* as c').first();
+
+    let invQ = db('invoices').where('hotel_id', hotelId).whereNull('deleted_at');
+    if (start_date) invQ = invQ.whereRaw('issue_date >= ?', [start_date as string]);
+    if (end_date) invQ = invQ.whereRaw('issue_date <= ?', [end_date as string]);
+    const paidSum = await invQ.clone().where('status', 'Paid').sum('amount as s').first();
+    const pendSum = await invQ.clone().where('status', 'Pending').sum('amount as s').first();
+
+    let expQ = db('expenses').where('hotel_id', hotelId).whereNull('deleted_at');
+    if (start_date) expQ = expQ.whereRaw('expense_date >= ?', [start_date as string]);
+    if (end_date) expQ = expQ.whereRaw('expense_date <= ?', [end_date as string]);
+    const expSum = await expQ.sum('amount as s').first();
+
+    const lines = [
+      'metric,value',
+      `reservations_in_range,${Number((resCount as any)?.c ?? 0)}`,
+      `invoices_paid_total,${parseFloat(String((paidSum as any)?.s ?? 0))}`,
+      `invoices_pending_total,${parseFloat(String((pendSum as any)?.s ?? 0))}`,
+      `expenses_total,${parseFloat(String((expSum as any)?.s ?? 0))}`,
+    ];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="report-summary.csv"');
+    res.send(lines.join('\n'));
+  } catch (error) {
+    next(error);
+  }
+}
+

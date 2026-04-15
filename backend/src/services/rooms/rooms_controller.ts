@@ -661,6 +661,16 @@ export async function updateRoomHousekeepingHandler(
         });
       }
 
+      if (!isUnitId && room && status === 'Dirty') {
+        setImmediate(() => {
+          import('../notifications/notifications_events.js')
+            .then(({ notifyHousekeepingRoomDirty }) =>
+              notifyHousekeepingRoomDirty(hotelId, room!.id, room!.room_number),
+            )
+            .catch((err) => console.error('[Housekeeping] notification hook failed:', err));
+        });
+      }
+
       res.json(updated as any);
     } else {
       // Create new
@@ -686,6 +696,16 @@ export async function updateRoomHousekeepingHandler(
       if (!isUnitId && room && room.room_type_id && (status === 'Dirty' || status === 'In Progress')) {
         queueAvailabilitySync(room.room_type_id).catch((err) => {
           console.error('Failed to queue room availability sync:', err);
+        });
+      }
+
+      if (!isUnitId && room && status === 'Dirty') {
+        setImmediate(() => {
+          import('../notifications/notifications_events.js')
+            .then(({ notifyHousekeepingRoomDirty }) =>
+              notifyHousekeepingRoomDirty(hotelId, room!.id, room!.room_number),
+            )
+            .catch((err) => console.error('[Housekeeping] notification hook failed:', err));
         });
       }
 

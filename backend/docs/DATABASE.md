@@ -199,6 +199,13 @@ For production environments:
 5. Monitor connection pool usage
 6. Set appropriate pool sizes based on load
 
+## Tables: notifications & password reset (alignment milestone)
+
+| Table | Purpose |
+|-------|---------|
+| `notifications` | Server-side inbox per `hotel_id` + `user_id`; `type`, `title`, `body`, optional `payload` JSON, `dedupe_key` for idempotent inserts, `read_at`. |
+| `password_reset_tokens` | One-time reset tokens (`token_hash`, `expires_at`, `used_at`) for UC-004. |
+
 ## Additional Resources
 
 - [Knex.js Documentation](https://knexjs.org/)

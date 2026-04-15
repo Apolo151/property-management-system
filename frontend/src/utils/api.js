@@ -74,9 +74,12 @@ async function refreshAccessToken() {
 
 async function request(endpoint, options = {}) {
   // Skip auth for auth endpoints
-  const isAuthEndpoint = endpoint.startsWith('/auth/login') || 
-                         endpoint.startsWith('/auth/register') || 
-                         endpoint.startsWith('/auth/refresh');
+  const isAuthEndpoint =
+    endpoint.startsWith('/auth/login') ||
+    endpoint.startsWith('/auth/register') ||
+    endpoint.startsWith('/auth/refresh') ||
+    endpoint.startsWith('/auth/forgot-password') ||
+    endpoint.startsWith('/auth/reset-password');
   
   // Skip hotel header for auth and hotels endpoints
   const skipHotelHeader = isAuthEndpoint || endpoint.startsWith('/v1/hotels');
@@ -192,6 +195,24 @@ export const api = {
       }),
 
     me: () => request('/auth/me'),
+
+    changePassword: (current_password, new_password) =>
+      request('/auth/change-password', {
+        method: 'POST',
+        body: { current_password, new_password },
+      }),
+
+    forgotPassword: (email) =>
+      request('/auth/forgot-password', {
+        method: 'POST',
+        body: { email },
+      }),
+
+    resetPassword: (token, new_password) =>
+      request('/auth/reset-password', {
+        method: 'POST',
+        body: { token, new_password },
+      }),
   },
 
   // Rooms endpoints (legacy - for backward compatibility)
@@ -340,6 +361,12 @@ export const api = {
       request(`/v1/guests/${id}`, {
         method: 'DELETE',
       }),
+
+    merge: (id, target_guest_id) =>
+      request(`/v1/guests/${id}/merge`, {
+        method: 'POST',
+        body: { target_guest_id },
+      }),
   },
 
   // Invoices endpoints
@@ -367,6 +394,23 @@ export const api = {
       request(`/v1/invoices/${id}`, {
         method: 'DELETE',
       }),
+
+    downloadPdf: async (id) => {
+      const token = localStorage.getItem('token');
+      const activeHotelId = localStorage.getItem('activeHotelId');
+      const url = `${API_BASE_URL}/v1/invoices/${id}/pdf`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(activeHotelId && { 'X-Hotel-Id': activeHotelId }),
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new ApiError(err.error || 'Failed to download PDF', res.status, err);
+      }
+      return res.blob();
+    },
   },
 
   // Expenses endpoints
@@ -619,6 +663,23 @@ export const api = {
       request(`/v1/reservations/${reservationId}/check-in`, {
         method: 'POST',
         body: checkInData,
+      }),
+  },
+
+  notifications: {
+    list: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return request(`/v1/notifications${queryString ? `?${queryString}` : ''}`);
+    },
+
+    markRead: (id) =>
+      request(`/v1/notifications/${id}/read`, {
+        method: 'PATCH',
+      }),
+
+    markAllRead: () =>
+      request('/v1/notifications/read-all', {
+        method: 'POST',
       }),
   },
 };

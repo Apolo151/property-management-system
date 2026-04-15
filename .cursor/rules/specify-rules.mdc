@@ -13,6 +13,10 @@ Auto-generated from all feature plans. Last updated: 2026-04-15
 - PostgreSQL (existing schema: `hotels`, `hotel_id` on tenant tables, `user_hotels`) (003-docs-code-alignment)
 - Node.js 18+; TypeScript 5.x (backend); React 18 + Vite 5 (frontend) + Express API, Knex, PostgreSQL 16, RabbitMQ 3 (management image), Docker Compose v2 CLI (003-docs-code-alignment)
 - PostgreSQL + RabbitMQ volumes (named volumes for dev; production overlay uses host paths per existing `infra/docker/docker-compose.prod.yml` pattern) (003-docs-code-alignment)
+- Node.js 18+, TypeScript 5.x (backend) + Express, Knex, PostgreSQL, JWT (existing `auth_utils`, middleware patterns) (005-backend-spec-alignment)
+- PostgreSQL; optional new columns/tables **only** if password reset is later scoped in (not in minimal wave—see research) (005-backend-spec-alignment)
+- Node.js 18+, TypeScript 5.x (backend) + Express, Knex, PostgreSQL, JWT; minimal PDF/export library TBD in implementation (choose one small dependency) (005-backend-spec-alignment)
+- PostgreSQL — **new** `notifications` table; likely **`password_reset_tokens`** (or equivalent) for UC-004; no Redis required for v1 (005-backend-spec-alignment)
 
 - Node.js 18+ / TypeScript 5.x (backend); React 18 JSX (frontend) + Express.js, Knex.js, Zustand, React Router v6, RabbitMQ (optional QloApps hooks) (001-phase0-baseline-spec)
 
@@ -32,9 +36,9 @@ npm test && npm run lint
 Node.js 18+ / TypeScript 5.x (backend); React 18 JSX (frontend): Follow standard conventions
 
 ## Recent Changes
+- 005-backend-spec-alignment: Added Node.js 18+, TypeScript 5.x (backend) + Express, Knex, PostgreSQL, JWT; minimal PDF/export library TBD in implementation (choose one small dependency)
+- 005-backend-spec-alignment: Added Node.js 18+, TypeScript 5.x (backend) + Express, Knex, PostgreSQL, JWT (existing `auth_utils`, middleware patterns)
 - 003-docs-code-alignment: Added Node.js 18+; TypeScript 5.x (backend); React 18 + Vite 5 (frontend) + Express API, Knex, PostgreSQL 16, RabbitMQ 3 (management image), Docker Compose v2 CLI
-- 003-docs-code-alignment: Added Node.js 18+; TypeScript 5.x (backend); React 18 + Vite 5 (frontend) + Express API, Knex, PostgreSQL 16, RabbitMQ 3 (management image), Docker Compose v2 CLI
-- 003-docs-code-alignment: Added Node.js 18+, TypeScript 5.x (backend); React 18 (frontend) + Express, Knex, PostgreSQL, JWT auth; React Router, Zustand (as in repo)
 
 
 <!-- MANUAL ADDITIONS START -->

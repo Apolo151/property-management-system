@@ -9,19 +9,25 @@ import {
   getExpenseStatsHandler,
 } from './expenses_controller.js';
 
+export const EXPENSE_READ_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'VIEWER'] as const;
+
+/** POST/PUT: FRONT_DESK excluded per USE_CASES. */
+export const EXPENSE_MUTATE_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'] as const;
+
+export const EXPENSE_DELETE_ROLES = ['ADMIN', 'SUPER_ADMIN'] as const;
+
 const router = Router();
 
 // All routes require authentication and hotel context
 router.use(authenticateToken);
 router.use(hotelContext);
 
-// Expense routes
-router.get('/expenses', getExpensesHandler);
-router.get('/expenses/stats', getExpenseStatsHandler);
-router.get('/expenses/:id', getExpenseHandler);
-router.post('/expenses', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), createExpenseHandler);
-router.put('/expenses/:id', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), updateExpenseHandler);
-router.delete('/expenses/:id', requireRole('ADMIN', 'SUPER_ADMIN'), deleteExpenseHandler);
+router.get('/expenses', requireRole(...EXPENSE_READ_ROLES), getExpensesHandler);
+router.get('/expenses/stats', requireRole(...EXPENSE_READ_ROLES), getExpenseStatsHandler);
+router.get('/expenses/:id', requireRole(...EXPENSE_READ_ROLES), getExpenseHandler);
+router.post('/expenses', requireRole(...EXPENSE_MUTATE_ROLES), createExpenseHandler);
+router.put('/expenses/:id', requireRole(...EXPENSE_MUTATE_ROLES), updateExpenseHandler);
+router.delete('/expenses/:id', requireRole(...EXPENSE_DELETE_ROLES), deleteExpenseHandler);
 
 export { router as expensesRoutes };
 

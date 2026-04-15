@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
+import type { Knex } from 'knex';
 import db from '../../config/database.js';
+import type { AuthenticatedRequest } from '../auth/auth_middleware.js';
 import type { CreateGuestRequest, UpdateGuestRequest, GuestResponse } from './guests_types.js';
-import { logCreate, logUpdate, logDelete } from '../audit/audit_utils.js';
+import { logCreate, logUpdate, logDelete, logAction } from '../audit/audit_utils.js';
 
 // Get all guests
 export async function getGuestsHandler(
@@ -289,6 +291,80 @@ export async function updateGuestHandler(
         .catch((err) => console.error('QloApps guest sync hook failed:', err));
     }
   } catch (error) {
+    next(error);
+  }
+}
+
+/** UC-106: merge duplicate guest profiles — reassign FKs to target, soft-delete source. */
+export async function mergeGuestsHandler(
+  req: AuthenticatedRequest<{ id: string }, { message?: string; merged_into: string }, { target_guest_id: string }>,
+  res: Response<{ message?: string; merged_into: string }>,
+  next: NextFunction,
+) {
+  try {
+    const sourceId = req.params.id;
+    const { target_guest_id } = req.body;
+    const hotelId = req.hotelId!;
+
+    if (!target_guest_id) {
+      res.status(400).json({ error: 'target_guest_id is required' } as any);
+      return;
+    }
+    if (sourceId === target_guest_id) {
+      res.status(400).json({ error: 'source and target must differ' } as any);
+      return;
+    }
+
+    await db.transaction(async (trx: Knex.Transaction) => {
+      const source = await trx('guests')
+        .where({ id: sourceId, hotel_id: hotelId })
+        .whereNull('deleted_at')
+        .first();
+      const target = await trx('guests')
+        .where({ id: target_guest_id, hotel_id: hotelId })
+        .whereNull('deleted_at')
+        .first();
+
+      if (!source || !target) {
+        throw Object.assign(new Error('NOT_FOUND'), { status: 404 });
+      }
+
+      await trx('reservation_guests')
+        .where({ guest_id: sourceId })
+        .whereIn(
+          'reservation_id',
+          trx('reservation_guests').select('reservation_id').where({ guest_id: target_guest_id }),
+        )
+        .delete();
+
+      await trx('reservation_guests').where({ guest_id: sourceId }).update({ guest_id: target_guest_id });
+
+      await trx('reservations')
+        .where({ hotel_id: hotelId })
+        .where('primary_guest_id', sourceId)
+        .update({ primary_guest_id: target_guest_id, updated_at: trx.fn.now() });
+
+      await trx('invoices')
+        .where({ hotel_id: hotelId, guest_id: sourceId })
+        .update({ guest_id: target_guest_id, updated_at: trx.fn.now() });
+
+      await trx('guests').where({ id: sourceId }).update({
+        deleted_at: new Date(),
+        updated_at: new Date(),
+      });
+    });
+
+    logAction(req, 'MERGE_GUEST', 'guest', target_guest_id, {
+      source_guest_id: sourceId,
+      target_guest_id,
+    }).catch((err) => console.error('Audit log failed:', err));
+
+    res.json({ message: 'Guests merged', merged_into: target_guest_id });
+  } catch (error: any) {
+    if (error?.status === 404) {
+      res.status(404).json({ error: 'Guest not found' } as any);
+      return;
+    }
     next(error);
   }
 }
