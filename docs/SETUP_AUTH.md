@@ -14,7 +14,7 @@ Edit `backend/.env` with your database credentials:
 
 ```env
 NODE_ENV=development
-PORT=3000
+PORT=8000
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -76,7 +76,7 @@ cd backend
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000`
+The API will be available at `http://localhost:8000`
 
 ## Frontend Setup
 
@@ -85,7 +85,7 @@ The API will be available at `http://localhost:3000`
 Create a `.env` file in the `frontend/` directory if you need to change the API URL:
 
 ```env
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=http://localhost:8000/api
 ```
 
 ### 2. Start Frontend

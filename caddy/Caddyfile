@@ -10,7 +10,7 @@
 
 	# API is mounted under /api on the Express app
 	handle /api* {
-		reverse_proxy api:3000
+		reverse_proxy api:8000
 	}
 
 	# Static SPA (nginx stage in frontend image)

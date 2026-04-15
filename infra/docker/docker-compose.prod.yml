@@ -3,7 +3,7 @@ version: '3.8'
 # VM / single-host deployment: Caddy reverse proxy (TLS via ACME), /data/* volumes.
 # Set PUBLIC_APP_DOMAIN to your public hostname (same idea as Terraform domain_name).
 # Optional: CADDY_EMAIL for Let's Encrypt registration.
-# Caddyfile: ./caddy/Caddyfile (API-only; mirrors former nginx → api:3000).
+# Caddyfile: ./caddy/Caddyfile (API-only; mirrors former nginx → api:8000).
 # Portable dev/prod-like stacks: repository root docker-compose*.yml
 
 services:
@@ -44,7 +44,7 @@ services:
     container_name: hotel-pms-api
     environment:
       - NODE_ENV=$${NODE_ENV:-production}
-      - PORT=3000
+      - PORT=8000
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=$${DB_NAME}
@@ -72,7 +72,7 @@ services:
     networks:
       - hotel-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

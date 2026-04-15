@@ -35,6 +35,6 @@ RUN addgroup -g 1001 -S nodejs && \
 
 USER nodejs
 
-EXPOSE 3000
+EXPOSE 8000
 
 CMD ["node", "dist/src/server.js"]

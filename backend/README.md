@@ -62,7 +62,7 @@ A comprehensive Property Management System (PMS) designed to streamline hotel op
    npm run dev
    ```
 
-7. **Access the API at** `http://localhost:3000`
+7. **Access the API at** `http://localhost:8000`
 
 ## Running the full system with Docker
 
@@ -71,7 +71,7 @@ Compose files live at the **repository root**: `docker-compose.yml`, `docker-com
 ### 1. Prerequisites
 
 - Docker and Docker Compose v2
-- Ports (adjust via `.env` at repo root): `3000` (API), `HOST_DB_PORT`→`5432` (Postgres on host), `5173` (Vite), `5672` / `15672` (RabbitMQ), and if using optional QloApps: `8080` (or `QLOAPPS_PORT`), `3306`, `2222`
+- Ports (adjust via `.env` at repo root): `8000` (API), `HOST_DB_PORT`→`5432` (Postgres on host), `5173` (Vite), `5672` / `15672` (RabbitMQ), and if using optional QloApps: `8080` (or `QLOAPPS_PORT`), `3306`, `2222`
 
 ### 2. Environment
 
@@ -168,7 +168,7 @@ To start a standalone QloApps PMS instance (used by this backend as an external 
 
 ### 7. Frontend (PMS UI)
 
-By default the **frontend** service runs in Compose (Vite on port `5173`). Override `VITE_API_URL` in root `.env` if the browser cannot reach the API at `http://localhost:3000/api`.
+By default the **frontend** service runs in Compose (Vite on port `5173`). Override `VITE_API_URL` in root `.env` if the browser cannot reach the API at `http://localhost:8000/api`.
 
 To run Vite on the host instead:
 
@@ -239,7 +239,7 @@ Required environment variables (see `.env.example`):
 ```env
 # Server
 NODE_ENV=development
-PORT=3000
+PORT=8000
 
 # Multi-property API (non-production only): allow missing X-Hotel-Id to fall back to the
 # migrated default hotel UUID. Production must omit this or leave unset so clients must send X-Hotel-Id.

@@ -72,7 +72,7 @@ variable "node_env" {
 variable "api_port" {
   description = "Port for the API service"
   type        = number
-  default     = 3000
+  default     = 8000
 }
 
 # Database Configuration

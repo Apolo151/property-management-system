@@ -15,7 +15,7 @@ Use this after implementation of [plan.md](./plan.md) to verify [spec.md](./spec
 
 1. From **repository root**: `docker compose up -d` (or documented equivalent including default profiles).
 2. Wait for healthchecks: `docker compose ps` — `postgres`, `rabbitmq`, `api`, `frontend` healthy or running per policy.
-3. Open frontend URL (e.g. `http://localhost:5173`) and API health (e.g. `http://localhost:3000/health`).
+3. Open frontend URL (e.g. `http://localhost:5173`) and API health (e.g. `http://localhost:8000/health`).
 4. Run migrate + seed once:  
    `docker compose --profile tools run --rm migrate`  
    `docker compose --profile tools run --rm seed`

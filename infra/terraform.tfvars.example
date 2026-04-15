@@ -22,7 +22,7 @@ data_disk_size_gb = 50
 
 # Application Configuration
 node_env = "production"
-api_port = 3000
+api_port = 8000
 
 # Database Configuration
 db_name     = "hotel_pms_prod"

@@ -242,7 +242,7 @@ Managed Disk (50GB - Persistent Data)
 | Service | Container | Port | Purpose |
 |---------|-----------|------|---------|
 | Nginx | hotel-pms-nginx | 80, 443 | Reverse proxy + SSL |
-| API | hotel-pms-api | 3000 | REST API service |
+| API | hotel-pms-api | 8000 | REST API service |
 | Worker Inbound | hotel-pms-worker-inbound | - | Process incoming events |
 | Worker Outbound | hotel-pms-worker-outbound | - | Push updates |
 | Worker Scheduler | hotel-pms-worker-scheduler | - | Periodic sync jobs |

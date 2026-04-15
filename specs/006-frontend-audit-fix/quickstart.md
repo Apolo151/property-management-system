@@ -8,7 +8,7 @@
 ## Prerequisites
 
 - Node.js 18+
-- Backend running on `localhost:3000` (see `backend/README.md`)
+- Backend running on `localhost:8000` (see `backend/README.md`)
 - `frontend/.env` or Vite's `VITE_API_URL` pointing to backend
 
 ---
@@ -150,7 +150,7 @@ npm run storybook
 
 ```env
 # frontend/.env (or .env.local)
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=http://localhost:8000/api
 ```
 
 No new environment variables required for this feature.

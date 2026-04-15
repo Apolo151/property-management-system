@@ -12,7 +12,7 @@ work end-to-end before proceeding to Phase 1 design.
 
 - Docker and Docker Compose installed
 - Node.js 18+ and npm
-- Ports available: `3000` (API), `5432` or `HOST_DB_PORT` (PostgreSQL on host), `5672`/`15672` (RabbitMQ), `5173` (frontend)
+- Ports available: `8000` (API), `5432` or `HOST_DB_PORT` (PostgreSQL on host), `5672`/`15672` (RabbitMQ), `5173` (frontend)
 
 ---
 
@@ -41,8 +41,8 @@ Expected: migrations complete without errors, seed data inserts baseline rooms/u
 
 ## 3. API and frontend URLs
 
-- API: `http://localhost:3000`
-- Frontend (container): `http://localhost:5173` with `VITE_API_URL` defaulting to `http://localhost:3000/api` for the browser
+- API: `http://localhost:8000`
+- Frontend (container): `http://localhost:5173` with `VITE_API_URL` defaulting to `http://localhost:8000/api` for the browser
 
 Optional workers + QloApps:
 
@@ -78,7 +78,7 @@ Run these checks manually or via a REST client (e.g., curl / Postman / Bruno).
 ### 5.1 Authentication (UC-001)
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@hotel.com","password":"admin123"}'
 ```
@@ -97,7 +97,7 @@ X-Hotel-Id: <hotel_uuid>
 
 Retrieve your hotel ID from the seed data or via:
 ```bash
-curl http://localhost:3000/api/v1/hotels \
+curl http://localhost:8000/api/v1/hotels \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -106,7 +106,7 @@ curl http://localhost:3000/api/v1/hotels \
 ### 5.3 Room Listing (UC-202, UC-205)
 
 ```bash
-curl "http://localhost:3000/api/v1/rooms" \
+curl "http://localhost:8000/api/v1/rooms" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>"
 ```
@@ -118,7 +118,7 @@ Expected: `200 OK` with paginated list of rooms with `status`, `room_number`, `f
 ### 5.4 Room Type Availability (UC-310)
 
 ```bash
-curl "http://localhost:3000/api/v1/room-types/availability?check_in=2026-05-01&check_out=2026-05-05" \
+curl "http://localhost:8000/api/v1/room-types/availability?check_in=2026-05-01&check_out=2026-05-05" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>"
 ```
@@ -130,7 +130,7 @@ Expected: `200 OK` with available room types and unit counts.
 ### 5.5 Create Reservation (UC-301)
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/reservations \
+curl -X POST http://localhost:8000/api/v1/reservations \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>" \
@@ -151,7 +151,7 @@ Expected: `201 Created` with reservation `id` and `status: Confirmed`.
 ### 5.6 Check-in (UC-305)
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/check-ins \
+curl -X POST http://localhost:8000/api/v1/check-ins \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>" \
@@ -165,7 +165,7 @@ Expected: `201 Created` with check-in record; reservation status should become `
 ### 5.7 Check-out and Invoice Auto-generation (UC-306, UC-409)
 
 ```bash
-curl -X POST "http://localhost:3000/api/v1/check-ins/<check_in_id>/checkout" \
+curl -X POST "http://localhost:8000/api/v1/check-ins/<check_in_id>/checkout" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>" \
@@ -180,7 +180,7 @@ invoice should be created (verify via `GET /api/v1/invoices?reservation_id=<id>`
 ### 5.8 Housekeeping Update (UC-504)
 
 ```bash
-curl -X PUT "http://localhost:3000/api/v1/rooms/<room_id>/housekeeping" \
+curl -X PUT "http://localhost:8000/api/v1/rooms/<room_id>/housekeeping" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>" \
@@ -194,7 +194,7 @@ Expected: `200 OK`; room housekeeping status is now `Clean`.
 ### 5.9 Audit Log Visibility (UC-901)
 
 ```bash
-curl "http://localhost:3000/api/v1/audit?limit=10" \
+curl "http://localhost:8000/api/v1/audit?limit=10" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>"
 ```
@@ -206,7 +206,7 @@ Expected: `200 OK` with log entries showing CREATE/UPDATE actions from smoke-che
 ### 5.10 Dashboard (UC-801)
 
 ```bash
-curl "http://localhost:3000/api/v1/reports/stats" \
+curl "http://localhost:8000/api/v1/reports/stats" \
   -H "Authorization: Bearer <token>" \
   -H "X-Hotel-Id: <hotel_id>"
 ```

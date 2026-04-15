@@ -16,7 +16,7 @@ docker compose --profile tools run --rm migrate
 docker compose --profile tools run --rm seed
 ```
 
-- API: http://localhost:3000  
+- API: http://localhost:8000/api  
 - Frontend: http://localhost:5173  
 - RabbitMQ management: http://localhost:15672  
 
