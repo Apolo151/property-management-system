@@ -598,6 +598,7 @@ operated hotel properties under a single platform. The system:
 
 ### Related Documents
 
+- [PMS_USE_CASE_QLOAPPS_GAP_REPORT.md](./PMS_USE_CASE_QLOAPPS_GAP_REPORT.md) - Use cases vs QloApps and implementation (gap analysis)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
 - [DATABASE.md](../backend/DATABASE.md) - Database documentation
 - ERD Diagram - Entity Relationship Diagram
