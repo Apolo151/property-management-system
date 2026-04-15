@@ -94,7 +94,7 @@ npm run dev
 ```
 ✅ PostgreSQL database connected successfully
 [RabbitMQ] Connected
-Server running on port 3000
+Server running on port 8000
 ```
 
 ### Terminal 2: Inbound Worker
@@ -171,7 +171,7 @@ echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_SECRET" | cut -d' 
 
 **3. Send webhook request:**
 ```bash
-curl -X POST http://localhost:3000/api/integrations/beds24/webhook \
+curl -X POST http://localhost:8000/api/integrations/beds24/webhook \
   -H "Content-Type: application/json" \
   -H "X-Beds24-Signature: YOUR_SIGNATURE_HERE" \
   -d "$PAYLOAD"
@@ -228,7 +228,7 @@ WHERE entity_external_id = '12345';
 
 ```bash
 # Use same payload and signature
-curl -X POST http://localhost:3000/api/integrations/beds24/webhook \
+curl -X POST http://localhost:8000/api/integrations/beds24/webhook \
   -H "Content-Type: application/json" \
   -H "X-Beds24-Signature: YOUR_SIGNATURE_HERE" \
   -d "$PAYLOAD"
@@ -254,13 +254,13 @@ curl -X POST http://localhost:3000/api/integrations/beds24/webhook \
 **1. Create reservation via API:**
 ```bash
 # First, get auth token (login)
-TOKEN=$(curl -X POST http://localhost:3000/api/auth/login \
+TOKEN=$(curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@hotel.com","password":"admin123"}' \
   | jq -r '.accessToken')
 
 # Create reservation
-curl -X POST http://localhost:3000/api/v1/reservations \
+curl -X POST http://localhost:8000/api/v1/reservations \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -313,7 +313,7 @@ LIMIT 1;
 
 **1. Update reservation:**
 ```bash
-curl -X PUT http://localhost:3000/api/v1/reservations/{RESERVATION_ID} \
+curl -X PUT http://localhost:8000/api/v1/reservations/{RESERVATION_ID} \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -337,7 +337,7 @@ LIMIT 1;
 
 **1. Cancel reservation:**
 ```bash
-curl -X DELETE http://localhost:3000/api/v1/reservations/{RESERVATION_ID} \
+curl -X DELETE http://localhost:8000/api/v1/reservations/{RESERVATION_ID} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -359,7 +359,7 @@ LIMIT 1;
 
 **1. List failed events:**
 ```bash
-curl -X GET "http://localhost:3000/api/admin/events?status=failed&limit=10" \
+curl -X GET "http://localhost:8000/api/admin/events?status=failed&limit=10" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -388,7 +388,7 @@ curl -X GET "http://localhost:3000/api/admin/events?status=failed&limit=10" \
 
 **2. Filter by direction:**
 ```bash
-curl -X GET "http://localhost:3000/api/admin/events?status=failed&direction=outbound" \
+curl -X GET "http://localhost:8000/api/admin/events?status=failed&direction=outbound" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -398,14 +398,14 @@ curl -X GET "http://localhost:3000/api/admin/events?status=failed&direction=outb
 
 **1. Get failed event ID:**
 ```bash
-EVENT_ID=$(curl -X GET "http://localhost:3000/api/admin/events?status=failed&limit=1" \
+EVENT_ID=$(curl -X GET "http://localhost:8000/api/admin/events?status=failed&limit=1" \
   -H "Authorization: Bearer $TOKEN" \
   | jq -r '.events[0].id')
 ```
 
 **2. Retry event:**
 ```bash
-curl -X POST "http://localhost:3000/api/admin/events/$EVENT_ID/retry" \
+curl -X POST "http://localhost:8000/api/admin/events/$EVENT_ID/retry" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

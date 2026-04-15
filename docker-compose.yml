@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile.dev
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - PORT=3000
+      - PORT=8000
       - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-hotel_pms_dev}
@@ -37,7 +37,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:3000/api}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api}
     depends_on:
       - api
     restart: unless-stopped

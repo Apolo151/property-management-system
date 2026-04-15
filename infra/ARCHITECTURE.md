@@ -42,7 +42,7 @@ This document describes the Azure infrastructure architecture for the Hotel Prop
 │  │  │  - HTTP → HTTPS redirect                        │  │   │
 │  │  │  - Rate limiting                                 │  │   │
 │  │  └──────────────────┬──────────────────────────────┘  │   │
-│  │                     │ :3000                            │   │
+│  │                     │ :8000                            │   │
 │  │  ┌──────────────────▼──────────────────────────────┐  │   │
 │  │  │  API Service (Node.js/Express)                  │  │   │
 │  │  │  - REST API endpoints                           │  │   │
@@ -140,7 +140,7 @@ This document describes the Azure infrastructure architecture for the Hotel Prop
 **API Container**
 - Build: Multi-stage Dockerfile (Node.js 22)
 - Purpose: Main REST API service
-- Port: 3000 (internal)
+- Port: 8000 (internal)
 - Features:
   - Express.js framework
   - JWT authentication
@@ -195,7 +195,7 @@ This document describes the Azure infrastructure architecture for the Hotel Prop
 ### 1. HTTPS Request Flow
 ```
 Internet → NSG (443) → Public IP → NIC → VM → Nginx (443) 
-→ SSL Termination → Nginx (proxy) → API Container (3000) 
+→ SSL Termination → Nginx (proxy) → API Container (8000) 
 → Business Logic → PostgreSQL/RabbitMQ → Response
 ```
 

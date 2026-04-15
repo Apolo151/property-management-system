@@ -4,7 +4,7 @@ A modern, responsive hotel management system frontend built with React.js, featu
 
 ## Run with Docker (recommended)
 
-From the **repository root**, the `frontend` service in `docker-compose.yml` runs Vite with `server.host` `0.0.0.0`. Set `VITE_API_URL` in the root `.env` (see `frontend/.env.example`) so the browser can reach the API (default `http://localhost:3000/api`).
+From the **repository root**, the `frontend` service in `docker-compose.yml` runs Vite with `server.host` `0.0.0.0`. Set `VITE_API_URL` in the root `.env` (see `frontend/.env.example`) so the browser can reach the API (default `http://localhost:8000/api`).
 
 ## 🚀 Features
 
