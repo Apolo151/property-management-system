@@ -40,7 +40,7 @@ export async function checkInGuest(
   hotelId: string,
   checkedInBy: string,
 ): Promise<CheckInResponse> {
-  return await db.transaction(async (trx: Knex.Transaction) => {
+  const checkInDetails = await db.transaction(async (trx: Knex.Transaction) => {
     // 1. Validate reservation exists and is eligible for check-in
     const reservation = await trx('reservations')
       .where({ id: request.reservation_id, hotel_id: hotelId })
@@ -170,6 +170,20 @@ export async function checkInGuest(
     
     return checkInDetails;
   });
+
+  setImmediate(() => {
+    import('../notifications/notifications_events.js')
+      .then(({ notifyAfterCheckIn }) =>
+        notifyAfterCheckIn(hotelId, {
+          id: checkInDetails.id,
+          reservation_id: checkInDetails.reservation_id,
+          actual_room_number: checkInDetails.actual_room_number,
+        }),
+      )
+      .catch((err) => console.error('[CheckIn] notification hook failed:', err));
+  });
+
+  return checkInDetails;
 }
 
 /**
@@ -323,6 +337,18 @@ export async function checkOutGuest(
     queueQloAppsCheckOutSyncHook(request.checkin_id).catch((err) => {
       console.error(`[CheckOut] Failed to queue QloApps sync for checkout ${request.checkin_id}:`, err);
     });
+  });
+
+  setImmediate(() => {
+    import('../notifications/notifications_events.js')
+      .then(({ notifyAfterCheckOut }) =>
+        notifyAfterCheckOut(hotelId, {
+          id: checkInDetails.id,
+          reservation_id: checkInDetails.reservation_id,
+          actual_room_number: checkInDetails.actual_room_number,
+        }),
+      )
+      .catch((err) => console.error('[CheckOut] notification hook failed:', err));
   });
 
   return {

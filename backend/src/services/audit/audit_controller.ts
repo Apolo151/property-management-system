@@ -231,3 +231,62 @@ export async function getAuditLogHandler(
   }
 }
 
+function csvEscape(value: unknown): string {
+  const s = value == null ? '' : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+/** UC-903: CSV export of audit trail (same filters as list; capped). */
+export async function exportAuditLogsCsvHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const hotelId = req.hotelId!;
+    const query = req.query as unknown as GetAuditLogsQuery;
+
+    let queryBuilder = db('audit_logs')
+      .select(
+        'audit_logs.id',
+        'audit_logs.action',
+        'audit_logs.entity_type',
+        'audit_logs.entity_id',
+        'audit_logs.created_at',
+        'users.email as user_email',
+      )
+      .leftJoin('users', 'audit_logs.user_id', 'users.id')
+      .where('audit_logs.hotel_id', hotelId);
+
+    if (query.action) queryBuilder = queryBuilder.where('action', query.action);
+    if (query.entity_type) queryBuilder = queryBuilder.where('entity_type', query.entity_type);
+    if (query.start_date) queryBuilder = queryBuilder.where('created_at', '>=', query.start_date);
+    if (query.end_date) queryBuilder = queryBuilder.where('created_at', '<=', query.end_date);
+
+    const maxRows = 5000;
+    const logs = await queryBuilder.orderBy('created_at', 'desc').limit(maxRows);
+
+    const header = ['id', 'action', 'entity_type', 'entity_id', 'user_email', 'created_at'];
+    const lines = [header.join(',')];
+    for (const row of logs) {
+      lines.push(
+        [
+          csvEscape(row.id),
+          csvEscape(row.action),
+          csvEscape(row.entity_type),
+          csvEscape(row.entity_id),
+          csvEscape(row.user_email),
+          csvEscape(row.created_at),
+        ].join(','),
+      );
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="audit-logs.csv"');
+    res.send(lines.join('\n'));
+  } catch (error) {
+    next(error);
+  }
+}
+

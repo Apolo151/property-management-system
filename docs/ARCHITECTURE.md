@@ -111,6 +111,16 @@ Common local flow:
 2. Once Postgres is healthy: `docker compose --profile tools run --rm migrate` then `seed` as needed
 3. Optional: `docker compose --profile workers up -d` and/or `--profile infra`
 
+## Notifications (server-side)
+
+- **Persistence:** `notifications` table (per `hotel_id`, `user_id`).
+- **API:** `GET /api/v1/notifications`, `PATCH /api/v1/notifications/:id/read`, `POST /api/v1/notifications/read-all` (under `/api` prefix).
+- **Emitters:** Non-blocking hooks after successful check-in and check-out ([check_ins_service.ts](../backend/src/services/check_ins/check_ins_service.ts)), maintenance create ([maintenance_controller.ts](../backend/src/services/maintenance/maintenance_controller.ts)), and housekeeping “Dirty” updates ([rooms_controller.ts](../backend/src/services/rooms/rooms_controller.ts)).
+
+## CORS (production)
+
+- When `NODE_ENV=production`, the API uses **`CORS_ORIGIN`** (single value) or **`CORS_ORIGINS`** (comma-separated allowlist) to set `Access-Control-Allow-Origin`. Development remains permissive (`*`).
+
 ## Design Decisions
 
 - Keep RabbitMQ: reliable async processing, retry behavior, and DLQ visibility

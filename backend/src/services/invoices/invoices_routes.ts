@@ -3,6 +3,7 @@ import { authenticateToken, requireRole, hotelContext } from '../auth/auth_middl
 import {
   getInvoicesHandler,
   getInvoiceHandler,
+  getInvoicePdfHandler,
   createInvoiceHandler,
   updateInvoiceHandler,
   deleteInvoiceHandler,
@@ -16,6 +17,7 @@ router.use(hotelContext);
 
 // Invoice routes
 router.get('/invoices', getInvoicesHandler);
+router.get('/invoices/:id/pdf', getInvoicePdfHandler);
 router.get('/invoices/:id', getInvoiceHandler);
 router.post('/invoices', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), createInvoiceHandler);
 router.put('/invoices/:id', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), updateInvoiceHandler);

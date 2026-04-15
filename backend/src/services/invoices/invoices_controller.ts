@@ -1,3 +1,4 @@
+import PDFDocument from 'pdfkit';
 import type { Request, Response, NextFunction } from 'express';
 import db from '../../config/database.js';
 import type { CreateInvoiceRequest, UpdateInvoiceRequest, InvoiceResponse } from './invoices_types.js';
@@ -129,6 +130,60 @@ export async function getInvoiceHandler(
     };
 
     res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getInvoicePdfHandler(
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const hotelId = (req as any).hotelId || DEFAULT_HOTEL_ID;
+    const { id } = req.params;
+
+    const invoice = await db('invoices')
+      .select(
+        'invoices.*',
+        'reservations.id as reservation_number',
+        'guests.name as guest_name',
+        'guests.email as guest_email',
+      )
+      .leftJoin('reservations', 'invoices.reservation_id', 'reservations.id')
+      .join('guests', 'invoices.guest_id', 'guests.id')
+      .where('invoices.id', id)
+      .where('invoices.hotel_id', hotelId)
+      .whereNull('invoices.deleted_at')
+      .first();
+
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' } as any);
+      return;
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${id}.pdf"`);
+
+    const doc = new PDFDocument({ margin: 50 });
+    doc.pipe(res);
+
+    doc.fontSize(20).text('Invoice', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(10);
+    doc.text(`Invoice ID: ${invoice.id}`);
+    doc.text(`Guest: ${invoice.guest_name}`);
+    if (invoice.guest_email) doc.text(`Email: ${invoice.guest_email}`);
+    doc.text(`Issue date: ${invoice.issue_date}`);
+    doc.text(`Due date: ${invoice.due_date}`);
+    doc.text(`Amount: ${parseFloat(String(invoice.amount)).toFixed(2)}`);
+    doc.text(`Status: ${invoice.status}`);
+    if (invoice.notes) {
+      doc.moveDown();
+      doc.text(`Notes: ${invoice.notes}`);
+    }
+    doc.end();
   } catch (error) {
     next(error);
   }

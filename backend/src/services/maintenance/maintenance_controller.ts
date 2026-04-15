@@ -229,6 +229,14 @@ export async function createMaintenanceRequestHandler(
       response.completed_at = fullRequest.completed_at;
     }
 
+    setImmediate(() => {
+      import('../notifications/notifications_events.js')
+        .then(({ notifyMaintenanceCreated }) =>
+          notifyMaintenanceCreated(hotelId, newRequest.id, title, fullRequest.room_number),
+        )
+        .catch((err) => console.error('[Maintenance] notification hook failed:', err));
+    });
+
     res.status(201).json(response);
   } catch (error) {
     next(error);

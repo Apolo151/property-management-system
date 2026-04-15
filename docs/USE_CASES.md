@@ -249,6 +249,8 @@ operated hotel properties under a single platform. The system:
 | UC-1105 | Receive Maintenance Alert | Admin, Manager, Maintenance | High |
 | UC-1106 | Receive Housekeeping Alert | Admin, Manager, Housekeeping | Medium |
 
+**Implementation note:** Notifications are **persisted on the server** per property. Authenticated users load their inbox via `GET /api/v1/notifications`, mark items read with `PATCH /api/v1/notifications/:id/read`, and may use `POST /api/v1/notifications/read-all`. Operational events (check-in, check-out, maintenance creation, housekeeping “dirty” updates) create rows for eligible staff roles.
+
 ---
 
 ## Use Case Details
@@ -377,7 +379,7 @@ operated hotel properties under a single platform. The system:
 **Actor:** Front Desk, Manager  
 **Preconditions:**
 - Reservation exists with status "Checked-in"
-- Check-out date is today or earlier
+- Check-out **date** is on or before the hotel’s **local calendar “today”** (property timezone), consistent with the check-in API rules
 
 **Main Success Scenario:**
 1. User navigates to Reservations page
@@ -400,8 +402,8 @@ operated hotel properties under a single platform. The system:
 **Postconditions:**
 - Reservation status is "Checked-out"
 - Room status is "Cleaning"
-- Invoice is created
-- Housekeeping is notified
+- Invoice is created when automatic generation succeeds; if it fails, checkout still completes and operators reconcile via invoicing flows
+- Housekeeping is notified (server-side notification records)
 
 ---
 
@@ -600,7 +602,7 @@ operated hotel properties under a single platform. The system:
 
 - [PMS_USE_CASE_QLOAPPS_GAP_REPORT.md](./PMS_USE_CASE_QLOAPPS_GAP_REPORT.md) - Use cases vs QloApps and implementation (gap analysis)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
-- [DATABASE.md](../backend/DATABASE.md) - Database documentation
+- [DATABASE.md](../backend/docs/DATABASE.md) - Database documentation (migrations, setup)
 - ERD Diagram - Entity Relationship Diagram
 - Database Schema Diagram
 

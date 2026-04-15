@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import db from '../../config/database.js';
 import {
@@ -7,7 +8,15 @@ import {
   comparePassword,
   type JwtPayload,
 } from './auth_utils.js';
-import type { LoginRequest, RegisterRequest, AuthResponse } from './auth_types.js';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+} from './auth_types.js';
+import { sendPasswordResetEmail } from './auth_notifier.js';
 import { logAction, logCreate } from '../audit/audit_utils.js';
 
 export async function loginHandler(
@@ -356,6 +365,161 @@ export async function meHandler(
       },
       hotels,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const MIN_PASSWORD_LEN = 8;
+
+function resetTokenTtlMs(): number {
+  const mins = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES);
+  return (Number.isFinite(mins) && mins > 0 ? mins : 60) * 60 * 1000;
+}
+
+function hashResetToken(plain: string): string {
+  return createHash('sha256').update(plain, 'utf8').digest('hex');
+}
+
+export async function changePasswordHandler(
+  req: Request<{}, { message?: string }, ChangePasswordRequest>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const userId = (req as any).user?.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      res.status(400).json({ error: 'current_password and new_password are required' });
+      return;
+    }
+    if (new_password.length < MIN_PASSWORD_LEN) {
+      res.status(400).json({
+        error: `new_password must be at least ${MIN_PASSWORD_LEN} characters`,
+      });
+      return;
+    }
+
+    const user = await db('users').where({ id: userId }).whereNull('deleted_at').first();
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const ok = await comparePassword(current_password, user.password_hash);
+    if (!ok) {
+      res.status(401).json({ error: 'Current password is incorrect' });
+      return;
+    }
+
+    const password_hash = await hashPassword(new_password);
+    await db('users').where({ id: userId }).update({
+      password_hash,
+      refresh_token: null,
+      refresh_token_expires_at: null,
+      updated_at: new Date(),
+    });
+
+    logAction(req, 'USER_PASSWORD_CHANGE', 'user', userId, { email: user.email }).catch((err) =>
+      console.error('Audit log failed:', err),
+    );
+
+    res.json({ message: 'Password updated' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function forgotPasswordHandler(
+  req: Request<{}, { message?: string }, ForgotPasswordRequest>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'email is required' });
+      return;
+    }
+
+    const user = await db('users')
+      .where({ email: email.toLowerCase() })
+      .whereNull('deleted_at')
+      .first();
+
+    if (user && user.is_active) {
+      await db('password_reset_tokens').where({ user_id: user.id }).whereNull('used_at').delete();
+
+      const plain = randomBytes(32).toString('hex');
+      const token_hash = hashResetToken(plain);
+      const expires_at = new Date(Date.now() + resetTokenTtlMs());
+
+      await db('password_reset_tokens').insert({
+        user_id: user.id,
+        token_hash,
+        expires_at,
+      });
+
+      await sendPasswordResetEmail(user.email, plain);
+    }
+
+    res.json({
+      message: 'If an account exists for that email, password reset instructions have been sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resetPasswordHandler(
+  req: Request<{}, { message?: string }, ResetPasswordRequest>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { token, new_password } = req.body;
+    if (!token || !new_password) {
+      res.status(400).json({ error: 'token and new_password are required' });
+      return;
+    }
+    if (new_password.length < MIN_PASSWORD_LEN) {
+      res.status(400).json({
+        error: `new_password must be at least ${MIN_PASSWORD_LEN} characters`,
+      });
+      return;
+    }
+
+    const token_hash = hashResetToken(token);
+    const row = await db('password_reset_tokens')
+      .where({ token_hash })
+      .whereNull('used_at')
+      .where('expires_at', '>', new Date())
+      .first();
+
+    if (!row) {
+      res.status(400).json({ error: 'Invalid or expired reset token' });
+      return;
+    }
+
+    const password_hash = await hashPassword(new_password);
+    await db('users').where({ id: row.user_id }).update({
+      password_hash,
+      refresh_token: null,
+      refresh_token_expires_at: null,
+      updated_at: new Date(),
+    });
+
+    await db('password_reset_tokens').where({ id: row.id }).update({ used_at: new Date() });
+
+    logAction(req, 'USER_PASSWORD_RESET', 'user', row.user_id, {}).catch((err) =>
+      console.error('Audit log failed:', err),
+    );
+
+    res.json({ message: 'Password has been reset' });
   } catch (error) {
     next(error);
   }

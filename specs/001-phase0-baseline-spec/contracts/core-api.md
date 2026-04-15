@@ -45,9 +45,9 @@ Multi-property management. Only `SUPER_ADMIN` and `ADMIN` can create or manage h
 | POST | `/api/auth/logout` | Invalidate refresh token | ✅ Implemented | UC-002 |
 | GET | `/api/auth/me` | Get current user profile | ✅ Implemented | — |
 | POST | `/api/auth/register` | Create new user (admin only) | ✅ Implemented | — |
-| POST | `/api/auth/reset-password` | Request password reset token | ❌ Missing | UC-004 |
-| POST | `/api/auth/reset-password/confirm` | Complete reset with token | ❌ Missing | UC-004 |
-| PUT | `/api/auth/change-password` | Change own password (authenticated) | ⚠️ Partial | UC-005 |
+| POST | `/api/auth/forgot-password` | Request password reset (email); token logged / emailed | ✅ Implemented | UC-004 |
+| POST | `/api/auth/reset-password` | Body `{ token, new_password }` completes reset | ✅ Implemented | UC-004 |
+| POST | `/api/auth/change-password` | Body `{ current_password, new_password }` (authenticated) | ✅ Implemented | UC-005 |
 
 **Request (login)**:
 ```json
@@ -92,7 +92,7 @@ belong to; **SUPER_ADMIN** unrestricted.
 | DELETE | `/api/v1/guests/:id` | Soft-delete guest | ✅ Implemented | — |
 | GET | `/api/v1/guests/:id/history` | Guest stay history | ✅ Implemented | UC-105 |
 | POST | `/api/v1/guests/:id/notes` | Add note to guest | ✅ Implemented | UC-107 |
-| POST | `/api/v1/guests/merge` | Merge two guest records | ❌ Missing | UC-106 |
+| POST | `/api/v1/guests/:id/merge` | Merge source guest into `target_guest_id` | ✅ Implemented | UC-106 |
 
 ---
 
@@ -193,7 +193,7 @@ belong to; **SUPER_ADMIN** unrestricted.
 | PUT | `/api/v1/invoices/:id` | Update invoice | ✅ Implemented | UC-403 |
 | POST | `/api/v1/invoices/:id/pay` | Mark invoice paid + record payment method | ✅ Implemented | UC-404, UC-405 |
 | POST | `/api/v1/invoices/:id/cancel` | Cancel invoice | ✅ Implemented | UC-406 |
-| GET | `/api/v1/invoices/:id/pdf` | Generate invoice PDF | ❌ Missing | UC-407 |
+| GET | `/api/v1/invoices/:id/pdf` | Download invoice PDF | ✅ Implemented | UC-407 |
 
 **Invoice status enum**: `Pending` \| `Paid` \| `Cancelled` \| `Overdue`  
 **Payment methods**: `Cash` \| `Card` \| `Online` \| `Bank Transfer`
@@ -232,20 +232,19 @@ belong to; **SUPER_ADMIN** unrestricted.
 | Method | Path | Description | Status | Notes |
 |---|---|---|---|---|
 | GET | `/api/v1/reports/stats` | Consolidated stats: occupancy, revenue, reservations | ✅ Implemented | UC-802–UC-805 |
-| GET | `/api/v1/reports/export` | Export reservations/guests/invoices/expenses (CSV/JSON) | ✅ Implemented | UC-806 |
+| GET | `/api/v1/reports/export.csv` | Summary metrics CSV export | ✅ Implemented | UC-806 |
 | GET | `/api/v1/reports/cancellation-rate` | Cancellation rate metric | ⚠️ Partial | UC-807 |
 | GET | `/api/v1/reports/occupancy-forecast` | Occupancy forecast | ⚠️ Partial | UC-808 |
 
 ---
 
-## 12. Audit Logs (`/api/v1/audit`)
+## 12. Audit Logs (`/api/v1/audit-logs`)
 
 | Method | Path | Description | Status | Notes |
 |---|---|---|---|---|
-| GET | `/api/v1/audit` | List logs (search, filter by entity/action) | ✅ Implemented | UC-901, UC-902, UC-904 |
-| GET | `/api/v1/audit/export` | Export audit logs | ⚠️ Partial | UC-903 |
-
-**⚠️ Gap**: Reads are not filtered by `hotel_id` despite hotel-scoped route context (Phase 4).
+| GET | `/api/v1/audit-logs` | List logs (search, filter by entity/action) | ✅ Implemented | UC-901, UC-902, UC-904; VIEWER may read |
+| GET | `/api/v1/audit-logs/:id` | Get one log | ✅ Implemented | — |
+| GET | `/api/v1/audit-logs/export.csv` | CSV export (capped rows) | ✅ Implemented | UC-903 |
 
 ---
 
@@ -253,12 +252,14 @@ belong to; **SUPER_ADMIN** unrestricted.
 
 | Method | Path | Description | Status | Notes |
 |---|---|---|---|---|
-| GET | `/api/v1/notifications` | Get user notifications | ✅ Implemented | UC-1101 |
-| PUT | `/api/v1/notifications/:id/read` | Mark notification read | ✅ Implemented | UC-1102 |
-| PUT | `/api/v1/notifications/read-all` | Mark all read | ✅ Implemented | — |
+| GET | `/api/v1/notifications` | List current user’s notifications | ✅ Implemented | UC-1101 |
+| PATCH | `/api/v1/notifications/:id/read` | Mark one read | ✅ Implemented | UC-1102 |
+| POST | `/api/v1/notifications/read-all` | Mark all read for user+hotel | ✅ Implemented | — |
 
-**⚠️ Gap**: Automated reminder/alert generation for check-in/out reminders and maintenance
-alerts (UC-1103–UC-1106) is not evidenced in the codebase — Phase 2 work.
+**Emitters:** Check-in, check-out, maintenance create, housekeeping dirty updates enqueue rows for eligible roles (UC-1103–UC-1106 event-driven).
+
+Normative deltas: `specs/005-backend-spec-alignment/contracts/doc-and-rbac-alignment.md`,
+`specs/005-backend-spec-alignment/contracts/notifications-api.md`.
 
 ---
 

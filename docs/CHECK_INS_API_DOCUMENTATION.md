@@ -9,6 +9,10 @@ The Check-ins API provides endpoints to manage guest check-ins, checkouts, and r
 
 **Multi-Hotel:** All endpoints require the `X-Hotel-Id` header to specify which hotel the operation is for.
 
+**Hotel-local dates:** Check-in and check-out eligibility compare reservation `check_in` / `check_out` **dates** to the hotel’s **local calendar date** (from the hotel record’s timezone), not the client’s browser timezone.
+
+**Checkout vs invoice:** The API applies reservation, room, and housekeeping updates inside a database transaction, then attempts **automatic invoice creation after** that transaction commits. If invoice insert fails, the stay remains checked out; the JSON response may include `checkout_invoice_error` and staff should create or fix the invoice manually.
+
 ---
 
 ## Endpoints

@@ -59,32 +59,40 @@ Summarized from [QloApps PMS](https://qloapps.com/property-management-software/)
 
 ## 4. Matrix: USE_CASES vs implementation
 
+### 4.0 QloApps capability delivery (normative)
+
+| Capability | Primary product UI | API / tooling | Notes |
+| --- | --- | --- | --- |
+| Config + test connection + trigger sync + sync status | Settings channel tab | Same | Implemented in SPA |
+| Conflict resolution, entity mappings, sync logs | **Not in main SPA** | `/v1/qloapps/*` REST | Use API/admin tools or extend UI later |
+| Workers (inbound/outbound/scheduler) | N/A (background) | Docker profiles | Required for sync |
+
 | Area | Representative UCs | Backend | Frontend | Assessment |
 | --- | --- | --- | --- | --- |
-| Authentication | UC-001–006 | [auth_routes.ts](../backend/src/services/auth/auth_routes.ts): `login`, `register`, `refresh`, `me` | [LoginPage.jsx](../frontend/src/pages/LoginPage.jsx); token refresh in [api.js](../frontend/src/utils/api.js) | **Partial** — UC-004/005 missing; UC-006 via users API + Settings |
-| Guest management | UC-101–107 | CRUD [guests_routes.ts](../backend/src/services/guests/guests_routes.ts) | [GuestsPage.jsx](../frontend/src/pages/GuestsPage.jsx), [GuestProfilePage.jsx](../frontend/src/pages/GuestProfilePage.jsx) | **Partial** — UC-106 merge **documented only**; UC-107 via notes on profile |
+| Authentication | UC-001–006 | [auth_routes.ts](../backend/src/services/auth/auth_routes.ts): `login`, `register`, `refresh`, `me`, `forgot-password`, `reset-password`, `change-password` | [LoginPage.jsx](../frontend/src/pages/LoginPage.jsx); [api.js](../frontend/src/utils/api.js) | **Implemented** (UC-004/005 API); UC-006 via users API + Settings |
+| Guest management | UC-101–107 | CRUD + `POST /v1/guests/:id/merge` [guests_routes.ts](../backend/src/services/guests/guests_routes.ts) | [GuestsPage.jsx](../frontend/src/pages/GuestsPage.jsx), [GuestProfilePage.jsx](../frontend/src/pages/GuestProfilePage.jsx); `api.guests.merge` | **Partial** — UC-106 merge **API** present; UI may still need explicit merge action |
 | Room management | UC-201–209 | [rooms_routes.ts](../backend/src/services/rooms/rooms_routes.ts), housekeeping sub-routes | [RoomsPage.jsx](../frontend/src/pages/RoomsPage.jsx) | **Implemented** — rates tied to **room types** and generated rooms (see §6) |
 | Room types / rates | UC-207 (implicit) | [room_types_routes.ts](../backend/src/services/room_types/room_types_routes.ts) | [RoomTypesPage.jsx](../frontend/src/pages/RoomTypesPage.jsx) | **Implemented** — `price_per_night` on room type; physical rooms copy price on create |
 | Reservations | UC-301–312 | [reservations_routes.ts](../backend/src/services/reservations/reservations_routes.ts), [check_ins_routes.ts](../backend/src/services/check_ins/check_ins_routes.ts) | [ReservationsPage.jsx](../frontend/src/pages/ReservationsPage.jsx), [CalendarPage.jsx](../frontend/src/pages/CalendarPage.jsx), [BookingTimeline.jsx](../frontend/src/components/BookingTimeline.jsx) | **Partial** — UC-309/312: API + **UI** for second guest when room type is Double; timeline supports secondary guest |
 | Check-in / check-out | UC-305–306 (flows) | `check_ins` service ([check_ins_service.ts](../backend/src/services/check_ins/check_ins_service.ts)) | [CheckInsPage.jsx](../frontend/src/pages/CheckInsPage.jsx) | **Implemented** — see business rules in §6 |
-| Invoices & payments | UC-401–409 | [invoices_routes.ts](../backend/src/services/invoices/invoices_routes.ts) | [InvoicesPage.jsx](../frontend/src/pages/InvoicesPage.jsx) | **Partial** — UC-407 PDF **documented only**; auto-invoice on checkout in service |
+| Invoices & payments | UC-401–409 | [invoices_routes.ts](../backend/src/services/invoices/invoices_routes.ts) incl. `GET /v1/invoices/:id/pdf` | [InvoicesPage.jsx](../frontend/src/pages/InvoicesPage.jsx); `api.invoices.downloadPdf` | **Partial** — UC-407 PDF **API**; UI download wiring optional |
 | Housekeeping | UC-501–507 | Housekeeping update in [rooms_controller.ts](../backend/src/services/rooms/rooms_controller.ts) (`assigned_staff_id`, `assigned_staff_name`) | [RoomsPage.jsx](../frontend/src/pages/RoomsPage.jsx) (housekeeping tab) | **Implemented** — UC-503 supported at API; UI depth varies |
 | Maintenance | UC-601–607 | [maintenance_routes.ts](../backend/src/services/maintenance/maintenance_routes.ts) | [MaintenancePage.jsx](../frontend/src/pages/MaintenancePage.jsx) | **Implemented** |
-| Expenses | UC-701–707 | [expenses_routes.ts](../backend/src/services/expenses/expenses_routes.ts) | [ExpensesPage.jsx](../frontend/src/pages/ExpensesPage.jsx) | **Partial** — `FRONT_DESK` can create/update per routes; doc says Admin/Manager only |
-| Reporting & analytics | UC-801–808 | `/v1/reports/stats` [reports_controller.ts](../backend/src/services/reports/reports_controller.ts) | [DashboardPage.jsx](../frontend/src/pages/DashboardPage.jsx), [ReportsPage.jsx](../frontend/src/pages/ReportsPage.jsx) | **Partial** — UC-806 export **documented only** |
-| Audit | UC-901–905 | [audit_routes.ts](../backend/src/services/audit/audit_routes.ts) | [AuditLogsPage.jsx](../frontend/src/pages/AuditLogsPage.jsx) | **Partial** — VIEWER **excluded** in API; UC-903 export **documented only** |
-| QloApps integration | UC-1001–1008 | [qloapps_routes.ts](../backend/src/services/qloapps/qloapps_routes.ts), workers under `integrations/qloapps/` | [SettingsPage.jsx](../frontend/src/pages/SettingsPage.jsx) channel tab; [api.js](../frontend/src/utils/api.js) | **Partial** — full ops **API-only** for conflicts/mappings/logs |
-| Notifications | UC-1101–1106 | No dedicated notifications API found | [App.jsx](../frontend/src/App.jsx) + [Notifications.jsx](../frontend/src/components/Notifications.jsx) | **Partial** — client-side derivation vs server-driven |
+| Expenses | UC-701–707 | [expenses_routes.ts](../backend/src/services/expenses/expenses_routes.ts) — create/update Admin/Manager; view includes Viewer | [ExpensesPage.jsx](../frontend/src/pages/ExpensesPage.jsx) | **Implemented** — aligned with USE_CASES actor tables |
+| Reporting & analytics | UC-801–808 | `/v1/reports/stats`, `/v1/reports/export.csv` | [DashboardPage.jsx](../frontend/src/pages/DashboardPage.jsx), [ReportsPage.jsx](../frontend/src/pages/ReportsPage.jsx) | **Partial** — CSV export API; dashboard may not link export yet |
+| Audit | UC-901–905 | [audit_routes.ts](../backend/src/services/audit/audit_routes.ts) incl. `GET /v1/audit-logs/export.csv`, VIEWER read | [AuditLogsPage.jsx](../frontend/src/pages/AuditLogsPage.jsx) | **Partial** — VIEWER **can** read audit; export API present |
+| QloApps integration | UC-1001–1008 | [qloapps_routes.ts](../backend/src/services/qloapps/qloapps_routes.ts), workers under `integrations/qloapps/` | [SettingsPage.jsx](../frontend/src/pages/SettingsPage.jsx) channel tab; [api.js](../frontend/src/utils/api.js) | **Partial** — see **§4.0** delivery matrix |
+| Notifications | UC-1101–1106 | `GET/PATCH/POST` under `/v1/notifications` + emitters in check-in, checkout, maintenance, housekeeping | [Notifications.jsx](../frontend/src/components/Notifications.jsx) loads server inbox | **Implemented** (server-backed); reminders are event-driven, not a separate cron |
 
 ### 4.1 Auth detail (UC-001–006)
 
-- **Present:** `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /api/auth/me` ([auth_routes.ts](../backend/src/services/auth/auth_routes.ts)).
-- **Missing vs doc:** **UC-004 Reset Password**, **UC-005 Change Password** — no routes.
+- **Present:** `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /api/auth/me`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/change-password` ([auth_routes.ts](../backend/src/services/auth/auth_routes.ts)).
+- **Reset email:** link is **logged** when SMTP is not configured; set `PASSWORD_RESET_PUBLIC_URL` / SMTP when enabling production email.
 - **UC-006 Manage User Roles:** `GET/POST/PUT/DELETE /api/v1/users` for `ADMIN` / `SUPER_ADMIN` ([users_routes.ts](../backend/src/services/users/users_routes.ts)); staff UI in Settings.
 
 ### 4.2 Guests (UC-106, UC-107)
 
-- **UC-106 Merge duplicate guests:** No dedicated merge endpoint; QloApps pull path may merge guest data in integration code ([guest_matching_service.ts](../backend/src/integrations/qloapps/services/guest_matching_service.ts)), not an operator-driven UC-106.
+- **UC-106 Merge duplicate guests:** `POST /api/v1/guests/:id/merge` with `{ target_guest_id }` (Admin/Manager); QloApps may still dedupe during pull separately.
 - **UC-107 Notes:** [GuestProfilePage.jsx](../frontend/src/pages/GuestProfilePage.jsx) appends timestamped notes via guest update.
 
 ### 4.3 Rooms and rates (UC-207)
@@ -107,7 +115,7 @@ Client calls include QloApps config, delete config, test connection (via setting
 
 ### 4.7 Notifications (UC-1101–1106)
 
-- [App.jsx](../frontend/src/App.jsx) synthesizes notifications from reservations (check-in/out today), overdue invoices, and dirty housekeeping—**not** a persisted notification store or server push.
+- **Server:** `notifications` table + `/api/v1/notifications` API; **client:** [Notifications.jsx](../frontend/src/components/Notifications.jsx) loads from API. Event hooks create rows for housekeeping/maintenance/check-in/out flows.
 
 ---
 

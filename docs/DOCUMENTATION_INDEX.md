@@ -8,6 +8,7 @@ This folder contains the stable, long-lived reference documentation for the proj
 - [`ERD.md`](./ERD.md): data model and entity relationships
 - [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md): schema-level details and table definitions
 - [`USE_CASES.md`](./USE_CASES.md): product/behavior use cases
+- [`../backend/docs/DATABASE.md`](../backend/docs/DATABASE.md): backend database setup and migration notes (companion to `DATABASE_SCHEMA.md`)
 
 ## Notes
 

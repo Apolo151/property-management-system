@@ -6,6 +6,7 @@ import {
   createGuestHandler,
   updateGuestHandler,
   deleteGuestHandler,
+  mergeGuestsHandler,
 } from './guests_controller.js';
 
 const router = Router();
@@ -19,6 +20,11 @@ router.get('/guests', getGuestsHandler);
 router.get('/guests/:id', getGuestHandler);
 router.post('/guests', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), createGuestHandler);
 router.put('/guests/:id', requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FRONT_DESK'), updateGuestHandler);
+router.post(
+  '/guests/:id/merge',
+  requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER'),
+  mergeGuestsHandler,
+);
 router.delete('/guests/:id', requireRole('ADMIN', 'SUPER_ADMIN'), deleteGuestHandler);
 
 export { router as guestsRoutes };

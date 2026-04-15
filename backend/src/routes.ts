@@ -17,6 +17,7 @@ import { auditRoutes } from './services/audit/audit_routes.js';
 import { settingsRoutes } from './services/settings/settings_routes.js';
 import { usersRoutes } from './services/users/users_routes.js';
 import { qloAppsRoutes } from './services/qloapps/index.js';
+import { notificationsRoutes } from './services/notifications/notifications_routes.js';
 
 export const apiV1Router = Router();
 
@@ -35,5 +36,6 @@ apiV1Router.use('/v1', reportsRoutes);
 apiV1Router.use('/v1', auditRoutes);
 apiV1Router.use('/v1', settingsRoutes);
 apiV1Router.use('/v1', usersRoutes);
+apiV1Router.use('/v1', notificationsRoutes);
 // QloApps routes
 apiV1Router.use('/v1/qloapps', qloAppsRoutes);
