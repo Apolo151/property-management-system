@@ -28,6 +28,9 @@ services:
       rabbitmq:
         condition: service_healthy
         required: false
+      seed:
+        condition: service_completed_successfully
+        required: false
     restart: unless-stopped
     networks:
       - hotel-network
@@ -178,8 +181,6 @@ services:
       - MYSQL_ROOT_PASSWORD=${QLOAPPS_MYSQL_ROOT_PASSWORD:-myrootpassword}
       - MYSQL_DATABASE=${QLOAPPS_MYSQL_DATABASE:-qlo170}
     restart: unless-stopped
-    profiles:
-      - infra
     networks:
       - hotel-network
 
@@ -198,8 +199,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    profiles:
-      - tools
     networks:
       - hotel-network
 
@@ -216,10 +215,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
     depends_on:
-      postgres:
-        condition: service_healthy
-    profiles:
-      - tools
+      migrate:
+        condition: service_completed_successfully
     networks:
       - hotel-network
 

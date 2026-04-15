@@ -29,6 +29,9 @@ RUN npm ci --only=production
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy migration and seed directories (needed for knex to find them)
+COPY --from=builder /app/src/database ./src/database
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
