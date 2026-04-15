@@ -21,7 +21,7 @@ import { notificationsRoutes } from './services/notifications/notifications_rout
 
 export const apiV1Router = Router();
 
-apiV1Router.use('/health-check', healthCheckRoutes);
+apiV1Router.use('/health', healthCheckRoutes);
 apiV1Router.use('/auth', authRoutes);
 apiV1Router.use('/v1/hotels', hotelsRoutes);
 apiV1Router.use('/v1', roomsRoutes);

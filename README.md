@@ -25,8 +25,8 @@ Optional: `docker compose --profile workers up -d`, `docker compose --profile in
 Production-like stack (Caddy reverse proxy + TLS):
 
 ```bash
-# Set PUBLIC_APP_DOMAIN, CADDY_EMAIL, VITE_PROD_API_URL in .env first
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Set PUBLIC_APP_DOMAIN, CADDY_EMAIL, VITE_PROD_API_URL in .env.production first
+docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 See `docs/ARCHITECTURE.md` (Development Runtime), `backend/README.md`, `caddy/Caddyfile`, and `infra/DEPLOYMENT_CHECKLIST.md` for details.
