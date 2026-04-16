@@ -36,13 +36,12 @@ docker compose --profile tools run --rm seed
 
 | Role | Email | Password |
 |---|---|---|
-| SUPER_ADMIN | *check seed file* | *check seed file* |
-| ADMIN | *check seed file* | *check seed file* |
-| MANAGER | *check seed file* | *check seed file* |
-| FRONT_DESK | *check seed file* | *check seed file* |
-| HOUSEKEEPING | *check seed file* | *check seed file* |
-| MAINTENANCE | *check seed file* | *check seed file* |
-| VIEWER | *check seed file* | *check seed file* |
+| SUPER_ADMIN | admin@hotel.com | admin123 |
+| MANAGER | manager@testhotel.com | test1234 |
+| FRONT_DESK | frontdesk@testhotel.com | test1234 |
+| HOUSEKEEPING | housekeeping@testhotel.com | test1234 |
+| MAINTENANCE | maintenance@testhotel.com | test1234 |
+| VIEWER | viewer@testhotel.com | test1234 |
 
 > [!IMPORTANT]
 > Populate the table above from `backend/src/database/seeds/` before executing tests.
@@ -428,7 +427,17 @@ backend/src/services/audit/__tests__/audit_e2e.test.ts
 backend/src/services/notifications/__tests__/notifications_e2e.test.ts
 ```
 
-**Run command:** `cd backend && npx vitest run`
+**Run command:**
+```bash
+# Unit tests only (mocked DB — fast, no Docker needed)
+cd backend && npm run test:unit
+
+# E2E/integration tests (requires running Docker stack)
+cd backend && npm run test:e2e
+
+# All tests
+cd backend && npm run test:all
+```
 
 ### Browser UI Tests (Antigravity browser subagent)
 
