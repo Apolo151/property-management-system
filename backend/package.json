@@ -23,7 +23,11 @@
     "db:seed:make": "knex seed:make --knexfile knexfile.ts -x ts",
     "migrate": "npm run db:migrate",
     "seed": "npm run db:seed",
-    "test": "vitest",
+    "test": "vitest run --project=unit",
+    "test:unit": "vitest run --project=unit",
+    "test:e2e": "vitest run --project=e2e",
+    "test:all": "vitest run",
+    "test:watch": "vitest --project=unit",
     "format": "prettier --write .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
