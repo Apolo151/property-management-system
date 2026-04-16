@@ -20,6 +20,31 @@ import { api } from '../utils/api'
 const reservationBlocksAvailability = (status) =>
   status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
 
+const isDoubleOrKingBedSelection = (selectedRoom, selectedRoomType) => {
+  const selectedRoomLegacyType = selectedRoom?.type?.toLowerCase()
+  const selectedRoomBeds24Type = selectedRoom?.roomType?.toLowerCase()
+  const selectedRoomTypeValue = selectedRoomType?.room_type?.toLowerCase()
+
+  return (
+    selectedRoomLegacyType === 'double' ||
+    selectedRoomBeds24Type === 'double' ||
+    selectedRoomBeds24Type === 'kingbed' ||
+    selectedRoomTypeValue === 'double' ||
+    selectedRoomTypeValue === 'kingbed'
+  )
+}
+
+const getSelectionGuestPromptLabel = (selectedRoom, selectedRoomType) => {
+  const selectedRoomBeds24Type = selectedRoom?.roomType?.toLowerCase()
+  const selectedRoomTypeValue = selectedRoomType?.room_type?.toLowerCase()
+
+  if (selectedRoomBeds24Type === 'kingbed' || selectedRoomTypeValue === 'kingbed') {
+    return 'King Bed'
+  }
+
+  return 'Double'
+}
+
 const ReservationsPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { canCreate, canEdit, canDelete, canViewFinancials } = usePermissions()
@@ -421,11 +446,12 @@ const ReservationsPage = () => {
     const guestId = newReservation.guestId
     const guest2Id = newReservation.guest2Id
 
-    // Validate second guest for double rooms
-    if (selectedRoom?.type === 'Double' && !newReservation.guest2Id) {
+    // Validate second guest for double and king bed rooms
+    if (isDoubleOrKingBedSelection(selectedRoom, selectedRoomType) && !newReservation.guest2Id) {
+      const selectionLabel = getSelectionGuestPromptLabel(selectedRoom, selectedRoomType)
       const confirmed = await confirmation({
-        title: 'Double Room Selected',
-        message: 'Double room selected. Do you want to proceed with only one guest?',
+        title: `${selectionLabel} Room Selected`,
+        message: `${selectionLabel} room selected. Do you want to proceed with only one guest?`,
         variant: 'warning',
       })
       if (!confirmed) {
@@ -688,7 +714,7 @@ const ReservationsPage = () => {
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredAndSortedReservations.map((reservation) => (
-                <tr key={reservation.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700">
+                <tr key={reservation.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100" title={reservation.id}>
                       {reservation.id?.substring(0, 8)}...
@@ -1130,7 +1156,7 @@ const ReservationsPage = () => {
                 onGuestNameChange={setGuestName}
               />
 
-              {(selectedRoom?.type === 'Double' || selectedRoomType?.room_type?.toLowerCase() === 'double') && (
+              {isDoubleOrKingBedSelection(selectedRoom, selectedRoomType) && (
                 <GuestSelect
                   value={newReservation.guest2Id}
                   onChange={(guest2Id) => {

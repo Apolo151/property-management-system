@@ -150,6 +150,7 @@ const AvailabilityPage = () => {
     { value: '', label: 'All Types' },
     { value: 'single', label: 'Single' },
     { value: 'double', label: 'Double' },
+    { value: 'kingBed', label: 'King Bed' },
     { value: 'twin', label: 'Twin' },
     { value: 'twinDouble', label: 'Twin Double' },
     { value: 'triple', label: 'Triple' },

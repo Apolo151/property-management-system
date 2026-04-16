@@ -88,9 +88,10 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 4. Room types ─────────────────────────────────────────────────────────
   const ROOM_TYPE_DEFS = [
-    { name: 'Standard Single', max_adult: 1, max_children: 0, price_per_night: 80.00, description: 'Cozy single room', room_type: 'Single', qty: 5 },
-    { name: 'Standard Double', max_adult: 2, max_children: 1, price_per_night: 120.00, description: 'Comfortable double room', room_type: 'Double', qty: 5 },
-    { name: 'Deluxe Suite', max_adult: 2, max_children: 2, price_per_night: 200.00, description: 'Luxurious suite', room_type: 'Suite', qty: 2 },
+    { name: 'Standard Single', max_adult: 1, max_children: 0, price_per_night: 80.00, description: 'Cozy single room', room_type: 'single', qty: 5 },
+    { name: 'Standard Double', max_adult: 2, max_children: 1, price_per_night: 120.00, description: 'Comfortable double room', room_type: 'double', qty: 5 },
+    { name: 'King Bed', max_adult: 2, max_children: 1, price_per_night: 150.00, description: 'Spacious king bed room', room_type: 'kingBed', qty: 2 },
+    { name: 'Deluxe Suite', max_adult: 2, max_children: 2, price_per_night: 200.00, description: 'Luxurious suite', room_type: 'suite', qty: 2 },
   ];
   const roomTypeIds: Record<string, string> = {};
   for (const rt of ROOM_TYPE_DEFS) {
@@ -108,12 +109,14 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 5. Rooms ──────────────────────────────────────────────────────────────
   const ROOM_DEFS = [
-    { room_number: '101', floor: 1, status: 'Available', type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '102', floor: 1, status: 'Available', type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '103', floor: 1, status: 'Cleaning',  type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '201', floor: 2, status: 'Available', type: 'Double', room_type: 'Double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
-    { room_number: '202', floor: 2, status: 'Out of Service', type: 'Double', room_type: 'Double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
-    { room_number: '301', floor: 3, status: 'Available', type: 'Suite', room_type: 'Suite', price_per_night: 200.00, room_type_id: roomTypeIds['Deluxe Suite'] },
+    { room_number: '101', floor: 1, status: 'Available', type: 'Single', room_type: 'single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '102', floor: 1, status: 'Available', type: 'Single', room_type: 'single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '103', floor: 1, status: 'Cleaning',  type: 'Single', room_type: 'single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '201', floor: 2, status: 'Available', type: 'Double', room_type: 'double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
+    { room_number: '202', floor: 2, status: 'Out of Service', type: 'Double', room_type: 'double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
+    { room_number: '203', floor: 2, status: 'Available', type: 'Double', room_type: 'kingBed', price_per_night: 150.00, room_type_id: roomTypeIds['King Bed'] },
+    { room_number: '204', floor: 2, status: 'Available', type: 'Double', room_type: 'kingBed', price_per_night: 150.00, room_type_id: roomTypeIds['King Bed'] },
+    { room_number: '301', floor: 3, status: 'Available', type: 'Suite', room_type: 'suite', price_per_night: 200.00, room_type_id: roomTypeIds['Deluxe Suite'] },
   ];
   const roomIds: Record<string, string> = {};
   for (const r of ROOM_DEFS) {
