@@ -39,7 +39,7 @@ export async function getReportStatsHandler(
 
     const todaysCheckIns = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in = ?', [todayStr])
+      .whereRaw('check_in = ?', [todayStr as any])
       .whereIn('status', ['Confirmed', 'Checked-in'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -47,7 +47,7 @@ export async function getReportStatsHandler(
 
     const todaysCheckOuts = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_out = ?', [todayStr])
+      .whereRaw('check_out = ?', [todayStr as any])
       .whereIn('status', ['Checked-in', 'Checked-out'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -55,8 +55,8 @@ export async function getReportStatsHandler(
 
     const upcomingCheckIns = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in > ?', [todayStr])
-      .whereRaw('check_in <= ?', [next7DaysStr])
+      .whereRaw('check_in > ?', [todayStr as any])
+      .whereRaw('check_in <= ?', [next7DaysStr as any])
       .whereIn('status', ['Confirmed'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -64,8 +64,8 @@ export async function getReportStatsHandler(
 
     const upcomingCheckOuts = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_out > ?', [todayStr])
-      .whereRaw('check_out <= ?', [next7DaysStr])
+      .whereRaw('check_out > ?', [todayStr as any])
+      .whereRaw('check_out <= ?', [next7DaysStr as any])
       .whereIn('status', ['Checked-in'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -107,7 +107,7 @@ export async function getReportStatsHandler(
     const overdueInvoices = await db('invoices')
       .where('invoices.hotel_id', hotelId)
       .where('status', 'Pending')
-      .whereRaw('due_date < ?', [todayStr])
+      .whereRaw('due_date < ?', [todayStr as any])
       .whereNull('deleted_at')
       .count('* as count')
       .first();
@@ -147,8 +147,8 @@ export async function getReportStatsHandler(
     // Count occupied rooms from checked-in reservations
     const occupiedRooms = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in <= ?', [todayStr])
-      .whereRaw('check_out > ?', [todayStr])
+      .whereRaw('check_in <= ?', [todayStr as any])
+      .whereRaw('check_out > ?', [todayStr as any])
       .whereIn('status', ['Checked-in'])
       .whereNull('deleted_at')
       .count('* as count')
@@ -164,8 +164,8 @@ export async function getReportStatsHandler(
 
     const reservationsLast30Days = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in >= ?', [last30DaysStr])
-      .whereRaw('check_in <= ?', [todayStr])
+      .whereRaw('check_in >= ?', [last30DaysStr as any])
+      .whereRaw('check_in <= ?', [todayStr as any])
       .whereIn('status', ['Checked-in', 'Checked-out'])
       .whereNull('deleted_at');
 

@@ -36,7 +36,7 @@ describe('UC-001 – Login to System', () => {
   it('A2: returns 401 on invalid password', async () => {
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ email: TEST_CREDENTIALS.super_admin.email, password: 'WRONG_PASSWORD' });
+      .send({ email: TEST_CREDENTIALS.super_admin!.email, password: 'WRONG_PASSWORD' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBeDefined();
@@ -75,7 +75,7 @@ describe('UC-001 – Login to System', () => {
     const user = res.body.user;
     expect(user).toBeDefined();
     expect(user.role).toBe('SUPER_ADMIN');
-    expect(user.email).toBe(TEST_CREDENTIALS.super_admin.email);
+    expect(user.email).toBe(TEST_CREDENTIALS.super_admin!.email);
     // Password hash must never be returned
     expect(user.password_hash).toBeUndefined();
     expect(user.password).toBeUndefined();
@@ -125,7 +125,7 @@ describe('GET /auth/me – Authenticated user info', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.email).toBe(TEST_CREDENTIALS.super_admin.email);
+    expect(res.body.email).toBe(TEST_CREDENTIALS.super_admin!.email);
     expect(res.body.password_hash).toBeUndefined();
   });
 
@@ -165,7 +165,7 @@ describe('UC-004 – Forgot Password', () => {
   it('A6: returns 200 for known email (token sent or logged)', async () => {
     const res = await request(app)
       .post('/api/auth/forgot-password')
-      .send({ email: TEST_CREDENTIALS.manager.email });
+      .send({ email: TEST_CREDENTIALS.manager!.email });
 
     // Should return 200 regardless (to avoid email enumeration)
     expect([200, 204]).toContain(res.status);

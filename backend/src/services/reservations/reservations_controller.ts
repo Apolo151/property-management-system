@@ -1017,8 +1017,8 @@ export async function checkAvailabilityHandler(
       .select('rooms.*')
       .leftJoin('reservations', function () {
         this.on('rooms.id', '=', 'reservations.room_id')
-          .andOn('reservations.check_in', '<', db.raw('?', [check_out]))
-          .andOn('reservations.check_out', '>', db.raw('?', [check_in]))
+          .andOn('reservations.check_in', '<', db.raw('?', [check_out as any]))
+          .andOn('reservations.check_out', '>', db.raw('?', [check_in as any]))
           .andOn('reservations.status', '!=', db.raw('?', ['Cancelled']))
           .andOnNull('reservations.deleted_at');
       })

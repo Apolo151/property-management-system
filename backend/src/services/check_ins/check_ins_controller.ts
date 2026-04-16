@@ -121,7 +121,7 @@ export async function getCheckInHandler(
       return;
     }
 
-    const checkIn = await getCheckInDetails(id!, hotelId!);
+    const checkIn = await getCheckInDetails(id as string, hotelId as string);
     res.json(checkIn);
   } catch (error: any) {
     if (error.message.includes('not found')) {
@@ -217,7 +217,7 @@ export async function checkOutHandler(
 
     const amountRaw = req.body?.amount;
     const request: CheckOutRequest = {
-      checkin_id: id!,
+      checkin_id: id as string,
       actual_checkout_time: req.body.actual_checkout_time,
       notes: req.body.notes,
     };
@@ -306,7 +306,7 @@ export async function changeRoomHandler(
     }
 
     const request: RoomChangeRequest = {
-      checkin_id: id!,
+      checkin_id: id as string,
       new_room_id: req.body.new_room_id,
       change_reason: req.body.change_reason,
       notes: req.body.notes,
@@ -377,7 +377,7 @@ export async function getEligibleRoomsHandler(
       return;
     }
 
-    const eligibleRooms = await getEligibleRooms(id!, hotelId!);
+    const eligibleRooms = await getEligibleRooms(id as string, hotelId as string);
     res.json(eligibleRooms);
   } catch (error: any) {
     if (error.message.includes('not found')) {
@@ -433,7 +433,7 @@ export async function checkInFromReservationHandler(
 
     if (!actualRoomId) {
       // Auto-select first available room
-      const eligibleRooms = await getEligibleRooms(id!, hotelId!);
+      const eligibleRooms = await getEligibleRooms(id as string, hotelId as string);
       
       if (eligibleRooms.available_rooms.length === 0) {
         res.status(409).json({
@@ -450,7 +450,7 @@ export async function checkInFromReservationHandler(
     }
 
     const request: CheckInRequest = {
-      reservation_id: id!,
+      reservation_id: id as string,
       actual_room_id: actualRoomId!,
       notes: req.body.notes,
       check_in_time: req.body.check_in_time,
