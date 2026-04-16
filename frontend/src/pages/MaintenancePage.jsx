@@ -27,6 +27,7 @@ const MaintenancePage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [roomFilter, setRoomFilter] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortOrder, setSortOrder] = useState('desc')
   const [newRequest, setNewRequest] = useState({
@@ -56,8 +57,12 @@ const MaintenancePage = () => {
   }, [activeHotelId, statusFilter, priorityFilter, searchTerm, fetchMaintenanceRequests]);
 
   const filteredAndSortedRequests = useMemo(() => {
-    // API handles search, status, and priority filtering, so we just sort the results
+    // API handles search, status, and priority filtering, so we apply local filters and sort
     let filtered = [...maintenanceRequests]
+
+    if (roomFilter) {
+      filtered = filtered.filter(req => req.roomNumber === roomFilter)
+    }
 
     // Sort
     filtered.sort((a, b) => {
@@ -76,7 +81,7 @@ const MaintenancePage = () => {
     })
 
     return filtered
-  }, [maintenanceRequests, sortBy, sortOrder])
+  }, [maintenanceRequests, sortBy, sortOrder, roomFilter])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -191,12 +196,19 @@ const MaintenancePage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
             placeholder="Search by room, title, or description..."
             label="Search"
+          />
+          <FilterSelect
+            value={roomFilter}
+            onChange={setRoomFilter}
+            options={rooms.map((room) => ({ value: room.roomNumber, label: `${room.roomNumber} - ${room.type}` }))}
+            placeholder="All Rooms"
+            label="Room"
           />
           <FilterSelect
             value={statusFilter}

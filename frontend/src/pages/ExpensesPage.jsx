@@ -20,6 +20,8 @@ const ExpensesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [sortBy, setSortBy] = useState('date')
   const [sortOrder, setSortOrder] = useState('desc')
   const [newExpense, setNewExpense] = useState({
@@ -34,13 +36,15 @@ const ExpensesPage = () => {
     const filters = {};
     if (categoryFilter) filters.category = categoryFilter;
     if (searchTerm) filters.search = searchTerm;
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
     
     const timeoutId = setTimeout(() => {
       fetchExpenses(filters);
     }, searchTerm ? 300 : 0); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [activeHotelId, categoryFilter, searchTerm, fetchExpenses]);
+  }, [activeHotelId, categoryFilter, searchTerm, startDate, endDate, fetchExpenses]);
 
   const categories = [
     'Utilities',
@@ -88,16 +92,16 @@ const ExpensesPage = () => {
   }
 
   const totalExpenses = useMemo(() => {
-    return expenses.reduce((sum, exp) => sum + exp.amount, 0)
-  }, [expenses])
+    return filteredAndSortedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+  }, [filteredAndSortedExpenses])
 
   const expensesByCategory = useMemo(() => {
     const grouped = {}
-    expenses.forEach((exp) => {
+    filteredAndSortedExpenses.forEach((exp) => {
       grouped[exp.category] = (grouped[exp.category] || 0) + exp.amount
     })
     return grouped
-  }, [expenses])
+  }, [filteredAndSortedExpenses])
 
   const handleAddExpense = async () => {
     if (!newExpense.category || !newExpense.amount) {
@@ -159,7 +163,7 @@ const ExpensesPage = () => {
         </div>
         <div className="card">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Records</h3>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{expenses.length}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{filteredAndSortedExpenses.length}</p>
         </div>
         <div className="card">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Categories</h3>
@@ -171,7 +175,7 @@ const ExpensesPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
@@ -185,7 +189,40 @@ const ExpensesPage = () => {
             placeholder="All Categories"
             label="Category"
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+          </div>
         </div>
+        {(searchTerm || categoryFilter || startDate || endDate) && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setCategoryFilter('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Loading state */}

@@ -31,6 +31,8 @@ const InvoicesPage = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('')
+  const [isOverdueOnly, setIsOverdueOnly] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('issueDate')
@@ -65,10 +67,26 @@ const InvoicesPage = () => {
     // API handles search and status filtering, so we just sort the results
     let filtered = [...invoices]
 
+    // Parse helper
     const parseDateMs = (v) => {
       if (v == null || v === '') return null
       const d = parseISO(v)
       return isValid(d) ? d.getTime() : null
+    }
+
+    if (paymentMethodFilter) {
+      filtered = filtered.filter(inv => inv.paymentMethod === paymentMethodFilter)
+    }
+
+    if (isOverdueOnly) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      filtered = filtered.filter(inv => {
+        if (inv.status === 'Paid' || inv.status === 'Cancelled' || !inv.dueDate) return false;
+        const outDate = parseISO(inv.dueDate);
+        return isValid(outDate) && outDate < today;
+      })
     }
 
     // Sort
@@ -97,7 +115,7 @@ const InvoicesPage = () => {
     })
 
     return filtered
-  }, [invoices, sortBy, sortOrder])
+  }, [invoices, sortBy, sortOrder, paymentMethodFilter, isOverdueOnly])
 
   const handleDownloadPdf = async (invoice) => {
     try {
@@ -233,6 +251,11 @@ const InvoicesPage = () => {
     { value: 'Cancelled', label: 'Cancelled' },
   ]
 
+  const paymentMethodOptions = useMemo(() => {
+    const methods = new Set(invoices.map(inv => inv.paymentMethod).filter(Boolean))
+    return Array.from(methods).map(method => ({ value: method, label: method }))
+  }, [invoices])
+
   return (
     <div>
       <div className="mb-8">
@@ -249,13 +272,15 @@ const InvoicesPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SearchInput
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search by invoice ID, reservation ID, or guest name..."
-            label="Search"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div className="md:col-span-2">
+            <SearchInput
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search by invoice ID, reservation ID, or guest name..."
+              label="Search"
+            />
+          </div>
           <FilterSelect
             value={statusFilter}
             onChange={setStatusFilter}
@@ -263,6 +288,37 @@ const InvoicesPage = () => {
             placeholder="All Statuses"
             label="Status"
           />
+          <FilterSelect
+            value={paymentMethodFilter}
+            onChange={setPaymentMethodFilter}
+            options={paymentMethodOptions}
+            placeholder="All Methods"
+            label="Payment Method"
+          />
+        </div>
+        <div className="mt-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isOverdueOnly} 
+              onChange={(e) => setIsOverdueOnly(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="font-medium text-red-600 dark:text-red-400">Show Overdue Only</span>
+          </label>
+          {(searchTerm || statusFilter || paymentMethodFilter || isOverdueOnly) && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('');
+                setPaymentMethodFilter('');
+                setIsOverdueOnly(false);
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 underline"
+            >
+              Clear All Filters
+            </button>
+          )}
         </div>
       </div>
 

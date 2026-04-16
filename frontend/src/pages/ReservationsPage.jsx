@@ -64,6 +64,10 @@ const ReservationsPage = () => {
   } = useReservationsStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [roomTypeFilter, setRoomTypeFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [quickFilter, setQuickFilter] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortOrder, setSortOrder] = useState('desc')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -232,10 +236,30 @@ const ReservationsPage = () => {
     let filtered = reservations.filter((res) => {
       const matchesSearch =
         res.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        res.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        res.id.toLowerCase().includes(searchTerm.toLowerCase())
+        (res.roomNumber && res.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        String(res.id).toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = !statusFilter || res.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesRoomType = !roomTypeFilter || res.roomTypeId === roomTypeFilter || res.roomTypeName === roomTypeFilter
+      
+      let matchesDates = true
+      if (dateFrom) {
+        matchesDates = matchesDates && res.checkIn >= dateFrom
+      }
+      if (dateTo) {
+        matchesDates = matchesDates && res.checkOut <= dateTo
+      }
+
+      let matchesQuick = true
+      const todayDate = format(new Date(), 'yyyy-MM-dd')
+      if (quickFilter === 'arriving_today') {
+        matchesQuick = res.checkIn.startsWith(todayDate)
+      } else if (quickFilter === 'departing_today') {
+        matchesQuick = res.checkOut.startsWith(todayDate)
+      } else if (quickFilter === 'active') {
+        matchesQuick = res.status === 'Checked-in'
+      }
+
+      return matchesSearch && matchesStatus && matchesRoomType && matchesDates && matchesQuick
     })
 
     // Sort
@@ -262,7 +286,7 @@ const ReservationsPage = () => {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, sortBy, sortOrder, reservations])
+  }, [searchTerm, statusFilter, roomTypeFilter, dateFrom, dateTo, quickFilter, sortBy, sortOrder, reservations])
 
   // Check if an invoice already exists for a reservation
   const hasInvoice = (reservationId) => {
@@ -576,6 +600,16 @@ const ReservationsPage = () => {
     { value: 'No-show', label: 'No-show' },
   ]
 
+  const roomTypeOptions = useMemo(() => {
+    const typesMap = new Map()
+    reservations.forEach(r => {
+      if (r.roomTypeName && !typesMap.has(r.roomTypeName)) {
+        typesMap.set(r.roomTypeName, { value: r.roomTypeName, label: r.roomTypeName })
+      }
+    })
+    return Array.from(typesMap.values())
+  }, [reservations])
+
   const handleSort = (column) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -615,12 +649,19 @@ const ReservationsPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Search by guest, room, or ID..."
+            placeholder="Search guest or room..."
             label="Search"
+          />
+          <FilterSelect
+            value={roomTypeFilter}
+            onChange={setRoomTypeFilter}
+            options={roomTypeOptions}
+            placeholder="All Room Types"
+            label="Room Type"
           />
           <FilterSelect
             value={statusFilter}
@@ -629,6 +670,62 @@ const ReservationsPage = () => {
             placeholder="All Statuses"
             label="Status"
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4 flex-wrap">
+          <button 
+            type="button"
+            onClick={() => setQuickFilter(quickFilter === 'arriving_today' ? '' : 'arriving_today')}
+            className={`px-3 py-1 rounded-full text-xs font-medium border ${quickFilter === 'arriving_today' ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-900 dark:text-primary-200 dark:border-primary-700' : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+          >
+            Arriving Today
+          </button>
+          <button 
+            type="button"
+            onClick={() => setQuickFilter(quickFilter === 'departing_today' ? '' : 'departing_today')}
+            className={`px-3 py-1 rounded-full text-xs font-medium border ${quickFilter === 'departing_today' ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-900 dark:text-primary-200 dark:border-primary-700' : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+          >
+            Departing Today
+          </button>
+          <button 
+            type="button"
+            onClick={() => setQuickFilter(quickFilter === 'active' ? '' : 'active')}
+            className={`px-3 py-1 rounded-full text-xs font-medium border ${quickFilter === 'active' ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-900 dark:text-primary-200 dark:border-primary-700' : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+          >
+            Active Stays
+          </button>
+          {(searchTerm || statusFilter || roomTypeFilter || dateFrom || dateTo || quickFilter) && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('');
+                setRoomTypeFilter('');
+                setDateFrom('');
+                setDateTo('');
+                setQuickFilter('');
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline ml-2 self-center"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -979,9 +1076,10 @@ const ReservationsPage = () => {
                     const units = []
                     
                     // Check each unit for availability
+                    const roomDetails = rooms.find(r => r.id === selectedRoomType.room_type_id)
                     for (let unitIndex = 0; unitIndex < totalUnits; unitIndex++) {
                       const unitId = `${selectedRoomType.room_type_id}-unit-${unitIndex}`
-                      const unitNumber = unitIndex + 1
+                      const unitName = roomDetails?.units?.[unitIndex]?.name || `Unit #${unitIndex + 1}`
                       
                       // Check if this unit is reserved during the selected dates
                       const isReserved = reservations.some((res) => {
@@ -1018,7 +1116,7 @@ const ReservationsPage = () => {
                       
                       units.push({
                         unitIndex,
-                        unitNumber,
+                        unitName,
                         unitId,
                         available: !isReserved,
                       })
@@ -1053,7 +1151,7 @@ const ReservationsPage = () => {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <span className="font-medium">Unit #{unit.unitNumber}</span>
+                                <span className="font-medium">{unit.unitName}</span>
                                 {!unit.available && (
                                   <span className="text-sm text-red-600 ml-2">(Unavailable)</span>
                                 )}
@@ -1099,7 +1197,9 @@ const ReservationsPage = () => {
                   {selectedUnit !== null && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Unit:</span>
-                      <span className="font-medium">#{selectedUnit + 1}</span>
+                      <span className="font-medium">
+                        {rooms.find(r => r.id === selectedRoomType?.room_type_id)?.units?.[selectedUnit]?.name || `#${selectedUnit + 1}`}
+                      </span>
                     </div>
                   )}
                   {selectedUnit === null && (

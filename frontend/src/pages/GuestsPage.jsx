@@ -20,6 +20,8 @@ const GuestsPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('id')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [isReturningOnly, setIsReturningOnly] = useState(false)
+  const [hasNotesOnly, setHasNotesOnly] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newGuest, setNewGuest] = useState({
     name: '',
@@ -39,8 +41,16 @@ const GuestsPage = () => {
   }, [activeHotelId, searchTerm, fetchGuests])
 
   const filteredAndSortedGuests = useMemo(() => {
-    // API handles search, so we just sort the results
+    // API handles search, so we just filter toggles and sort the results
     let filtered = [...guests]
+
+    if (isReturningOnly) {
+      filtered = filtered.filter(g => g.pastStays >= 1)
+    }
+
+    if (hasNotesOnly) {
+      filtered = filtered.filter(g => g.notes && g.notes.trim().length > 0)
+    }
 
     // Sort
     filtered.sort((a, b) => {
@@ -60,7 +70,7 @@ const GuestsPage = () => {
     })
 
     return filtered
-  }, [searchTerm, guests, sortBy, sortOrder])
+  }, [searchTerm, guests, sortBy, sortOrder, isReturningOnly, hasNotesOnly])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -135,13 +145,58 @@ const GuestsPage = () => {
         <div className="mb-4 text-center text-gray-600 dark:text-gray-400">Loading guests...</div>
       )}
 
-      {/* Search */}
+      {/* Filters */}
       <div className="card mb-6">
-        <SearchInput
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search by guest name..."
-        />
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
+          <div className="w-full lg:w-1/3">
+            <SearchInput
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search by guest name..."
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 lg:items-center">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={isReturningOnly} 
+                onChange={(e) => setIsReturningOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white dark:bg-gray-700 dark:border-gray-600"
+              />
+              Returning Only
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={hasNotesOnly} 
+                onChange={(e) => setHasNotesOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 bg-white dark:bg-gray-700 dark:border-gray-600"
+              />
+              Has Notes
+            </label>
+            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
+              <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort By:</label>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-sm bg-transparent border-none focus:ring-0 p-0 pr-6 text-gray-900 dark:text-gray-100 cursor-pointer"
+              >
+                <option value="id">Most Recent</option>
+                <option value="name">Name</option>
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="pastStays">Past Stays</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1 px-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                title="Toggle sort order"
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Guests Table */}
