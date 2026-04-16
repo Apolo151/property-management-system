@@ -14,6 +14,9 @@ const AuditLogsPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [actionFilter, setActionFilter] = useState('')
   const [entityFilter, setEntityFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [userFilter, setUserFilter] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
 
@@ -62,6 +65,19 @@ const AuditLogsPage = () => {
       filtered = filtered.filter((log) => log.entityType === entityFilter);
     }
 
+    if (dateFrom) {
+      filtered = filtered.filter((log) => log.timestamp >= dateFrom);
+    }
+
+    if (dateTo) {
+      const endOfDay = `${dateTo}T23:59:59.999Z`;
+      filtered = filtered.filter((log) => log.timestamp <= endOfDay);
+    }
+
+    if (userFilter) {
+      filtered = filtered.filter((log) => (log.userName || 'System') === userFilter);
+    }
+
     // Client-side sorting (server already sorts, but we can re-sort if needed)
     filtered.sort((a, b) => {
       let comparison = 0;
@@ -78,7 +94,7 @@ const AuditLogsPage = () => {
     });
 
     return filtered;
-  }, [auditLogs, searchTerm, actionFilter, entityFilter, sortBy, sortOrder])
+  }, [auditLogs, searchTerm, actionFilter, entityFilter, dateFrom, dateTo, userFilter, sortBy, sortOrder])
 
   const handleSort = (column) => {
     // Map frontend column names to backend sort_by values
@@ -124,6 +140,11 @@ const AuditLogsPage = () => {
     return entities.map((entity) => ({ value: entity, label: entity }))
   }, [auditLogs])
 
+  const uniqueUsers = useMemo(() => {
+    const users = [...new Set(auditLogs.map((log) => log.userName || 'System'))]
+    return users.sort().map((user) => ({ value: user, label: user }))
+  }, [auditLogs])
+
   const getActionColor = (action) => {
     if (action.includes('CREATE')) return 'bg-green-100 text-green-800'
     if (action.includes('UPDATE')) return 'bg-blue-100 text-blue-800'
@@ -166,13 +187,15 @@ const AuditLogsPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SearchInput
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search by action, entity type, or ID..."
-            label="Search"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className="md:col-span-2">
+            <SearchInput
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search action, entity, user, ID..."
+              label="Search"
+            />
+          </div>
           <FilterSelect
             value={actionFilter}
             onChange={setActionFilter}
@@ -187,7 +210,49 @@ const AuditLogsPage = () => {
             placeholder="All Entity Types"
             label="Entity Type"
           />
+          <FilterSelect
+            value={userFilter}
+            onChange={setUserFilter}
+            options={uniqueUsers}
+            placeholder="All Users"
+            label="User"
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+              />
+              <span className="text-gray-500">-</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+              />
+            </div>
+          </div>
         </div>
+        {(searchTerm || actionFilter || entityFilter || userFilter || dateFrom || dateTo) && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setActionFilter('');
+                setEntityFilter('');
+                setUserFilter('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 underline"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Loading/Error States */}

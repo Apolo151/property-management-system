@@ -93,6 +93,7 @@ const RoomsPage = () => {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [housekeepingFilter, setHousekeepingFilter] = useState('')
+  const [floorFilter, setFloorFilter] = useState('')
 
   const filteredRooms = useMemo(() => {
     return enrichedRooms.filter((room) => {
@@ -101,9 +102,10 @@ const RoomsPage = () => {
                            room.type.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesType = !typeFilter || room.roomType === typeFilter
       const matchesStatus = !statusFilter || room.status === statusFilter
-      return matchesSearch && matchesType && matchesStatus
+      const matchesFloor = !floorFilter || room.floor?.toString() === floorFilter
+      return matchesSearch && matchesType && matchesStatus && matchesFloor
     })
-  }, [searchTerm, typeFilter, statusFilter, enrichedRooms])
+  }, [searchTerm, typeFilter, statusFilter, floorFilter, enrichedRooms])
 
   // Get unique room types for filter
   const roomTypeOptions = useMemo(() => {
@@ -118,6 +120,14 @@ const RoomsPage = () => {
       label: name
     }))
   }, [roomTypes])
+
+  // Get unique floors for filter
+  const floorOptions = useMemo(() => {
+    const floors = new Set(rooms.map(r => r.floor).filter(f => f != null))
+    return Array.from(floors)
+      .sort((a, b) => a - b)
+      .map(f => ({ value: f.toString(), label: `Floor ${f}` }))
+  }, [rooms])
 
   const filteredHousekeeping = useMemo(() => {
     return enrichedRooms.map((room) => {
@@ -144,8 +154,9 @@ const RoomsPage = () => {
       const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = !housekeepingFilter || housekeepingData.status === housekeepingFilter
+      const matchesFloor = !floorFilter || room.floor?.toString() === floorFilter
 
-      if (!matchesSearch || !matchesStatus) return null
+      if (!matchesSearch || !matchesStatus || !matchesFloor) return null
 
       return {
         ...housekeepingData,
@@ -154,7 +165,7 @@ const RoomsPage = () => {
         room,
       }
     }).filter(Boolean)
-  }, [housekeeping, enrichedRooms, searchTerm, housekeepingFilter, staff])
+  }, [housekeeping, enrichedRooms, searchTerm, housekeepingFilter, floorFilter, staff])
 
   return (
     <div>
@@ -196,7 +207,7 @@ const RoomsPage = () => {
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <SearchInput
             value={searchTerm}
             onChange={setSearchTerm}
@@ -209,6 +220,13 @@ const RoomsPage = () => {
             options={roomTypeOptions}
             placeholder="All Room Types"
             label="Room Type"
+          />
+          <FilterSelect
+            value={floorFilter}
+            onChange={setFloorFilter}
+            options={floorOptions}
+            placeholder="All Floors"
+            label="Floor"
           />
           <FilterSelect
             value={statusFilter}

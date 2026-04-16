@@ -1,6 +1,26 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
+import useRoomsStore from './roomsStore';
+
+const extractRoomNumberFromUnit = (assignedUnitId, roomTypeName) => {
+  if (!assignedUnitId) return null;
+  const match = assignedUnitId.match(/^(.*)-unit-(\d+)$/);
+  if (match) {
+    const rtId = match[1];
+    const unitIndex = parseInt(match[2], 10);
+    
+    // Use getState() safely outside React context
+    const roomsState = useRoomsStore.getState();
+    const roomDetails = roomsState?.rooms?.find(r => r.id === rtId);
+    
+    if (roomDetails && roomDetails.units && roomDetails.units[unitIndex]) {
+      return roomDetails.units[unitIndex].name;
+    }
+    return `${roomTypeName || ''} #${unitIndex + 1}`.trim();
+  }
+  return null;
+};
 
 const useReservationsStore = create((set, get, storeApi) => ({
   reservations: [],
@@ -16,32 +36,35 @@ const useReservationsStore = create((set, get, storeApi) => ({
       const data = await api.reservations.getAll(filters);
       
       // Transform API response to match frontend format
-      const transformed = data.map((res) => ({
-        id: res.id,
-        guestId: res.primary_guest_id,
-        guestName: res.primary_guest_name,
-        guestEmail: res.primary_guest_email,
-        guestPhone: res.primary_guest_phone,
-        guest2Id: res.secondary_guest_id,
-        guest2Name: res.secondary_guest_name,
-        guest2Email: res.secondary_guest_email,
-        guest2Phone: res.secondary_guest_phone,
-        roomNumber: res.room_number || res.room_type_name,
-        roomId: res.room_id,
-        roomTypeId: res.room_type_id,
-        roomTypeName: res.room_type_name,
-        assignedUnitId: res.assigned_unit_id || null,
-        unitsRequested: res.units_requested || 1,
-        checkIn: res.check_in,
-        checkOut: res.check_out,
-        status: res.status,
-        checkinId: res.checkin_id || null,
-        totalAmount: res.total_amount,
-        source: res.source,
-        specialRequests: res.special_requests,
-        createdAt: res.created_at,
-        updatedAt: res.updated_at,
-      }));
+      const transformed = data.map((res) => {
+        const resolvedRoomNumber = res.room_number || extractRoomNumberFromUnit(res.assigned_unit_id, res.room_type_name) || res.room_type_name;
+        return {
+          id: res.id,
+          guestId: res.primary_guest_id,
+          guestName: res.primary_guest_name,
+          guestEmail: res.primary_guest_email,
+          guestPhone: res.primary_guest_phone,
+          guest2Id: res.secondary_guest_id,
+          guest2Name: res.secondary_guest_name,
+          guest2Email: res.secondary_guest_email,
+          guest2Phone: res.secondary_guest_phone,
+          roomNumber: resolvedRoomNumber,
+          roomId: res.room_id,
+          roomTypeId: res.room_type_id,
+          roomTypeName: res.room_type_name,
+          assignedUnitId: res.assigned_unit_id || null,
+          unitsRequested: res.units_requested || 1,
+          checkIn: res.check_in,
+          checkOut: res.check_out,
+          status: res.status,
+          checkinId: res.checkin_id || null,
+          totalAmount: res.total_amount,
+          source: res.source,
+          specialRequests: res.special_requests,
+          createdAt: res.created_at,
+          updatedAt: res.updated_at,
+        };
+      });
 
       set({ reservations: transformed, loading: false });
       return transformed;
