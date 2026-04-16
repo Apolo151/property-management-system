@@ -2,6 +2,7 @@
 export type Beds24RoomType =
   | 'single'
   | 'double'
+  | 'kingBed'
   | 'twin'
   | 'twinDouble'
   | 'triple'

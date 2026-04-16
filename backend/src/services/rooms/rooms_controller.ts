@@ -202,7 +202,7 @@ export async function createRoomHandler(
 
     // Validate Beds24 room_type
     const validBeds24RoomTypes: Beds24RoomType[] = [
-      'single', 'double', 'twin', 'twinDouble', 'triple', 'quadruple',
+      'single', 'double', 'kingBed', 'twin', 'twinDouble', 'triple', 'quadruple',
       'apartment', 'family', 'suite', 'studio', 'dormitoryRoom', 'bedInDormitory',
       'bungalow', 'chalet', 'holidayHome', 'villa', 'mobileHome', 'tent',
       'campSite', 'activity', 'tour', 'carRental'
@@ -327,7 +327,7 @@ export async function updateRoomHandler(
     // Validate Beds24 room_type if provided
     if (updates.room_type !== undefined) {
       const validBeds24RoomTypes: Beds24RoomType[] = [
-        'single', 'double', 'twin', 'twinDouble', 'triple', 'quadruple',
+        'single', 'double', 'kingBed', 'twin', 'twinDouble', 'triple', 'quadruple',
         'apartment', 'family', 'suite', 'studio', 'dormitoryRoom', 'bedInDormitory',
         'bungalow', 'chalet', 'holidayHome', 'villa', 'mobileHome', 'tent',
         'campSite', 'activity', 'tour', 'carRental'
