@@ -70,8 +70,8 @@ export class RoomTypeAvailabilityService {
       .whereNotIn('status', ['Cancelled', 'Checked-out'])
       .whereNull('deleted_at')
       .where(function () {
-        this.whereRaw('check_in < ?', [endDateStr])
-          .whereRaw('check_out > ?', [startDateStr]);
+        this.whereRaw('check_in < ?', [endDateStr as any])
+          .whereRaw('check_out > ?', [startDateStr as any]);
       })
       .modify((queryBuilder) => {
         if (excludeReservationId) {
@@ -247,8 +247,8 @@ export class RoomTypeAvailabilityService {
       .where({ room_type_id: roomTypeId })
       .whereNotIn('status', ['Cancelled', 'Checked-out'])
       .whereNull('deleted_at')
-      .whereRaw('check_in <= ?', [dateStr])
-      .whereRaw('check_out > ?', [dateStr])
+      .whereRaw('check_in <= ?', [dateStr as any])
+      .whereRaw('check_out > ?', [dateStr as any])
       .sum('units_requested as total');
 
     const total = reservations[0]?.total || 0;
