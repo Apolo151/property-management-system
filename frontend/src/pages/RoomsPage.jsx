@@ -107,10 +107,15 @@ const RoomsPage = () => {
 
   // Get unique room types for filter
   const roomTypeOptions = useMemo(() => {
-    const types = new Set(roomTypes.map(rt => rt.roomType))
-    return Array.from(types).map(type => ({
-      value: type,
-      label: type.charAt(0).toUpperCase() + type.slice(1)
+    const typesMap = new Map()
+    roomTypes.forEach(rt => {
+      if (rt.roomType && !typesMap.has(rt.roomType.toLowerCase())) {
+        typesMap.set(rt.roomType.toLowerCase(), rt.name)
+      }
+    })
+    return Array.from(typesMap.entries()).map(([value, name]) => ({
+      value,
+      label: name
     }))
   }, [roomTypes])
 

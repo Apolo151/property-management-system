@@ -9,6 +9,13 @@ import useAuthStore from '../store/authStore'
 import { api } from '../utils/api'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
+import ReservationDetailsModal from '../components/ReservationDetailsModal'
+
+const safeFormatDate = (v) => {
+  if (!v) return '-';
+  const d = parseISO(v);
+  return isValid(d) ? format(d, 'MMM dd, yyyy') : '-';
+}
 
 const InvoicesPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId)
@@ -28,6 +35,18 @@ const InvoicesPage = () => {
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('issueDate')
   const [sortOrder, setSortOrder] = useState('desc')
+
+  // UI state for modals and forms
+  const [reservationModalOpen, setReservationModalOpen] = useState(false)
+  const [selectedReservationId, setSelectedReservationId] = useState(null)
+  
+  const [editingNotesId, setEditingNotesId] = useState(null)
+  const [editNotesValue, setEditNotesValue] = useState('')
+  
+  const [editingAmountId, setEditingAmountId] = useState(null)
+  const [editAmountValue, setEditAmountValue] = useState('')
+
+  const [loadingActionId, setLoadingActionId] = useState(null)
 
   // Fetch invoices on mount and when filters change
   useEffect(() => {
@@ -82,6 +101,7 @@ const InvoicesPage = () => {
 
   const handleDownloadPdf = async (invoice) => {
     try {
+      setLoadingActionId(invoice.id)
       const blob = await api.invoices.downloadPdf(invoice.id)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -94,6 +114,8 @@ const InvoicesPage = () => {
       toast.success('PDF downloaded')
     } catch (err) {
       toast.error(err.message || 'Failed to download PDF')
+    } finally {
+      setLoadingActionId(null)
     }
   }
 
@@ -125,10 +147,13 @@ const InvoicesPage = () => {
       })
       if (confirmed) {
         try {
+          setLoadingActionId(invoiceId)
           await updateInvoice(invoiceId, { status: newStatus })
           toast.success('Invoice status updated successfully!')
         } catch (error) {
           toast.error(error.message || 'Failed to update invoice status')
+        } finally {
+          setLoadingActionId(null)
         }
       }
     }
@@ -141,6 +166,7 @@ const InvoicesPage = () => {
     }
     
     try {
+      setLoadingActionId(selectedInvoice.id)
       await updateInvoice(selectedInvoice.id, {
         status: 'Paid',
         paymentMethod,
@@ -151,8 +177,55 @@ const InvoicesPage = () => {
       toast.success('Invoice marked as paid successfully!')
     } catch (error) {
       toast.error(error.message || 'Failed to update invoice')
+    } finally {
+      setLoadingActionId(null)
     }
   }
+
+  const handleNotesClick = (invoice) => {
+    if (invoice.status === 'Cancelled') return;
+    setEditingNotesId(invoice.id);
+    setEditNotesValue(invoice.notes || '');
+  };
+
+  const handleNotesBlur = async (invoice) => {
+    setEditingNotesId(null);
+    if (editNotesValue === (invoice.notes || '')) return;
+    try {
+      await updateInvoice(invoice.id, { notes: editNotesValue });
+      toast.success('Notes updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update notes');
+    }
+  };
+
+  const handleAmountClick = (invoice) => {
+    setEditingAmountId(invoice.id);
+    setEditAmountValue(invoice.amount || '');
+  };
+
+  const handleAmountBlur = async (invoice) => {
+    setEditingAmountId(null);
+    const newAmount = Number(editAmountValue);
+    if (isNaN(newAmount) || newAmount <= 0) {
+      toast.error('Amount must be a valid number greater than 0');
+      return;
+    }
+    if (newAmount === invoice.amount) return;
+    
+    try {
+      await updateInvoice(invoice.id, { amount: newAmount });
+      toast.success('Amount updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update amount');
+    }
+  };
+
+  const handleReservationClick = (resId) => {
+    if (!resId) return;
+    setSelectedReservationId(resId);
+    setReservationModalOpen(true);
+  };
 
   const statusOptions = [
     { value: 'Pending', label: 'Pending' },
@@ -250,6 +323,9 @@ const InvoicesPage = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Notes
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Payment Method
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -258,16 +334,37 @@ const InvoicesPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredAndSortedInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700">
+              {filteredAndSortedInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan="10" className="text-center py-12 text-gray-500 dark:text-gray-400 border-b-0">
+                    {invoices.length === 0
+                      ? 'No invoices yet. Create invoices from reservations.'
+                      : 'No invoices found matching your filters.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredAndSortedInvoices.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100" title={invoice.id}>
                         {invoice.id?.substring(0, 8)}...
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-gray-100" title={invoice.reservationId || ''}>
-                        {invoice.reservationId ? `${invoice.reservationId.substring(0, 8)}...` : '-'}
+                      <div 
+                        className="text-sm text-gray-900 dark:text-gray-100" 
+                        title={invoice.reservationId || ''}
+                      >
+                        {invoice.reservationId ? (
+                          <span 
+                            onClick={() => handleReservationClick(invoice.reservationId)}
+                            className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 cursor-pointer hover:underline"
+                          >
+                            {invoice.reservationId.substring(0, 8)}...
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -275,18 +372,39 @@ const InvoicesPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-gray-100">
-                        {format(parseISO(invoice.issueDate), 'MMM dd, yyyy')}
+                        {safeFormatDate(invoice.issueDate)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-gray-100">
-                        {format(parseISO(invoice.dueDate), 'MMM dd, yyyy')}
+                        {safeFormatDate(invoice.dueDate)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        ${invoice.amount.toLocaleString()}
-                      </div>
+                      {editingAmountId === invoice.id ? (
+                        <div className="flex items-center">
+                           <span className="text-sm text-gray-500 mr-1">$</span>
+                           <input
+                             autoFocus
+                             type="number"
+                             min="0.01"
+                             step="0.01"
+                             className="input py-1 px-2 h-8 w-24 text-sm"
+                             value={editAmountValue}
+                             onChange={(e) => setEditAmountValue(e.target.value)}
+                             onBlur={() => handleAmountBlur(invoice)}
+                             onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                           />
+                        </div>
+                      ) : (
+                        <div 
+                          className={`text-sm font-medium text-gray-900 dark:text-gray-100 group flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-1 -m-1 rounded`}
+                          onClick={() => handleAmountClick(invoice)}
+                        >
+                          ${invoice.amount.toLocaleString()}
+                          <span className="opacity-0 group-hover:opacity-100 text-gray-400 text-xs">✏️</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge
@@ -294,51 +412,70 @@ const InvoicesPage = () => {
                         type="invoice"
                       />
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {editingNotesId === invoice.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          className="input py-1 px-2 h-8 w-32 md:w-48 text-sm"
+                          value={editNotesValue}
+                          onChange={(e) => setEditNotesValue(e.target.value)}
+                          onBlur={() => handleNotesBlur(invoice)}
+                          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                        />
+                      ) : (
+                        <div 
+                          className={`text-sm text-gray-500 truncate max-w-[120px] md:max-w-[200px] ${invoice.status !== 'Cancelled' ? 'cursor-text hover:bg-gray-100 dark:hover:bg-gray-600 p-1 -m-1 rounded group' : ''}`}
+                          title={invoice.notes || 'Click to add notes'}
+                          onClick={() => handleNotesClick(invoice)}
+                        >
+                          {invoice.notes || (invoice.status !== 'Cancelled' ? <span className="opacity-0 group-hover:opacity-100 italic text-gray-400">Add note</span> : '-')}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {invoice.paymentMethod || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {invoice.status !== 'Cancelled' && (
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadPdf(invoice)}
-                            className="text-primary-600 hover:text-primary-900"
-                          >
-                            Download PDF
-                          </button>
-                        )}
-                        {invoice.status === 'Pending' && (
-                          <>
+                      {loadingActionId === invoice.id ? (
+                        <span className="text-gray-500 italic">Processing...</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {invoice.status !== 'Cancelled' && (
                             <button
                               type="button"
-                              onClick={() => handleStatusChange(invoice.id, 'Paid')}
-                              className="text-green-600 hover:text-green-900"
+                              onClick={() => handleDownloadPdf(invoice)}
+                              className="text-primary-600 hover:text-primary-900"
                             >
-                              Mark Paid
+                              Download PDF
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStatusChange(invoice.id, 'Cancelled')}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        )}
-                      </div>
+                          )}
+                          {invoice.status === 'Pending' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(invoice.id, 'Paid')}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Mark Paid
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(invoice.id, 'Cancelled')}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
-                ))}
+                ))
+              )}
             </tbody>
           </table>
-          {filteredAndSortedInvoices.length === 0 && (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              {invoices.length === 0
-                ? 'No invoices yet. Create invoices from reservations.'
-                : 'No invoices found matching your filters.'}
-            </div>
-          )}
         </div>
       </div>
 
@@ -408,6 +545,16 @@ const InvoicesPage = () => {
           )}
         </div>
       </Modal>
+
+      {/* Reservation Details Modal */}
+      <ReservationDetailsModal 
+        isOpen={reservationModalOpen}
+        onClose={() => {
+          setReservationModalOpen(false)
+          setSelectedReservationId(null)
+        }}
+        reservationId={selectedReservationId}
+      />
     </div>
   )
 }

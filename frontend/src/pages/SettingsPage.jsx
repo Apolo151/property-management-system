@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { api } from '../utils/api.js'
 import useAuthStore from '../store/authStore.js'
 import { useToast } from '../hooks/useToast'
@@ -70,6 +70,19 @@ const SettingsPage = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [pullingSyncStatus, setPullingSyncStatus] = useState(null)
   const [pullingSync, setPullingSync] = useState(false)
+
+  const timezones = useMemo(() => {
+    try {
+      return Intl.supportedValuesOf('timeZone');
+    } catch (e) {
+      // Fallback
+      return [
+        'UTC', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
+        'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Africa/Cairo', 'Asia/Dubai',
+        'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland'
+      ];
+    }
+  }, []);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -564,12 +577,12 @@ const SettingsPage = () => {
     return (
       <div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-2">Hotel information and configuration</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Hotel information and configuration</p>
         </div>
         <div className="card">
           <div className="flex items-center justify-center py-8">
-            <div className="text-gray-500">Loading settings...</div>
+            <div className="text-gray-500 dark:text-gray-400">Loading settings...</div>
           </div>
         </div>
       </div>
@@ -580,8 +593,8 @@ const SettingsPage = () => {
     return (
       <div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-2">Hotel information and configuration</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Hotel information and configuration</p>
         </div>
         <div className="card">
           <div className="flex items-center justify-center py-8">
@@ -596,12 +609,12 @@ const SettingsPage = () => {
     return (
       <div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-2">Hotel information and configuration</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Hotel information and configuration</p>
         </div>
         <div className="card">
           <div className="flex items-center justify-center py-8">
-            <div className="text-gray-500">No settings found</div>
+            <div className="text-gray-500 dark:text-gray-400">No settings found</div>
           </div>
         </div>
       </div>
@@ -617,19 +630,19 @@ const SettingsPage = () => {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-2">Hotel information and configuration</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">Hotel information and configuration</p>
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200">
+      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('hotel')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'hotel'
                 ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
             }`}
           >
             Hotel Information
@@ -639,7 +652,7 @@ const SettingsPage = () => {
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'channel-manager'
                 ? 'border-purple-500 text-purple-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
             }`}
           >
             Channel Manager
@@ -649,7 +662,7 @@ const SettingsPage = () => {
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'staff'
                 ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
             }`}
           >
             Staff Management
@@ -660,7 +673,7 @@ const SettingsPage = () => {
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'hotels'
                   ? 'border-green-500 text-green-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
               }`}
             >
               Hotels
@@ -672,7 +685,7 @@ const SettingsPage = () => {
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'data'
                   ? 'border-red-500 text-red-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
               }`}
             >
               Data Management
@@ -684,15 +697,15 @@ const SettingsPage = () => {
       {/* Hotel Settings Tab */}
       {activeTab === 'hotel' && (
         <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Hotel Information</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Hotel Information</h2>
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hotel Name</label>
-            <p className="text-gray-900">{settings.hotel_name || 'N/A'}</p>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hotel Name</label>
+            <p className="text-gray-900 dark:text-gray-100">{settings.hotel_name || 'N/A'}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-            <p className="text-gray-900">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+            <p className="text-gray-900 dark:text-gray-100">
               {settings.address || 'N/A'}
               {settings.city && (
                 <>
@@ -704,40 +717,40 @@ const SettingsPage = () => {
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-            <p className="text-gray-900">{settings.phone || 'N/A'}</p>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
+            <p className="text-gray-900 dark:text-gray-100">{settings.phone || 'N/A'}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <p className="text-gray-900">{settings.email || 'N/A'}</p>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+            <p className="text-gray-900 dark:text-gray-100">{settings.email || 'N/A'}</p>
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Check-in Time
               </label>
-              <p className="text-gray-900">{formatTime(settings.check_in_time)}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formatTime(settings.check_in_time)}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Check-out Time
               </label>
-              <p className="text-gray-900">{formatTime(settings.check_out_time)}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formatTime(settings.check_out_time)}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-              <p className="text-gray-900">{settings.currency || 'N/A'}</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Currency</label>
+              <p className="text-gray-900 dark:text-gray-100">{settings.currency || 'N/A'}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate</label>
-              <p className="text-gray-900">{settings.tax_rate ? `${settings.tax_rate}%` : 'N/A'}</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tax Rate</label>
+              <p className="text-gray-900 dark:text-gray-100">{settings.tax_rate ? `${settings.tax_rate}%` : 'N/A'}</p>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-            <p className="text-gray-900">{settings.timezone || 'N/A'}</p>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timezone</label>
+            <p className="text-gray-900 dark:text-gray-100">{settings.timezone || 'N/A'}</p>
           </div>
         </div>
       </div>
@@ -747,24 +760,24 @@ const SettingsPage = () => {
       {activeTab === 'channel-manager' && (
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">QloApps Channel Manager</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">QloApps Channel Manager</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               QloApps integration for synchronizing reservations, availability, and rates with your booking engine.
             </p>
 
             {channelManagerLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-gray-500">Loading channel manager status...</div>
+                <div className="text-gray-500 dark:text-gray-400">Loading channel manager status...</div>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* QloApps Status - Configured */}
                 {channelManagerStatus?.qloapps?.configured && configDetails ? (
-                  <div className="border-2 border-green-500 bg-green-50 rounded-lg p-6">
+                  <div className="border-2 border-green-500 bg-green-50 dark:bg-green-900/20 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <span className="w-4 h-4 rounded-full bg-green-500"></span>
-                        <span className="text-lg font-semibold text-gray-900">QloApps Configuration</span>
+                        <span className="w-4 h-4 rounded-full bg-green-50 dark:bg-green-900/200"></span>
+                        <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">QloApps Configuration</span>
                       </div>
                       <span className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-700">
                         ✓ Configured
@@ -774,29 +787,29 @@ const SettingsPage = () => {
                     <div className="space-y-3 mb-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs font-medium text-gray-600">Base URL</p>
-                          <p className="text-sm text-gray-900 font-mono">{configDetails.baseUrl}</p>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Base URL</p>
+                          <p className="text-sm text-gray-900 dark:text-gray-100 font-mono">{configDetails.baseUrl}</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-gray-600">Hotel ID</p>
-                          <p className="text-sm text-gray-900">{configDetails.qloAppsHotelId}</p>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Hotel ID</p>
+                          <p className="text-sm text-gray-900 dark:text-gray-100">{configDetails.qloAppsHotelId}</p>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs font-medium text-gray-600">Sync Interval</p>
-                          <p className="text-sm text-gray-900">{configDetails.syncIntervalMinutes} minutes</p>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Sync Interval</p>
+                          <p className="text-sm text-gray-900 dark:text-gray-100">{configDetails.syncIntervalMinutes} minutes</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-gray-600">Sync Status</p>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Sync Status</p>
                           <div className="flex items-center gap-2">
                             {configDetails.syncEnabled ? (
                               <span className="inline-flex items-center px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
                                 ✓ Enabled
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
                                 Disabled
                               </span>
                             )}
@@ -806,8 +819,8 @@ const SettingsPage = () => {
 
                       {configDetails.lastSuccessfulSync && (
                         <div>
-                          <p className="text-xs font-medium text-gray-600">Last Successful Sync</p>
-                          <p className="text-sm text-gray-900">
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Last Successful Sync</p>
+                          <p className="text-sm text-gray-900 dark:text-gray-100">
                             {new Date(configDetails.lastSuccessfulSync).toLocaleString()}
                           </p>
                         </div>
@@ -874,7 +887,7 @@ const SettingsPage = () => {
 
                       {/* Real-time Sync Status */}
                       {pullingSyncStatus?.isRunning && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -892,47 +905,47 @@ const SettingsPage = () => {
 
                       {/* Last Sync Status - Full Sync with 3 Phases */}
                       {pullingSyncStatus?.lastSyncs?.full && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Last Full Sync</h4>
+                        <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Last Full Sync</h4>
                           <div className="space-y-2 text-xs">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Status:</span>
+                              <span className="text-gray-600 dark:text-gray-400">Status:</span>
                               <span className={`font-medium ${pullingSyncStatus.lastSyncs.full.status === 'completed' ? 'text-green-600' : 'text-red-600'}`}>
                                 {pullingSyncStatus.lastSyncs.full.status}
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Started:</span>
-                              <span className="text-gray-900">{new Date(pullingSyncStatus.lastSyncs.full.startedAt).toLocaleString()}</span>
+                              <span className="text-gray-600 dark:text-gray-400">Started:</span>
+                              <span className="text-gray-900 dark:text-gray-100">{new Date(pullingSyncStatus.lastSyncs.full.startedAt).toLocaleString()}</span>
                             </div>
                             {pullingSyncStatus.lastSyncs.full.completedAt && (
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Completed:</span>
-                                <span className="text-gray-900">{new Date(pullingSyncStatus.lastSyncs.full.completedAt).toLocaleString()}</span>
+                                <span className="text-gray-600 dark:text-gray-400">Completed:</span>
+                                <span className="text-gray-900 dark:text-gray-100">{new Date(pullingSyncStatus.lastSyncs.full.completedAt).toLocaleString()}</span>
                               </div>
                             )}
                             {pullingSyncStatus.lastSyncs.full.durationMs && (
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Duration:</span>
-                                <span className="text-gray-900">{(pullingSyncStatus.lastSyncs.full.durationMs / 1000).toFixed(1)}s</span>
+                                <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                                <span className="text-gray-900 dark:text-gray-100">{(pullingSyncStatus.lastSyncs.full.durationMs / 1000).toFixed(1)}s</span>
                               </div>
                             )}
                             
                             {/* 3-Phase Breakdown */}
                             {pullingSyncStatus.lastSyncs.full.phases && (
-                              <div className="mt-4 pt-3 border-t border-gray-300">
-                                <p className="font-medium text-gray-700 mb-2">Sync Phases:</p>
+                              <div className="mt-4 pt-3 border-t border-gray-300 dark:border-gray-600">
+                                <p className="font-medium text-gray-700 dark:text-gray-300 mb-2">Sync Phases:</p>
                                 
                                 {/* Room Types */}
                                 <div className="mb-2 pl-2">
-                                  <p className="text-gray-700 font-medium">📋 Room Types</p>
+                                  <p className="text-gray-700 dark:text-gray-300 font-medium">📋 Room Types</p>
                                   <div className="pl-4 space-y-1">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Processed:</span>
-                                      <span className="text-gray-900">{pullingSyncStatus.lastSyncs.full.phases.roomTypes.processed}</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Processed:</span>
+                                      <span className="text-gray-900 dark:text-gray-100">{pullingSyncStatus.lastSyncs.full.phases.roomTypes.processed}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Synced:</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Synced:</span>
                                       <span className="text-green-600 font-medium">{pullingSyncStatus.lastSyncs.full.phases.roomTypes.synced}</span>
                                     </div>
                                   </div>
@@ -940,14 +953,14 @@ const SettingsPage = () => {
 
                                 {/* Customers */}
                                 <div className="mb-2 pl-2">
-                                  <p className="text-gray-700 font-medium">👥 Customers</p>
+                                  <p className="text-gray-700 dark:text-gray-300 font-medium">👥 Customers</p>
                                   <div className="pl-4 space-y-1">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Processed:</span>
-                                      <span className="text-gray-900">{pullingSyncStatus.lastSyncs.full.phases.customers.processed}</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Processed:</span>
+                                      <span className="text-gray-900 dark:text-gray-100">{pullingSyncStatus.lastSyncs.full.phases.customers.processed}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Synced:</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Synced:</span>
                                       <span className="text-green-600 font-medium">{pullingSyncStatus.lastSyncs.full.phases.customers.synced}</span>
                                     </div>
                                   </div>
@@ -955,23 +968,23 @@ const SettingsPage = () => {
 
                                 {/* Reservations */}
                                 <div className="pl-2">
-                                  <p className="text-gray-700 font-medium">📅 Reservations</p>
+                                  <p className="text-gray-700 dark:text-gray-300 font-medium">📅 Reservations</p>
                                   <div className="pl-4 space-y-1">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Processed:</span>
-                                      <span className="text-gray-900">{pullingSyncStatus.lastSyncs.full.phases.reservations.processed}</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Processed:</span>
+                                      <span className="text-gray-900 dark:text-gray-100">{pullingSyncStatus.lastSyncs.full.phases.reservations.processed}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Created:</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Created:</span>
                                       <span className="text-green-600 font-medium">{pullingSyncStatus.lastSyncs.full.phases.reservations.created}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Updated:</span>
+                                      <span className="text-gray-600 dark:text-gray-400">Updated:</span>
                                       <span className="text-blue-600 font-medium">{pullingSyncStatus.lastSyncs.full.phases.reservations.updated}</span>
                                     </div>
                                     {pullingSyncStatus.lastSyncs.full.phases.reservations.failed > 0 && (
                                       <div className="flex justify-between">
-                                        <span className="text-gray-600">Failed:</span>
+                                        <span className="text-gray-600 dark:text-gray-400">Failed:</span>
                                         <span className="text-red-600 font-medium">{pullingSyncStatus.lastSyncs.full.phases.reservations.failed}</span>
                                       </div>
                                     )}
@@ -981,7 +994,7 @@ const SettingsPage = () => {
                             )}
 
                             {pullingSyncStatus.lastSyncs.full.error && (
-                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded">
                                 <p className="text-red-700 text-xs">{pullingSyncStatus.lastSyncs.full.error}</p>
                               </div>
                             )}
@@ -991,30 +1004,30 @@ const SettingsPage = () => {
 
                       {/* Last Incremental Sync */}
                       {pullingSyncStatus?.lastSyncs?.reservations_inbound && !pullingSyncStatus?.lastSyncs?.full && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Last Pull Sync</h4>
+                        <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Last Pull Sync</h4>
                           <div className="space-y-2 text-xs">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Status:</span>
+                              <span className="text-gray-600 dark:text-gray-400">Status:</span>
                               <span className={`font-medium ${pullingSyncStatus.lastSyncs.reservations_inbound.status === 'completed' ? 'text-green-600' : 'text-red-600'}`}>
                                 {pullingSyncStatus.lastSyncs.reservations_inbound.status}
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Processed:</span>
-                              <span className="text-gray-900">{pullingSyncStatus.lastSyncs.reservations_inbound.itemsProcessed}</span>
+                              <span className="text-gray-600 dark:text-gray-400">Processed:</span>
+                              <span className="text-gray-900 dark:text-gray-100">{pullingSyncStatus.lastSyncs.reservations_inbound.itemsProcessed}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Created:</span>
+                              <span className="text-gray-600 dark:text-gray-400">Created:</span>
                               <span className="text-green-600 font-medium">{pullingSyncStatus.lastSyncs.reservations_inbound.itemsCreated}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Updated:</span>
+                              <span className="text-gray-600 dark:text-gray-400">Updated:</span>
                               <span className="text-blue-600 font-medium">{pullingSyncStatus.lastSyncs.reservations_inbound.itemsUpdated}</span>
                             </div>
                             {pullingSyncStatus.lastSyncs.reservations_inbound.itemsFailed > 0 && (
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Failed:</span>
+                                <span className="text-gray-600 dark:text-gray-400">Failed:</span>
                                 <span className="text-red-600 font-medium">{pullingSyncStatus.lastSyncs.reservations_inbound.itemsFailed}</span>
                               </div>
                             )}
@@ -1025,19 +1038,19 @@ const SettingsPage = () => {
                   </div>
                 ) : (
                   /* QloApps Status - Not Configured */
-                  <div className="border-2 border-yellow-300 bg-yellow-50 rounded-lg p-6">
+                  <div className="border-2 border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
-                      <span className="text-lg font-semibold text-gray-900">QloApps Not Configured</span>
+                      <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">QloApps Not Configured</span>
                     </div>
 
-                    <p className="text-sm text-gray-700 mb-4">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
                       Connect your QloApps PMS to automatically sync reservations, availability, and rates.
                     </p>
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4 mb-4">
                       <p className="text-sm font-medium text-blue-900 mb-2">You'll need:</p>
                       <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
                         <li>QloApps Base URL (e.g., https://hotel.qloapps.com)</li>
@@ -1059,7 +1072,7 @@ const SettingsPage = () => {
                 )}
 
                 {/* Features */}
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 rounded-lg p-4">
                   <h3 className="text-sm font-medium text-purple-800 mb-3">Sync Features</h3>
                   <ul className="text-sm text-purple-700 space-y-2">
                     <li className="flex items-center gap-2">
@@ -1083,20 +1096,20 @@ const SettingsPage = () => {
 
                 {/* Setup/Edit Configuration Form */}
                 {showQloAppsSetup && (
-                  <div className="border-2 border-blue-300 rounded-lg p-6 bg-blue-50">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  <div className="border-2 border-blue-300 rounded-lg p-6 bg-blue-50 dark:bg-blue-900/20">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                       {isEditing ? 'Edit QloApps Configuration' : 'Setup QloApps Connection'}
                     </h3>
 
                     {qloAppsError && (
-                      <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-md">
                         <p className="text-sm text-red-800">{qloAppsError}</p>
                       </div>
                     )}
 
                     <form onSubmit={handleSaveQloAppsConfig} className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           QloApps Base URL *
                         </label>
                         <input
@@ -1104,17 +1117,17 @@ const SettingsPage = () => {
                           value={qloAppsConfig.baseUrl}
                           onChange={(e) => setQloAppsConfig({ ...qloAppsConfig, baseUrl: e.target.value })}
                           placeholder="http://localhost:8080"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
                           pattern="https?://.+"
                         />
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Base URL only, without /api path (e.g., http://localhost:8080 or https://hotel.qloapps.com)
                         </p>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           QloApps Hotel ID *
                         </label>
                         <input
@@ -1122,15 +1135,15 @@ const SettingsPage = () => {
                           value={qloAppsConfig.qloAppsHotelId}
                           onChange={(e) => setQloAppsConfig({ ...qloAppsConfig, qloAppsHotelId: e.target.value })}
                           placeholder="123"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
                           min="1"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Hotel ID from QloApps (id_hotel)</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hotel ID from QloApps (id_hotel)</p>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           WebService API Key {!isEditing && '*'}
                         </label>
                         <input
@@ -1138,17 +1151,17 @@ const SettingsPage = () => {
                           value={qloAppsConfig.apiKey}
                           onChange={(e) => setQloAppsConfig({ ...qloAppsConfig, apiKey: e.target.value })}
                           placeholder={isEditing ? "Leave blank to keep current key" : "Your API key (will be encrypted)"}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required={!isEditing}
                         />
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {isEditing 
                             ? 'Only enter a new API key if you want to change it. Leave blank to keep the current key.' 
                             : 'Your API key will be encrypted and never shown in plain text'}
                         </p>
                       </div>
 
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4">
                         <p className="text-sm text-blue-800">
                           <span className="font-medium">Sync Interval:</span> Automatically set to 5 minutes for optimal performance
                         </p>
@@ -1174,7 +1187,7 @@ const SettingsPage = () => {
                               qloAppsHotelId: '',
                             })
                           }}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-medium"
+                          className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 font-medium"
                         >
                           Cancel
                         </button>
@@ -1193,7 +1206,7 @@ const SettingsPage = () => {
         <div className="space-y-6">
           <div className="card">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Staff Members</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Staff Members</h2>
               <button
                 onClick={() => {
                   setShowAddStaffForm(true)
@@ -1206,57 +1219,57 @@ const SettingsPage = () => {
             </div>
 
             {staffError && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-md">
                 <p className="text-sm text-red-800">{staffError}</p>
               </div>
             )}
 
             {staffLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-gray-500">Loading staff...</div>
+                <div className="text-gray-500 dark:text-gray-400">Loading staff...</div>
               </div>
             ) : (
               <div className="space-y-4">
                 {staff.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No staff members found</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No staff members found</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Name
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Email
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Role
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Hotels
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Last Login
                           </th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
                         {staff.map((member) => (
                           <tr key={member.id}>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 {member.first_name} {member.last_name}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">{member.email}</div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">{member.email}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
@@ -1264,15 +1277,15 @@ const SettingsPage = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm text-gray-900">
+                              <div className="text-sm text-gray-900 dark:text-gray-100">
                                 {member.role === 'SUPER_ADMIN' ? (
-                                  <span className="text-gray-500 italic">All Hotels</span>
+                                  <span className="text-gray-500 dark:text-gray-400 italic">All Hotels</span>
                                 ) : member.hotel_ids && member.hotel_ids.length > 0 ? (
                                   <div className="flex flex-wrap gap-1">
                                     {member.hotel_ids.map(hotelId => {
                                       const hotel = availableHotels.find(h => h.id === hotelId)
                                       return hotel ? (
-                                        <span key={hotelId} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                                        <span key={hotelId} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
                                           {hotel.hotel_name}
                                         </span>
                                       ) : null
@@ -1294,7 +1307,7 @@ const SettingsPage = () => {
                                 {member.is_active ? 'Active' : 'Inactive'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                               {member.last_login
                                 ? new Date(member.last_login).toLocaleDateString()
                                 : 'Never'}
@@ -1333,7 +1346,7 @@ const SettingsPage = () => {
           {/* Add/Edit Staff Form */}
           {(showAddStaffForm || editingStaff) && (
             <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
                 {editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
               </h2>
 
@@ -1343,7 +1356,7 @@ const SettingsPage = () => {
               >
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       First Name *
                     </label>
                     <input
@@ -1354,12 +1367,12 @@ const SettingsPage = () => {
                           ? setEditingStaff({ ...editingStaff, first_name: e.target.value })
                           : setNewStaff({ ...newStaff, first_name: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Last Name *
                     </label>
                     <input
@@ -1370,14 +1383,14 @@ const SettingsPage = () => {
                           ? setEditingStaff({ ...editingStaff, last_name: e.target.value })
                           : setNewStaff({ ...newStaff, last_name: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Email *
                   </label>
                   <input
@@ -1388,7 +1401,7 @@ const SettingsPage = () => {
                         ? setEditingStaff({ ...editingStaff, email: e.target.value })
                         : setNewStaff({ ...newStaff, email: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={!!editingStaff}
                   />
@@ -1396,14 +1409,14 @@ const SettingsPage = () => {
 
                 {!editingStaff && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Password *
                     </label>
                     <input
                       type="password"
                       value={newStaff.password}
                       onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                       minLength={6}
                     />
@@ -1412,7 +1425,7 @@ const SettingsPage = () => {
 
                 {editingStaff && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       New Password (leave blank to keep current)
                     </label>
                     <input
@@ -1420,14 +1433,14 @@ const SettingsPage = () => {
                       onChange={(e) =>
                         setEditingStaff({ ...editingStaff, password: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       minLength={6}
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Role *
                   </label>
                   <select
@@ -1437,7 +1450,7 @@ const SettingsPage = () => {
                         ? setEditingStaff({ ...editingStaff, role: e.target.value })
                         : setNewStaff({ ...newStaff, role: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   >
                     <option value="VIEWER">Viewer</option>
@@ -1460,20 +1473,20 @@ const SettingsPage = () => {
                         ? setEditingStaff({ ...editingStaff, is_active: e.target.checked })
                         : setNewStaff({ ...newStaff, is_active: e.target.checked })
                     }
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                   />
-                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
                     Active
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Assign Hotels
                   </label>
-                  <div className="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
                     {availableHotels.length === 0 ? (
-                      <p className="text-sm text-gray-500">No hotels available</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No hotels available</p>
                     ) : (
                       availableHotels.map((hotel) => {
                         const hotelIds = editingStaff ? editingStaff.hotel_ids || [] : newStaff.hotel_ids
@@ -1497,9 +1510,9 @@ const SettingsPage = () => {
                                   setNewStaff({ ...newStaff, hotel_ids: newIds })
                                 }
                               }}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                             />
-                            <label htmlFor={`hotel-${hotel.id}`} className="ml-2 block text-sm text-gray-900">
+                            <label htmlFor={`hotel-${hotel.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
                               {hotel.hotel_name}
                             </label>
                           </div>
@@ -1507,7 +1520,7 @@ const SettingsPage = () => {
                       })
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Select which hotels this staff member can access. SUPER_ADMIN can assign any property. ADMIN can only
                     assign hotels they already belong to (enforced by the API).
                   </p>
@@ -1535,7 +1548,7 @@ const SettingsPage = () => {
                         hotel_ids: [],
                       })
                     }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300"
                   >
                     Cancel
                   </button>
@@ -1551,7 +1564,7 @@ const SettingsPage = () => {
         <div className="space-y-6">
           <div className="card">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Hotels Management</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Hotels Management</h2>
               {!showAddHotelForm && !editingHotel && (
                 <button
                   onClick={() => setShowAddHotelForm(true)}
@@ -1564,54 +1577,54 @@ const SettingsPage = () => {
 
             {hotelsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-gray-500">Loading hotels...</div>
+                <div className="text-gray-500 dark:text-gray-400">Loading hotels...</div>
               </div>
             ) : hotelsError ? (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 text-red-700 px-4 py-3 rounded-md">
                 {hotelsError}
               </div>
             ) : !showAddHotelForm && !editingHotel && (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         City
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Country
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Phone
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Email
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
                     {hotels.map((hotel) => (
                       <tr key={hotel.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{hotel.hotel_name}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{hotel.hotel_name}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{hotel.hotel_city || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{hotel.hotel_city || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{hotel.hotel_country || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{hotel.hotel_country || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{hotel.hotel_phone || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{hotel.hotel_phone || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{hotel.hotel_email || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{hotel.hotel_email || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
@@ -1643,7 +1656,7 @@ const SettingsPage = () => {
           {/* Add/Edit Hotel Form */}
           {(showAddHotelForm || editingHotel) && (
             <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
                 {editingHotel ? 'Edit Hotel' : 'Add New Hotel'}
               </h2>
 
@@ -1652,7 +1665,7 @@ const SettingsPage = () => {
                 className="space-y-4"
               >
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Hotel Name *
                   </label>
                   <input
@@ -1663,13 +1676,13 @@ const SettingsPage = () => {
                         ? setEditingHotel({ ...editingHotel, hotel_name: e.target.value })
                         : setNewHotel({ ...newHotel, hotel_name: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Address
                   </label>
                   <input
@@ -1680,13 +1693,13 @@ const SettingsPage = () => {
                         ? setEditingHotel({ ...editingHotel, hotel_address: e.target.value })
                         : setNewHotel({ ...newHotel, hotel_address: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       City
                     </label>
                     <input
@@ -1697,11 +1710,11 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, hotel_city: e.target.value })
                           : setNewHotel({ ...newHotel, hotel_city: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Country
                     </label>
                     <input
@@ -1712,14 +1725,14 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, hotel_country: e.target.value })
                           : setNewHotel({ ...newHotel, hotel_country: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Phone
                     </label>
                     <input
@@ -1730,11 +1743,11 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, hotel_phone: e.target.value })
                           : setNewHotel({ ...newHotel, hotel_phone: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Email
                     </label>
                     <input
@@ -1745,14 +1758,14 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, hotel_email: e.target.value })
                           : setNewHotel({ ...newHotel, hotel_email: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Currency
                     </label>
                     <input
@@ -1763,31 +1776,34 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, currency: e.target.value })
                           : setNewHotel({ ...newHotel, currency: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="USD"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Timezone
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={editingHotel ? editingHotel.timezone : newHotel.timezone}
                       onChange={(e) =>
                         editingHotel
                           ? setEditingHotel({ ...editingHotel, timezone: e.target.value })
                           : setNewHotel({ ...newHotel, timezone: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="UTC"
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="UTC">UTC</option>
+                      {timezones.map(tz => (
+                        <option key={tz} value={tz}>{tz}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Check-in Time
                     </label>
                     <input
@@ -1798,11 +1814,11 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, check_in_time: e.target.value })
                           : setNewHotel({ ...newHotel, check_in_time: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Check-out Time
                     </label>
                     <input
@@ -1813,11 +1829,11 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, check_out_time: e.target.value })
                           : setNewHotel({ ...newHotel, check_out_time: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Tax Percentage
                     </label>
                     <input
@@ -1831,7 +1847,7 @@ const SettingsPage = () => {
                           ? setEditingHotel({ ...editingHotel, tax_percentage: parseFloat(e.target.value) })
                           : setNewHotel({ ...newHotel, tax_percentage: parseFloat(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -1862,7 +1878,7 @@ const SettingsPage = () => {
                         tax_percentage: 0,
                       })
                     }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300"
                   >
                     Cancel
                   </button>
@@ -1876,9 +1892,9 @@ const SettingsPage = () => {
       {/* Data Management Tab - Only for SUPER_ADMIN */}
       {activeTab === 'data' && user?.role === 'SUPER_ADMIN' && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Data Management</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Data Management</h2>
           <div className="space-y-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-red-900 mb-2">⚠️ Clear All Data</h3>
               <p className="text-red-800 mb-4">
                 This action will permanently delete all operational data from the system, including:
