@@ -37,6 +37,103 @@ function mapBeds24ToLegacyRoomType(roomType: Beds24RoomType): 'Single' | 'Double
   }
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: string }).code === '23505';
+}
+
+function normalizeRoomNumbers(roomNumbers: string[]): string[] {
+  return roomNumbers.map((n) => n.trim());
+}
+
+function validateRoomNumbersPayload(
+  roomNumbers: unknown,
+  expectedCount: number,
+): { valid: true; roomNumbers: string[] } | { valid: false; error: string } {
+  if (!Array.isArray(roomNumbers)) {
+    return { valid: false, error: 'room_numbers must be an array' };
+  }
+
+  const normalized = normalizeRoomNumbers(roomNumbers as string[]);
+
+  if (normalized.length !== expectedCount) {
+    return {
+      valid: false,
+      error: `room_numbers must contain exactly ${expectedCount} value(s)`,
+    };
+  }
+
+  if (normalized.some((n) => n.length === 0)) {
+    return {
+      valid: false,
+      error: 'room_numbers cannot contain empty values',
+    };
+  }
+
+  const seen = new Set<string>();
+  for (const roomNumber of normalized) {
+    const key = roomNumber.toLowerCase();
+    if (seen.has(key)) {
+      return {
+        valid: false,
+        error: 'room_numbers cannot contain duplicates',
+      };
+    }
+    seen.add(key);
+  }
+
+  return { valid: true, roomNumbers: normalized };
+}
+
+async function getConflictingRoomNumbers(
+  hotelId: string,
+  roomNumbers: string[],
+): Promise<string[]> {
+  if (roomNumbers.length === 0) {
+    return [];
+  }
+
+  const rows = await db('rooms')
+    .select('room_number')
+    .where({ hotel_id: hotelId })
+    .whereIn('room_number', roomNumbers);
+
+  return rows
+    .map((r) => (typeof r.room_number === 'string' ? r.room_number : ''))
+    .filter(Boolean);
+}
+
+async function insertRoomWithHousekeeping(
+  roomType: RoomType,
+  hotelId: string,
+  roomNumber: string,
+): Promise<void> {
+  const legacyType = mapBeds24ToLegacyRoomType(roomType.room_type);
+
+  const [room] = await db('rooms')
+    .insert({
+      hotel_id: hotelId,
+      room_number: roomNumber,
+      type: legacyType,
+      room_type: roomType.room_type,
+      room_type_id: roomType.id,
+      status: 'Available',
+      price_per_night: roomType.price_per_night,
+      floor: roomType.floor ?? 1,
+      features: JSON.stringify(roomType.features || []),
+      description: roomType.description || null,
+    })
+    .returning(['id', 'status']);
+
+  await db('housekeeping').insert({
+    hotel_id: hotelId,
+    room_id: room.id,
+    status: room.status === 'Occupied' ? 'Dirty' : room.status === 'Cleaning' ? 'In Progress' : 'Clean',
+  });
+}
+
 /**
  * Generate physical room records in `rooms` (and housekeeping entries)
  * for a given room type.
@@ -48,9 +145,16 @@ function mapBeds24ToLegacyRoomType(roomType: Beds24RoomType): 'Single' | 'Double
 async function generateRoomsForRoomType(
   roomType: RoomType,
   hotelId: string,
+  explicitRoomNumbers?: string[],
 ): Promise<void> {
+  if (explicitRoomNumbers && explicitRoomNumbers.length > 0) {
+    for (const roomNumber of explicitRoomNumbers) {
+      await insertRoomWithHousekeeping(roomType, hotelId, roomNumber);
+    }
+    return;
+  }
+
   const baseSlug = slugifyRoomTypeName(roomType.name);
-  const legacyType = mapBeds24ToLegacyRoomType(roomType.room_type);
 
   for (let i = 1; i <= roomType.qty; i += 1) {
     const roomNumber = `${baseSlug}-${i}`;
@@ -64,27 +168,7 @@ async function generateRoomsForRoomType(
       continue;
     }
 
-    const [room] = await db('rooms')
-      .insert({
-        hotel_id: hotelId,
-        room_number: roomNumber,
-        type: legacyType,
-        room_type: roomType.room_type,
-        room_type_id: roomType.id,
-        status: 'Available',
-        price_per_night: roomType.price_per_night,
-        floor: roomType.floor ?? 1,
-        features: JSON.stringify(roomType.features || []),
-        description: roomType.description || null,
-      })
-      .returning(['id', 'status']);
-
-    // Create housekeeping record for the room
-    await db('housekeeping').insert({
-      hotel_id: hotelId,
-      room_id: room.id,
-      status: room.status === 'Occupied' ? 'Dirty' : room.status === 'Cleaning' ? 'In Progress' : 'Clean',
-    });
+    await insertRoomWithHousekeeping(roomType, hotelId, roomNumber);
   }
 }
 
@@ -99,6 +183,10 @@ async function syncRoomsOnRoomTypeChange(
   existing: RoomType,
   updated: RoomType,
   hotelId: string,
+  options?: {
+    addedRoomNumbers?: string[];
+    numberAssignmentMode?: 'manual' | 'auto';
+  },
 ): Promise<void> {
   const oldQty = existing.qty;
   const newQty = updated.qty;
@@ -146,9 +234,17 @@ async function syncRoomsOnRoomTypeChange(
 
   // Handle qty changes
   if (newQty > oldQty) {
+    const newRoomsToCreate = newQty - oldQty;
+
+    if (options?.numberAssignmentMode === 'manual' && options.addedRoomNumbers?.length) {
+      for (const roomNumber of options.addedRoomNumbers) {
+        await insertRoomWithHousekeeping(updated, hotelId, roomNumber);
+      }
+      return;
+    }
+
     // Create additional rooms
     const baseSlug = slugifyRoomTypeName(updated.name);
-    const legacyType = mapBeds24ToLegacyRoomType(updated.room_type);
 
     // Determine existing indices from room_number suffixes to avoid collisions
     const usedIndices = new Set<number>();
@@ -163,33 +259,14 @@ async function syncRoomsOnRoomTypeChange(
 
     let created = 0;
     let nextIndex = 1;
-    while (created < newQty - oldQty) {
+    while (created < newRoomsToCreate) {
       if (usedIndices.has(nextIndex)) {
         nextIndex += 1;
         continue;
       }
 
       const roomNumber = `${baseSlug}-${nextIndex}`;
-      const [room] = await db('rooms')
-        .insert({
-          hotel_id: hotelId,
-          room_number: roomNumber,
-          type: legacyType,
-          room_type: updated.room_type,
-          room_type_id: existing.id,
-          status: 'Available',
-          price_per_night: updated.price_per_night,
-          floor: updated.floor ?? 1,
-          features: JSON.stringify(updated.features || []),
-          description: updated.description || null,
-        })
-        .returning(['id', 'status']);
-
-      await db('housekeeping').insert({
-        hotel_id: hotelId,
-        room_id: room.id,
-        status: 'Clean',
-      });
+      await insertRoomWithHousekeeping(updated, hotelId, roomNumber);
 
       usedIndices.add(nextIndex);
       created += 1;
@@ -322,6 +399,7 @@ export async function createRoomTypeHandler(
   try {
     const data = req.body;
     const hotelId = (req as any).hotelId;
+    let manualRoomNumbers: string[] | undefined;
 
     // Validation
     if (!data.name || !data.room_type || !data.qty || !data.price_per_night) {
@@ -334,6 +412,45 @@ export async function createRoomTypeHandler(
     if (data.qty < 1 || data.qty > 99) {
       res.status(400).json({
         error: 'qty must be between 1 and 99',
+      } as any);
+      return;
+    }
+
+    if (data.number_assignment_mode && !['manual', 'auto'].includes(data.number_assignment_mode)) {
+      res.status(400).json({
+        error: 'number_assignment_mode must be "manual" or "auto"',
+      } as any);
+      return;
+    }
+
+    if (data.room_numbers !== undefined) {
+      if (data.number_assignment_mode !== 'manual') {
+        res.status(400).json({
+          error: 'number_assignment_mode must be "manual" when room_numbers are provided',
+        } as any);
+        return;
+      }
+
+      const validated = validateRoomNumbersPayload(data.room_numbers, data.qty);
+      if (!validated.valid) {
+        res.status(400).json({ error: validated.error } as any);
+        return;
+      }
+
+      const conflicts = await getConflictingRoomNumbers(hotelId, validated.roomNumbers);
+      if (conflicts.length > 0) {
+        res.status(409).json({
+          error: `Room number(s) already exist: ${conflicts.join(', ')}`,
+        } as any);
+        return;
+      }
+
+      manualRoomNumbers = validated.roomNumbers;
+    }
+
+    if (data.number_assignment_mode === 'manual' && !manualRoomNumbers) {
+      res.status(400).json({
+        error: 'room_numbers are required when number_assignment_mode is "manual"',
       } as any);
       return;
     }
@@ -386,7 +503,7 @@ export async function createRoomTypeHandler(
     };
 
     // Generate physical rooms for this room type so operational flows can work
-    await generateRoomsForRoomType(roomTypeWithParsed, hotelId);
+    await generateRoomsForRoomType(roomTypeWithParsed, hotelId, manualRoomNumbers);
 
     res.status(201).json(roomTypeWithParsed as RoomTypeResponse);
 
@@ -407,6 +524,13 @@ export async function createRoomTypeHandler(
       )
       .catch((err) => console.error('QloApps room type sync hook failed:', err));
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({
+        error: 'Room with this number already exists',
+      } as any);
+      return;
+    }
+
     next(error);
   }
 }
@@ -441,6 +565,64 @@ export async function updateRoomTypeHandler(
     if (data.qty !== undefined && (data.qty < 1 || data.qty > 99)) {
       res.status(400).json({
         error: 'qty must be between 1 and 99',
+      } as any);
+      return;
+    }
+
+    if (data.number_assignment_mode && !['manual', 'auto'].includes(data.number_assignment_mode)) {
+      res.status(400).json({
+        error: 'number_assignment_mode must be "manual" or "auto"',
+      } as any);
+      return;
+    }
+
+    const nextQty = data.qty ?? existing.qty;
+    const qtyIncrease = nextQty > existing.qty;
+    let addedRoomNumbers: string[] | undefined;
+
+    if (data.room_numbers !== undefined) {
+      if (data.number_assignment_mode !== 'manual') {
+        res.status(400).json({
+          error: 'number_assignment_mode must be "manual" when room_numbers are provided',
+        } as any);
+        return;
+      }
+
+      if (!qtyIncrease) {
+        res.status(400).json({
+          error: 'room_numbers can only be provided when qty is increased',
+        } as any);
+        return;
+      }
+
+      const expectedAddedCount = nextQty - existing.qty;
+      const validated = validateRoomNumbersPayload(data.room_numbers, expectedAddedCount);
+      if (!validated.valid) {
+        res.status(400).json({ error: validated.error } as any);
+        return;
+      }
+
+      const conflicts = await getConflictingRoomNumbers(hotelId, validated.roomNumbers);
+      if (conflicts.length > 0) {
+        res.status(409).json({
+          error: `Room number(s) already exist: ${conflicts.join(', ')}`,
+        } as any);
+        return;
+      }
+
+      addedRoomNumbers = validated.roomNumbers;
+    }
+
+    if (qtyIncrease && data.number_assignment_mode === 'manual' && !addedRoomNumbers) {
+      res.status(400).json({
+        error: 'room_numbers are required when number_assignment_mode is "manual"',
+      } as any);
+      return;
+    }
+
+    if (data.number_assignment_mode === 'auto' && addedRoomNumbers) {
+      res.status(400).json({
+        error: 'room_numbers cannot be provided when number_assignment_mode is "auto"',
       } as any);
       return;
     }
@@ -512,7 +694,19 @@ export async function updateRoomTypeHandler(
       roomTypeWithParsed.qty !== existingParsed.qty ||
       roomTypeWithParsed.name !== existingParsed.name
     ) {
-      await syncRoomsOnRoomTypeChange(existingParsed, roomTypeWithParsed, hotelId);
+      const syncOptions: {
+        addedRoomNumbers?: string[];
+        numberAssignmentMode?: 'manual' | 'auto';
+      } = {};
+
+      if (addedRoomNumbers) {
+        syncOptions.addedRoomNumbers = addedRoomNumbers;
+      }
+      if (data.number_assignment_mode) {
+        syncOptions.numberAssignmentMode = data.number_assignment_mode;
+      }
+
+      await syncRoomsOnRoomTypeChange(existingParsed, roomTypeWithParsed, hotelId, syncOptions);
     }
 
     res.json(roomTypeWithParsed as RoomTypeResponse);
@@ -545,6 +739,13 @@ export async function updateRoomTypeHandler(
         .catch((err) => console.error('QloApps room type sync hook failed:', err));
     }
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({
+        error: 'Room with this number already exists',
+      } as any);
+      return;
+    }
+
     next(error);
   }
 }

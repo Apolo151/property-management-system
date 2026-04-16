@@ -88,9 +88,9 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 4. Room types ─────────────────────────────────────────────────────────
   const ROOM_TYPE_DEFS = [
-    { name: 'Standard Single', capacity_adults: 1, capacity_children: 0, price_per_night: 80.00, description: 'Cozy single room' },
-    { name: 'Standard Double', capacity_adults: 2, capacity_children: 1, price_per_night: 120.00, description: 'Comfortable double room', is_double_room: true },
-    { name: 'Deluxe Suite', capacity_adults: 2, capacity_children: 2, price_per_night: 200.00, description: 'Luxurious suite' },
+    { name: 'Standard Single', max_adult: 1, max_children: 0, price_per_night: 80.00, description: 'Cozy single room', room_type: 'Single', qty: 5 },
+    { name: 'Standard Double', max_adult: 2, max_children: 1, price_per_night: 120.00, description: 'Comfortable double room', room_type: 'Double', qty: 5 },
+    { name: 'Deluxe Suite', max_adult: 2, max_children: 2, price_per_night: 200.00, description: 'Luxurious suite', room_type: 'Suite', qty: 2 },
   ];
   const roomTypeIds: Record<string, string> = {};
   for (const rt of ROOM_TYPE_DEFS) {
@@ -108,12 +108,12 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 5. Rooms ──────────────────────────────────────────────────────────────
   const ROOM_DEFS = [
-    { room_number: '101', floor: 1, status: 'Available', room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '102', floor: 1, status: 'Available', room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '103', floor: 1, status: 'Cleaning',  room_type_id: roomTypeIds['Standard Single'] },
-    { room_number: '201', floor: 2, status: 'Available', room_type_id: roomTypeIds['Standard Double'] },
-    { room_number: '202', floor: 2, status: 'Out of Service', room_type_id: roomTypeIds['Standard Double'] },
-    { room_number: '301', floor: 3, status: 'Available', room_type_id: roomTypeIds['Deluxe Suite'] },
+    { room_number: '101', floor: 1, status: 'Available', type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '102', floor: 1, status: 'Available', type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '103', floor: 1, status: 'Cleaning',  type: 'Single', room_type: 'Single', price_per_night: 80.00, room_type_id: roomTypeIds['Standard Single'] },
+    { room_number: '201', floor: 2, status: 'Available', type: 'Double', room_type: 'Double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
+    { room_number: '202', floor: 2, status: 'Out of Service', type: 'Double', room_type: 'Double', price_per_night: 120.00, room_type_id: roomTypeIds['Standard Double'] },
+    { room_number: '301', floor: 3, status: 'Available', type: 'Suite', room_type: 'Suite', price_per_night: 200.00, room_type_id: roomTypeIds['Deluxe Suite'] },
   ];
   const roomIds: Record<string, string> = {};
   for (const r of ROOM_DEFS) {
@@ -131,11 +131,11 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 6. Guests ─────────────────────────────────────────────────────────────
   const GUESTS = [
-    { first_name: 'Alice', last_name: 'Smith',   email: 'alice.smith@test.com',   phone: '+1-555-0001' },
-    { first_name: 'Bob',   last_name: 'Jones',   email: 'bob.jones@test.com',     phone: '+1-555-0002' },
-    { first_name: 'Carol', last_name: 'White',   email: 'carol.white@test.com',   phone: '+1-555-0003' },
-    { first_name: 'Dave',  last_name: 'Brown',   email: 'dave.brown@test.com',    phone: '+1-555-0004' },
-    { first_name: 'Eve',   last_name: 'Taylor',  email: 'eve.taylor@test.com',    phone: '+1-555-0005' },
+    { name: 'Alice Smith',   email: 'alice.smith@test.com',   phone: '+1-555-0001' },
+    { name: 'Bob Jones',     email: 'bob.jones@test.com',     phone: '+1-555-0002' },
+    { name: 'Carol White',   email: 'carol.white@test.com',   phone: '+1-555-0003' },
+    { name: 'Dave Brown',    email: 'dave.brown@test.com',    phone: '+1-555-0004' },
+    { name: 'Eve Taylor',    email: 'eve.taylor@test.com',    phone: '+1-555-0005' },
   ];
   const guestIds: string[] = [];
   for (const g of GUESTS) {
@@ -167,7 +167,7 @@ export async function seed(knex: Knex): Promise<void> {
       check_out: fmt(addDays(today, 8)),
       status: 'Confirmed',
       total_amount: 240.00,
-      source: 'direct',
+      source: 'Direct',
     },
     // Confirmed — ready-to-checkin (today)
     {
@@ -178,7 +178,7 @@ export async function seed(knex: Knex): Promise<void> {
       check_out: fmt(addDays(today, 3)),
       status: 'Confirmed',
       total_amount: 360.00,
-      source: 'direct',
+      source: 'Direct',
     },
     // Already checked in (room 102 occupied)
     {
@@ -189,7 +189,7 @@ export async function seed(knex: Knex): Promise<void> {
       check_out: fmt(addDays(today, 2)),
       status: 'Checked-in',
       total_amount: 160.00,
-      source: 'direct',
+      source: 'Direct',
     },
     // Checked out (past)
     {
@@ -200,7 +200,7 @@ export async function seed(knex: Knex): Promise<void> {
       check_out: fmt(addDays(today, -2)),
       status: 'Checked-out',
       total_amount: 600.00,
-      source: 'direct',
+      source: 'Direct',
     },
     // Cancelled
     {
@@ -211,7 +211,7 @@ export async function seed(knex: Knex): Promise<void> {
       check_out: fmt(addDays(today, 12)),
       status: 'Cancelled',
       total_amount: 160.00,
-      source: 'direct',
+      source: 'Direct',
     },
   ];
 

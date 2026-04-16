@@ -46,6 +46,8 @@ export interface CreateRoomTypeRequest {
   name: string;
   room_type: Beds24RoomType;
   qty: number;
+  room_numbers?: string[];
+  number_assignment_mode?: 'manual' | 'auto';
   price_per_night: number;
   min_price?: number;
   max_price?: number;
