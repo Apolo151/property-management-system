@@ -29,6 +29,9 @@ Production-like stack (Caddy reverse proxy + TLS):
 docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+Important: the root production-like stack uses [caddy/Caddyfile](caddy/Caddyfile) (SPA + API).
+The file [infra/docker/caddy/Caddyfile](infra/docker/caddy/Caddyfile) is API-only for infra VM deployment and does not serve frontend SPA routes.
+
 See `docs/ARCHITECTURE.md` (Development Runtime), `backend/README.md`, `caddy/Caddyfile`, and `infra/DEPLOYMENT_CHECKLIST.md` for details.
 
 ## Prerequisites

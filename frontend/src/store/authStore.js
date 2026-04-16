@@ -7,6 +7,7 @@ const useAuthStore = create((set, get) => ({
   token: null,
   refreshToken: null,
   isAuthenticated: false,
+  initialized: false,
   isLoading: false,
   error: null,
   hotels: [],
@@ -93,6 +94,7 @@ const useAuthStore = create((set, get) => ({
       token: null,
       refreshToken: null,
       isAuthenticated: false,
+      initialized: true,
       error: null,
       hotels: [],
       activeHotelId: null,
@@ -266,6 +268,7 @@ const useAuthStore = create((set, get) => ({
           hotels,
           activeHotelId,
           isAuthenticated: true,
+          initialized: true,
         });
         
         // Check if token is expired or expiring soon
@@ -301,8 +304,22 @@ const useAuthStore = create((set, get) => ({
         get().logout();
       }
     } else {
-      // No stored auth, ensure clean state
-      get().logout();
+      // No stored auth, ensure clean initialized state without bounce races
+      set({
+        user: null,
+        token: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        initialized: true,
+        error: null,
+        hotels: [],
+        activeHotelId: null,
+      });
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('hotels');
+      localStorage.removeItem('activeHotelId');
     }
   },
 }));
