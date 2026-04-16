@@ -139,3 +139,132 @@ describe('Room Types CRUD Lifecycle', () => {
     expect([200, 204]).toContain(res.status);
   });
 });
+
+describe('Room Types Manual Room Numbering', () => {
+  const roomTypeName = `E2E Manual Numbering ${Date.now()}`;
+
+  it('ADMIN can create room type with explicit room_numbers', async () => {
+    const roomNumbers = ['E2E-MAN-101', 'E2E-MAN-102'];
+
+    const createRes = await request(app)
+      .post('/api/v1/room-types')
+      .set(admin.headers)
+      .send({
+        name: roomTypeName,
+        room_type: 'double',
+        qty: 2,
+        price_per_night: 180,
+        room_numbers: roomNumbers,
+        number_assignment_mode: 'manual',
+      });
+
+    expect(createRes.status).toBe(201);
+    const created = createRes.body;
+    expect(created.id).toBeTruthy();
+
+    const roomsRes = await request(app)
+      .get('/api/v1/rooms')
+      .set(admin.headers)
+      .query({ search: 'E2E-MAN-' });
+
+    expect(roomsRes.status).toBe(200);
+    const rooms = Array.isArray(roomsRes.body) ? roomsRes.body : [];
+    const createdRoomNumbers = rooms
+      .map((r: any) => r.room_number)
+      .filter((n: string) => n === 'E2E-MAN-101' || n === 'E2E-MAN-102')
+      .sort();
+    expect(createdRoomNumbers).toEqual(roomNumbers.slice().sort());
+  });
+
+  it('rejects duplicate room_numbers in same payload', async () => {
+    const res = await request(app)
+      .post('/api/v1/room-types')
+      .set(admin.headers)
+      .send({
+        name: `${roomTypeName} Dup`,
+        room_type: 'double',
+        qty: 2,
+        price_per_night: 170,
+        room_numbers: ['E2E-DUP-301', 'e2e-dup-301'],
+        number_assignment_mode: 'manual',
+      });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body.error || '')).toContain('duplicates');
+  });
+
+  it('can manually assign only the added room numbers when qty increases', async () => {
+    const baseName = `${roomTypeName} Increase`;
+    const initialNumbers = ['E2E-INC-401', 'E2E-INC-402'];
+
+    const createRes = await request(app)
+      .post('/api/v1/room-types')
+      .set(admin.headers)
+      .send({
+        name: baseName,
+        room_type: 'double',
+        qty: 2,
+        price_per_night: 220,
+        room_numbers: initialNumbers,
+        number_assignment_mode: 'manual',
+      });
+
+    expect(createRes.status).toBe(201);
+    const created = createRes.body;
+
+    const updateRes = await request(app)
+      .put(`/api/v1/room-types/${created.id}`)
+      .set(admin.headers)
+      .send({
+        qty: 4,
+        number_assignment_mode: 'manual',
+        room_numbers: ['E2E-INC-403', 'E2E-INC-404'],
+      });
+
+    expect(updateRes.status).toBe(200);
+
+    const roomsRes = await request(app)
+      .get('/api/v1/rooms')
+      .set(admin.headers)
+      .query({ search: 'E2E-INC-' });
+
+    expect(roomsRes.status).toBe(200);
+    const rooms = Array.isArray(roomsRes.body) ? roomsRes.body : [];
+    const roomNumbers = rooms
+      .map((r: any) => r.room_number)
+      .filter((n: string) => /^E2E-INC-40[1-4]$/.test(n))
+      .sort();
+
+    expect(roomNumbers).toEqual([
+      'E2E-INC-401',
+      'E2E-INC-402',
+      'E2E-INC-403',
+      'E2E-INC-404',
+    ]);
+  });
+
+  it('rejects qty increase in manual mode without room_numbers', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/room-types')
+      .set(admin.headers)
+      .send({
+        name: `${roomTypeName} Missing Numbers`,
+        room_type: 'double',
+        qty: 1,
+        price_per_night: 130,
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app)
+      .put(`/api/v1/room-types/${createRes.body.id}`)
+      .set(admin.headers)
+      .send({
+        qty: 2,
+        number_assignment_mode: 'manual',
+      });
+
+    expect(updateRes.status).toBe(400);
+    expect(String(updateRes.body.error || '')).toContain('room_numbers');
+  });
+});

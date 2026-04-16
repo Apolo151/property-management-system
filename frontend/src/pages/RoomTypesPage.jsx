@@ -7,6 +7,51 @@ import FilterSelect from '../components/FilterSelect';
 import { useToast } from '../hooks/useToast';
 import { useConfirmation } from '../hooks/useConfirmation';
 
+const INITIAL_ROOM_TYPE_FORM = {
+  name: '',
+  room_type: 'double',
+  qty: 1,
+  price_per_night: '',
+  floor: '',
+  max_people: '',
+  min_stay: '',
+  max_stay: '',
+  features: [],
+  description: '',
+  unit_allocation: 'perBooking',
+};
+
+const parseRoomNumbersFromText = (text) =>
+  text
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+const validateRoomNumbers = (numbers, expectedCount) => {
+  if (!Array.isArray(numbers)) {
+    return 'Room numbers must be a list';
+  }
+
+  if (numbers.length !== expectedCount) {
+    return `Please provide exactly ${expectedCount} room number(s)`;
+  }
+
+  if (numbers.some((value) => !value || !value.trim())) {
+    return 'Room numbers cannot be empty';
+  }
+
+  const seen = new Set();
+  for (const value of numbers) {
+    const normalized = value.trim().toLowerCase();
+    if (seen.has(normalized)) {
+      return 'Room numbers must be unique';
+    }
+    seen.add(normalized);
+  }
+
+  return null;
+};
+
 const RoomTypesPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId);
   const { roomTypes, addRoomType, updateRoomType, deleteRoomType, isLoading, initialize } = useRoomTypesStore();
@@ -21,21 +66,56 @@ const RoomTypesPage = () => {
   const [roomTypeFilter, setRoomTypeFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoomType, setEditingRoomType] = useState(null);
+  const [initialEditQty, setInitialEditQty] = useState(0);
   const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
-  const [newRoomType, setNewRoomType] = useState({
-    name: '',
-    room_type: 'double',
-    qty: 1,
-    price_per_night: '',
-    floor: '',
-    max_people: '',
-    min_stay: '',
-    max_stay: '',
-    features: [],
-    description: '',
-    unit_allocation: 'perBooking',
-  });
+  const [newRoomType, setNewRoomType] = useState(INITIAL_ROOM_TYPE_FORM);
+  const [numberAssignmentMode, setNumberAssignmentMode] = useState('auto');
+  const [roomNumberInputMode, setRoomNumberInputMode] = useState('manual');
+  const [manualRoomNumbers, setManualRoomNumbers] = useState(['']);
+  const [roomNumbersPasteText, setRoomNumbersPasteText] = useState('');
+  const [qtyIncreaseMode, setQtyIncreaseMode] = useState('');
+  const [addedRoomNumberInputMode, setAddedRoomNumberInputMode] = useState('manual');
+  const [addedManualRoomNumbers, setAddedManualRoomNumbers] = useState([]);
+  const [addedRoomNumbersPasteText, setAddedRoomNumbersPasteText] = useState('');
   const [featureInput, setFeatureInput] = useState('');
+
+  const currentQty = Number(newRoomType.qty) || 1;
+  const addedUnitsCount = editingRoomType ? Math.max(0, currentQty - initialEditQty) : 0;
+
+  const resetModalState = () => {
+    setEditingRoomType(null);
+    setInitialEditQty(0);
+    setNewRoomType(INITIAL_ROOM_TYPE_FORM);
+    setNumberAssignmentMode('auto');
+    setRoomNumberInputMode('manual');
+    setManualRoomNumbers(['']);
+    setRoomNumbersPasteText('');
+    setQtyIncreaseMode('');
+    setAddedRoomNumberInputMode('manual');
+    setAddedManualRoomNumbers([]);
+    setAddedRoomNumbersPasteText('');
+    setFeatureInput('');
+  };
+
+  useEffect(() => {
+    if (editingRoomType || numberAssignmentMode !== 'manual') {
+      return;
+    }
+
+    setManualRoomNumbers((prev) =>
+      Array.from({ length: Math.max(currentQty, 1) }, (_, i) => prev[i] || '')
+    );
+  }, [currentQty, numberAssignmentMode, editingRoomType]);
+
+  useEffect(() => {
+    if (!editingRoomType || qtyIncreaseMode !== 'manual' || addedUnitsCount < 1) {
+      return;
+    }
+
+    setAddedManualRoomNumbers((prev) =>
+      Array.from({ length: addedUnitsCount }, (_, i) => prev[i] || '')
+    );
+  }, [editingRoomType, qtyIncreaseMode, addedUnitsCount]);
 
   const cmRoomTypeOptions = [
     { value: 'single', label: 'Single' },
@@ -94,7 +174,7 @@ const RoomTypesPage = () => {
     }
 
     try {
-      await addRoomType({
+      const payload = {
         ...newRoomType,
         qty: qty,
         price_per_night: price,
@@ -102,23 +182,31 @@ const RoomTypesPage = () => {
         max_people: newRoomType.max_people ? parseInt(newRoomType.max_people) : null,
         min_stay: newRoomType.min_stay ? parseInt(newRoomType.min_stay) : null,
         max_stay: newRoomType.max_stay ? parseInt(newRoomType.max_stay) : null,
+      };
+
+      if (numberAssignmentMode === 'manual') {
+        const numbers = roomNumberInputMode === 'manual'
+          ? manualRoomNumbers.map((item) => item.trim())
+          : parseRoomNumbersFromText(roomNumbersPasteText);
+
+        const validationError = validateRoomNumbers(numbers, qty);
+        if (validationError) {
+          toast.error(validationError);
+          return;
+        }
+
+        payload.number_assignment_mode = 'manual';
+        payload.room_numbers = numbers;
+      } else {
+        payload.number_assignment_mode = 'auto';
+      }
+
+      await addRoomType({
+        ...payload,
       });
 
       setIsModalOpen(false);
-      setNewRoomType({
-        name: '',
-        room_type: 'double',
-        qty: 1,
-        price_per_night: '',
-        floor: '',
-        max_people: '',
-        min_stay: '',
-        max_stay: '',
-        features: [],
-        description: '',
-        unit_allocation: 'perBooking',
-      });
-      setFeatureInput('');
+      resetModalState();
       toast.success('Room type created successfully!');
     } catch (error) {
       toast.error(error.message || 'Failed to create room type');
@@ -127,6 +215,7 @@ const RoomTypesPage = () => {
 
   const handleEditRoomType = (roomType) => {
     setEditingRoomType(roomType);
+    setInitialEditQty(roomType.qty);
     setNewRoomType({
       name: roomType.name,
       room_type: roomType.roomType, // Use camelCase from store
@@ -140,6 +229,10 @@ const RoomTypesPage = () => {
       description: roomType.description || '',
       unit_allocation: roomType.unitAllocation || 'perBooking',
     });
+    setQtyIncreaseMode('');
+    setAddedRoomNumberInputMode('manual');
+    setAddedManualRoomNumbers([]);
+    setAddedRoomNumbersPasteText('');
     setIsModalOpen(true);
   };
 
@@ -159,7 +252,7 @@ const RoomTypesPage = () => {
     }
 
     try {
-      await updateRoomType(editingRoomType.id, {
+      const payload = {
         ...newRoomType,
         qty: qty,
         price_per_night: price,
@@ -167,23 +260,38 @@ const RoomTypesPage = () => {
         max_people: newRoomType.max_people ? parseInt(newRoomType.max_people) : null,
         min_stay: newRoomType.min_stay ? parseInt(newRoomType.min_stay) : null,
         max_stay: newRoomType.max_stay ? parseInt(newRoomType.max_stay) : null,
+      };
+
+      if (qty > initialEditQty) {
+        if (!qtyIncreaseMode) {
+          toast.error('Choose how to assign room numbers for added units');
+          return;
+        }
+
+        if (qtyIncreaseMode === 'manual') {
+          const numbers = addedRoomNumberInputMode === 'manual'
+            ? addedManualRoomNumbers.map((item) => item.trim())
+            : parseRoomNumbersFromText(addedRoomNumbersPasteText);
+
+          const validationError = validateRoomNumbers(numbers, qty - initialEditQty);
+          if (validationError) {
+            toast.error(validationError);
+            return;
+          }
+
+          payload.number_assignment_mode = 'manual';
+          payload.room_numbers = numbers;
+        } else {
+          payload.number_assignment_mode = 'auto';
+        }
+      }
+
+      await updateRoomType(editingRoomType.id, {
+        ...payload,
       });
 
       setIsModalOpen(false);
-      setEditingRoomType(null);
-      setNewRoomType({
-        name: '',
-        room_type: 'double',
-        qty: 1,
-        price_per_night: '',
-        floor: '',
-        max_people: '',
-        min_stay: '',
-        max_stay: '',
-        features: [],
-        description: '',
-        unit_allocation: 'perBooking',
-      });
+      resetModalState();
       toast.success('Room type updated successfully!');
     } catch (error) {
       toast.error(error.message || 'Failed to update room type');
@@ -279,20 +387,7 @@ const RoomTypesPage = () => {
             🔄 Refresh
           </button>
           <button onClick={() => {
-            setEditingRoomType(null);
-            setNewRoomType({
-              name: '',
-              room_type: 'double',
-              qty: 1,
-              price_per_night: '',
-              floor: '',
-              max_people: '',
-              min_stay: '',
-              max_stay: '',
-              features: [],
-              description: '',
-              unit_allocation: 'perBooking',
-            });
+            resetModalState();
             setIsModalOpen(true);
           }} className="btn btn-primary">
             + Add Room Type
@@ -330,8 +425,8 @@ const RoomTypesPage = () => {
           </div>
           <div className="ml-3 flex-1">
             <p className="text-sm text-blue-700">
-              <strong>Note:</strong> Room quantities are automatically synced from channel manager based on individual room instances. 
-              Click the <strong>Refresh</strong> button after syncing to see updated quantities.
+              <strong>Note:</strong> You can keep automatic room numbering or provide exact room numbers during creation. 
+              When increasing quantity while editing, choose numbering mode for the added units.
             </p>
           </div>
         </div>
@@ -449,20 +544,7 @@ const RoomTypesPage = () => {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
-          setEditingRoomType(null);
-          setNewRoomType({
-            name: '',
-            room_type: 'double',
-            qty: 1,
-            price_per_night: '',
-            floor: '',
-            max_people: '',
-            min_stay: '',
-            max_stay: '',
-            features: [],
-            description: '',
-            unit_allocation: 'perBooking',
-          });
+          resetModalState();
         }}
         title={editingRoomType ? 'Edit Room Type' : 'Add Room Type'}
       >
@@ -512,6 +594,170 @@ const RoomTypesPage = () => {
               />
             </div>
           </div>
+
+          {!editingRoomType && (
+            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Room Number Assignment</p>
+                <p className="text-xs text-gray-500 mt-1">Choose auto generation or define exact room numbers for all units.</p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    checked={numberAssignmentMode === 'auto'}
+                    onChange={() => setNumberAssignmentMode('auto')}
+                  />
+                  Auto-generate
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    checked={numberAssignmentMode === 'manual'}
+                    onChange={() => setNumberAssignmentMode('manual')}
+                  />
+                  Set specific numbers
+                </label>
+              </div>
+
+              {numberAssignmentMode === 'manual' && (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRoomNumberInputMode('manual')}
+                      className={`px-3 py-1.5 rounded-md text-sm ${roomNumberInputMode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      Manual Inputs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomNumberInputMode('paste')}
+                      className={`px-3 py-1.5 rounded-md text-sm ${roomNumberInputMode === 'paste' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      Paste List
+                    </button>
+                  </div>
+
+                  {roomNumberInputMode === 'manual' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {manualRoomNumbers.map((value, index) => (
+                        <input
+                          key={`manual-room-${index}`}
+                          type="text"
+                          value={value}
+                          onChange={(e) => {
+                            const next = [...manualRoomNumbers];
+                            next[index] = e.target.value;
+                            setManualRoomNumbers(next);
+                          }}
+                          placeholder={`Room ${index + 1} number`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <textarea
+                        value={roomNumbersPasteText}
+                        onChange={(e) => setRoomNumbersPasteText(e.target.value)}
+                        rows="4"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Paste room numbers separated by commas or new lines"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Parsed: {parseRoomNumbersFromText(roomNumbersPasteText).length} / Expected: {currentQty}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {editingRoomType && addedUnitsCount > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Quantity Increased</p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Add numbering for {addedUnitsCount} new unit(s). Choose mode for this update.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="inline-flex items-center gap-2 text-sm text-amber-900">
+                  <input
+                    type="radio"
+                    checked={qtyIncreaseMode === 'auto'}
+                    onChange={() => setQtyIncreaseMode('auto')}
+                  />
+                  Auto-generate new numbers
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-amber-900">
+                  <input
+                    type="radio"
+                    checked={qtyIncreaseMode === 'manual'}
+                    onChange={() => setQtyIncreaseMode('manual')}
+                  />
+                  Set specific numbers
+                </label>
+              </div>
+
+              {qtyIncreaseMode === 'manual' && (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAddedRoomNumberInputMode('manual')}
+                      className={`px-3 py-1.5 rounded-md text-sm ${addedRoomNumberInputMode === 'manual' ? 'bg-amber-600 text-white' : 'bg-white text-amber-800 border border-amber-200'}`}
+                    >
+                      Manual Inputs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddedRoomNumberInputMode('paste')}
+                      className={`px-3 py-1.5 rounded-md text-sm ${addedRoomNumberInputMode === 'paste' ? 'bg-amber-600 text-white' : 'bg-white text-amber-800 border border-amber-200'}`}
+                    >
+                      Paste List
+                    </button>
+                  </div>
+
+                  {addedRoomNumberInputMode === 'manual' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {addedManualRoomNumbers.map((value, index) => (
+                        <input
+                          key={`added-room-${index}`}
+                          type="text"
+                          value={value}
+                          onChange={(e) => {
+                            const next = [...addedManualRoomNumbers];
+                            next[index] = e.target.value;
+                            setAddedManualRoomNumbers(next);
+                          }}
+                          placeholder={`Added room ${index + 1} number`}
+                          className="w-full px-3 py-2 border border-amber-200 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <textarea
+                        value={addedRoomNumbersPasteText}
+                        onChange={(e) => setAddedRoomNumbersPasteText(e.target.value)}
+                        rows="4"
+                        className="w-full px-3 py-2 border border-amber-200 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="Paste new room numbers separated by commas or new lines"
+                      />
+                      <p className="text-xs text-amber-800 mt-1">
+                        Parsed: {parseRoomNumbersFromText(addedRoomNumbersPasteText).length} / Expected: {addedUnitsCount}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
