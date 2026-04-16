@@ -100,6 +100,8 @@ export interface CreateReservationRequest {
 
 export interface UpdateReservationRequest {
   room_id?: string;
+  room_type_id?: string;
+  units_requested?: number;
   check_in?: string;
   check_out?: string;
   status?: LegacyReservationStatus;

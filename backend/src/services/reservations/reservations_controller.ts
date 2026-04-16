@@ -93,17 +93,32 @@ async function hasOverlappingReservation(
 
 // Helper function to calculate total amount
 async function calculateTotalAmount(
-  roomId: string,
+  roomId: string | null,
+  roomTypeId: string | null,
+  unitsRequested: number,
   checkIn: Date,
   checkOut: Date,
 ): Promise<number> {
-  const room = await db('rooms').where({ id: roomId }).first();
-  if (!room) {
-    throw new Error('Room not found');
+  let pricePerNight = 0;
+
+  if (roomId) {
+    const room = await db('rooms').where({ id: roomId }).first();
+    if (!room) {
+      throw new Error(`Room not found: ${roomId}`);
+    }
+    pricePerNight = parseFloat(room.price_per_night);
+  } else if (roomTypeId) {
+    const roomType = await db('room_types').where({ id: roomTypeId }).whereNull('deleted_at').first();
+    if (!roomType) {
+      throw new Error(`Room type not found: ${roomTypeId}`);
+    }
+    pricePerNight = parseFloat(roomType.price_per_night);
+  } else {
+    throw new Error('Either room_id or room_type_id must be provided');
   }
 
   const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-  return parseFloat(room.price_per_night) * nights;
+  return pricePerNight * nights * (unitsRequested || 1);
 }
 
 // Get all reservations
@@ -624,7 +639,9 @@ export async function updateReservationHandler(
     // Keep dates as strings, only create Date objects with explicit UTC for validation
     let checkInDate = existing.check_in ? new Date(existing.check_in + 'T00:00:00.000Z') : null;
     let checkOutDate = existing.check_out ? new Date(existing.check_out + 'T00:00:00.000Z') : null;
-    let roomId = existing.room_id;
+    let roomId = existing.room_id || null;
+    let roomTypeId = existing.room_type_id || null;
+    let unitsRequested = existing.units_requested || 1;
 
     if (updates.check_in) {
       // Validate date format
@@ -650,9 +667,25 @@ export async function updateReservationHandler(
       updateData.check_out = updates.check_out;  // Store string directly
     }
 
-    if (updates.room_id) {
+    if (updates.room_id !== undefined) {
       roomId = updates.room_id;
       updateData.room_id = updates.room_id;
+    }
+
+    if (updates.room_type_id !== undefined) {
+      roomTypeId = updates.room_type_id;
+      updateData.room_type_id = updates.room_type_id;
+    }
+
+    if (updates.units_requested !== undefined) {
+      if (!Number.isInteger(updates.units_requested) || updates.units_requested < 1) {
+        res.status(400).json({
+          error: 'units_requested must be a positive integer',
+        } as any);
+        return;
+      }
+      unitsRequested = updates.units_requested;
+      updateData.units_requested = updates.units_requested;
     }
 
     if (updates.status !== undefined) {
@@ -684,18 +717,64 @@ export async function updateReservationHandler(
       return;
     }
 
+    if (!roomId && !roomTypeId) {
+      res.status(400).json({
+        error: 'Reservation must have either room_id or room_type_id',
+      } as any);
+      return;
+    }
+
+    if (roomId && roomTypeId) {
+      res.status(400).json({
+        error: 'Reservation cannot have both room_id and room_type_id',
+      } as any);
+      return;
+    }
+
     // Check for overlapping reservations if dates or room changed
-    if ((updates.check_in || updates.check_out || updates.room_id) && checkInDate && checkOutDate) {
-      const hasOverlap = await hasOverlappingReservation(roomId, checkInDate, checkOutDate, id);
-      if (hasOverlap) {
-        res.status(409).json({
-          error: 'Room already has a reservation during this period',
-        } as any);
-        return;
+    if (
+      (
+        updates.check_in ||
+        updates.check_out ||
+        updates.room_id !== undefined ||
+        updates.room_type_id !== undefined ||
+        updates.units_requested !== undefined
+      ) &&
+      checkInDate &&
+      checkOutDate
+    ) {
+      if (roomId) {
+        const hasOverlap = await hasOverlappingReservation(roomId, checkInDate, checkOutDate, id);
+        if (hasOverlap) {
+          res.status(409).json({
+            error: 'Room already has a reservation during this period',
+          } as any);
+          return;
+        }
+      } else if (roomTypeId) {
+        const hasAvailability = await availabilityService.hasAvailability(
+          roomTypeId,
+          checkInDate,
+          checkOutDate,
+          unitsRequested,
+          id,
+        );
+        if (!hasAvailability) {
+          res.status(409).json({
+            error: `Not enough units available. Requested: ${unitsRequested}`,
+          } as any);
+          return;
+        }
       }
 
       // Recalculate total amount if dates or room changed
-      const totalAmount = await calculateTotalAmount(roomId, checkInDate, checkOutDate);
+      const totalAmount = await calculateTotalAmount(
+        roomId,
+        roomTypeId,
+        unitsRequested,
+        checkInDate,
+        checkOutDate,
+      );
       updateData.total_amount = totalAmount;
     }
 
@@ -709,7 +788,7 @@ export async function updateReservationHandler(
       //   - Check-in: POST /api/v1/reservations/:id/check-in
       //   - Check-out: PATCH /api/v1/check-ins/:id/checkout
       //   - Room change: POST /api/v1/check-ins/:id/change-room
-      if (updates.status) {
+      if (updates.status && roomId) {
         const room = await trx('rooms').where({ id: roomId }).first();
         if (room) {
           if (updates.status === 'Checked-in') {
@@ -750,11 +829,17 @@ export async function updateReservationHandler(
     });
 
     // Sync room availability if room or dates changed
-    if (updates.room_id || updates.check_in || updates.check_out) {
+    if (
+      updates.room_id !== undefined ||
+      updates.room_type_id !== undefined ||
+      updates.check_in ||
+      updates.check_out ||
+      updates.units_requested !== undefined
+    ) {
       // Get room type ID for availability sync
-      const roomTypeId = existing.room_type_id;
-      if (roomTypeId) {
-        queueAvailabilitySync(roomTypeId).catch((err) => {
+      const syncRoomTypeId = roomTypeId || existing.room_type_id;
+      if (syncRoomTypeId) {
+        queueAvailabilitySync(syncRoomTypeId).catch((err) => {
           console.error('Failed to queue room availability sync:', err);
         });
       }
@@ -765,11 +850,14 @@ export async function updateReservationHandler(
       .select(
         'reservations.*',
         'rooms.room_number',
+        'room_types.name as room_type_name',
+        'room_types.room_type as room_type',
         'primary_guest.name as primary_guest_name',
         'primary_guest.email as primary_guest_email',
         'primary_guest.phone as primary_guest_phone',
       )
-      .join('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('rooms', 'reservations.room_id', 'rooms.id')
+      .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
       .join('guests as primary_guest', 'reservations.primary_guest_id', 'primary_guest.id')
       .where('reservations.id', id)
       .first();
@@ -785,7 +873,11 @@ export async function updateReservationHandler(
     const response: ReservationResponse = {
       id: updated.id,
       room_id: updated.room_id,
-      room_number: updated.room_number,
+      room_type_id: updated.room_type_id,
+      room_number: updated.room_number || updated.room_type_name,
+      room_type_name: updated.room_type_name,
+      assigned_unit_id: updated.assigned_unit_id || null,
+      units_requested: updated.units_requested || 1,
       primary_guest_id: updated.primary_guest_id,
       primary_guest_name: updated.primary_guest_name,
       primary_guest_email: updated.primary_guest_email,

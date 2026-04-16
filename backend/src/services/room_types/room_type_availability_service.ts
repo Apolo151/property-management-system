@@ -44,7 +44,8 @@ export class RoomTypeAvailabilityService {
   async getAvailabilityForRange(
     roomTypeId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    excludeReservationId?: string,
   ): Promise<Map<string, number>> {
     const availability = new Map<string, number>();
 
@@ -71,6 +72,11 @@ export class RoomTypeAvailabilityService {
       .where(function () {
         this.whereRaw('check_in < ?', [endDateStr])
           .whereRaw('check_out > ?', [startDateStr]);
+      })
+      .modify((queryBuilder) => {
+        if (excludeReservationId) {
+          queryBuilder.whereNot('id', excludeReservationId);
+        }
       })
       .select('check_in', 'check_out', 'units_requested', 'status');
 
@@ -117,10 +123,16 @@ export class RoomTypeAvailabilityService {
     roomTypeId: string,
     checkIn: Date,
     checkOut: Date,
-    unitsRequested: number = 1
+    unitsRequested: number = 1,
+    excludeReservationId?: string,
   ): Promise<boolean> {
     // Get minimum available units across the date range
-    const availability = await this.getAvailabilityForRange(roomTypeId, checkIn, checkOut);
+    const availability = await this.getAvailabilityForRange(
+      roomTypeId,
+      checkIn,
+      checkOut,
+      excludeReservationId,
+    );
 
     // Check if all days have enough units
     for (const [date, availableUnits] of availability) {
