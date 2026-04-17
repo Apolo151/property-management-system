@@ -3,25 +3,6 @@ import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
 import useRoomsStore from './roomsStore';
 
-const extractRoomNumberFromUnit = (assignedUnitId, roomTypeName) => {
-  if (!assignedUnitId) return null;
-  const match = assignedUnitId.match(/^(.*)-unit-(\d+)$/);
-  if (match) {
-    const rtId = match[1];
-    const unitIndex = parseInt(match[2], 10);
-    
-    // Use getState() safely outside React context
-    const roomsState = useRoomsStore.getState();
-    const roomDetails = roomsState?.rooms?.find(r => r.id === rtId);
-    
-    if (roomDetails && roomDetails.units && roomDetails.units[unitIndex]) {
-      return roomDetails.units[unitIndex].name;
-    }
-    return `${roomTypeName || ''} #${unitIndex + 1}`.trim();
-  }
-  return null;
-};
-
 const useReservationsStore = create((set, get, storeApi) => ({
   reservations: [],
   loading: false,
@@ -37,7 +18,6 @@ const useReservationsStore = create((set, get, storeApi) => ({
       
       // Transform API response to match frontend format
       const transformed = data.map((res) => {
-        const resolvedRoomNumber = res.room_number || extractRoomNumberFromUnit(res.assigned_unit_id, res.room_type_name) || res.room_type_name;
         return {
           id: res.id,
           guestId: res.primary_guest_id,
@@ -48,7 +28,7 @@ const useReservationsStore = create((set, get, storeApi) => ({
           guest2Name: res.secondary_guest_name,
           guest2Email: res.secondary_guest_email,
           guest2Phone: res.secondary_guest_phone,
-          roomNumber: resolvedRoomNumber,
+          roomNumber: res.room_number || res.room_type_name,
           roomId: res.room_id,
           roomTypeId: res.room_type_id,
           roomTypeName: res.room_type_name,
