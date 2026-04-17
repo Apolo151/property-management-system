@@ -31,6 +31,8 @@ const InvoicesPage = () => {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentNotes, setPaymentNotes] = useState('')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('')
   const [isOverdueOnly, setIsOverdueOnly] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -156,6 +158,8 @@ const InvoicesPage = () => {
       const invoice = invoices.find((inv) => inv.id === invoiceId)
       setSelectedInvoice(invoice)
       setPaymentMethod(invoice?.paymentMethod || '')
+      setPaymentAmount(invoice?.amount != null ? String(invoice.amount) : '')
+      setPaymentNotes(invoice?.notes || '')
       setPaymentModalOpen(true)
     } else {
       const confirmed = await confirmation({
@@ -178,8 +182,19 @@ const InvoicesPage = () => {
   }
 
   const handleMarkAsPaid = async () => {
+    if (!selectedInvoice) {
+      toast.error('No invoice selected')
+      return
+    }
+
     if (!paymentMethod) {
       toast.error('Please select a payment method')
+      return
+    }
+
+    const amountValue = Number(paymentAmount)
+    if (isNaN(amountValue) || amountValue <= 0) {
+      toast.error('Please enter a valid amount greater than 0')
       return
     }
     
@@ -188,10 +203,14 @@ const InvoicesPage = () => {
       await updateInvoice(selectedInvoice.id, {
         status: 'Paid',
         paymentMethod,
+        amount: amountValue,
+        notes: paymentNotes,
       })
       setPaymentModalOpen(false)
       setSelectedInvoice(null)
       setPaymentMethod('')
+      setPaymentAmount('')
+      setPaymentNotes('')
       toast.success('Invoice marked as paid successfully!')
     } catch (error) {
       toast.error(error.message || 'Failed to update invoice')
@@ -546,6 +565,8 @@ const InvoicesPage = () => {
           setPaymentModalOpen(false)
           setSelectedInvoice(null)
           setPaymentMethod('')
+          setPaymentAmount('')
+          setPaymentNotes('')
         }}
         title="Mark Invoice as Paid"
       >
@@ -559,10 +580,25 @@ const InvoicesPage = () => {
                     <span className="font-medium">{selectedInvoice.id}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Amount:</span>
+                    <span className="text-gray-600 dark:text-gray-400">Current Amount:</span>
                     <span className="font-semibold">${selectedInvoice.amount.toLocaleString()}</span>
                   </div>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Amount *
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="input"
+                  placeholder="Enter payment amount"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -582,12 +618,25 @@ const InvoicesPage = () => {
                   <option value="Other">Other</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="input min-h-[96px]"
+                  placeholder="Add payment notes"
+                />
+              </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   onClick={() => {
                     setPaymentModalOpen(false)
                     setSelectedInvoice(null)
                     setPaymentMethod('')
+                    setPaymentAmount('')
+                    setPaymentNotes('')
                   }}
                   className="btn btn-secondary"
                 >
