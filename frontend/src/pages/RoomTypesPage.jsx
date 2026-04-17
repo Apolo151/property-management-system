@@ -117,7 +117,7 @@ const RoomTypesPage = () => {
     );
   }, [editingRoomType, qtyIncreaseMode, addedUnitsCount]);
 
-  const cmRoomTypeOptions = [
+  const systemRootTypeOptions = [
     { value: 'single', label: 'Single' },
     { value: 'double', label: 'Double' },
     { value: 'kingBed', label: 'King Bed' },
@@ -409,7 +409,7 @@ const RoomTypesPage = () => {
             onChange={setRoomTypeFilter}
             options={[
               { value: '', label: 'All Types' },
-              ...cmRoomTypeOptions,
+              ...systemRootTypeOptions,
             ]}
             placeholder="Filter by room type"
           />
@@ -496,7 +496,7 @@ const RoomTypesPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                        {cmRoomTypeOptions.find(opt => opt.value === roomType.roomType)?.label || roomType.roomType}
+                        {systemRootTypeOptions.find(opt => opt.value === roomType.roomType)?.label || roomType.roomType}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
@@ -573,7 +573,7 @@ const RoomTypesPage = () => {
                 onChange={(e) => setNewRoomType({ ...newRoomType, room_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {cmRoomTypeOptions.map((option) => (
+                {systemRootTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

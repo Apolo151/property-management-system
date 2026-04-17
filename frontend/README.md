@@ -113,6 +113,13 @@ All data is stored in static JSON files located in `src/data/`:
 
 **Note**: New reservations created in the Calendar page are stored in React state only and will not persist after page refresh. This is by design for a frontend-only demo.
 
+## 🧭 Room Type Terminology
+
+- System root type: `room_type` (frontend `roomType`) is the canonical room type used for UI filtering and matching (examples: `double`, `kingBed`, `suite`).
+- Room type entity link: `room_type_id` (frontend `roomTypeId`) links physical rooms and reservations to a defined room type record.
+- Integration metadata: `cm_room_id` (frontend `cmRoomId`) is channel-manager metadata and should not be used for user-facing filtering.
+- Legacy fallback: `type` is retained for backward compatibility and display fallback only.
+
 ## 🎨 UI/UX Features
 
 - **Responsive Design**: Works on desktop, tablet, and mobile devices

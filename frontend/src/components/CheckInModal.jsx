@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import useCheckInsStore from '../store/checkInsStore';
 import { useToast } from '../hooks/useToast';
+import { formatRootRoomType } from '../utils/roomType';
 
 const CheckInModal = ({ isOpen, onClose, reservation }) => {
   const toast = useToast();
@@ -127,7 +128,7 @@ const CheckInModal = ({ isOpen, onClose, reservation }) => {
               <option value="">Select a room...</option>
               {eligibleRooms.map((room) => (
                 <option key={room.id} value={room.id}>
-                  Room {room.room_number} - {room.room_type || room.type}
+                  Room {room.room_number} - {formatRootRoomType(room.room_type) || room.type}
                   {room.is_preferred && ' ⭐ (Matches Reserved Type)'}
                   {!room.is_preferred && room.id === reservation.roomId && ' (Reserved)'}
                 </option>

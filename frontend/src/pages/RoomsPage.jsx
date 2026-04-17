@@ -10,6 +10,7 @@ import useCheckInsStore from '../store/checkInsStore'
 import { api } from '../utils/api'
 import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
+import { formatRootRoomType, normalizeRootRoomType } from '../utils/roomType'
 
 const RoomsPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId)
@@ -22,11 +23,6 @@ const RoomsPage = () => {
   const [selectedRoomCheckIn, setSelectedRoomCheckIn] = useState(null)
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
   const toast = useToast()
-
-  const formatRoomType = (rt) => {
-    if (!rt) return '';
-    return rt.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-  }
 
   // Fetch room types, rooms, housekeeping, check-ins, and staff on mount
   useEffect(() => {
@@ -76,16 +72,19 @@ const RoomsPage = () => {
   // Enrich rooms with room type and check-in information
   const enrichedRooms = useMemo(() => {
     return rooms.map((room) => {
-      // Find the matching room type by room_type field (lowercase)
-      const matchingRoomType = roomTypes.find(
-        (rt) => rt.roomType && rt.roomType.toLowerCase() === room.roomType
-      )
+      const normalizedRoomType = normalizeRootRoomType(room.roomType)
+      // Prefer ID linkage, then fallback to normalized root type.
+      const matchingRoomType = roomTypes.find((rt) => {
+        if (room.roomTypeId && rt.id === room.roomTypeId) return true
+        return rt.roomType === normalizedRoomType
+      })
       
       // Find active check-in for this room
       const checkIn = getCheckInByRoom(room.id)
       
       return {
         ...room,
+        rootRoomType: matchingRoomType?.roomType || normalizedRoomType,
         roomTypeName: matchingRoomType?.name || `${room.type} Room`,
         maxPeople: matchingRoomType?.maxPeople || room.maxPeople,
         checkIn: checkIn || null,
@@ -105,7 +104,7 @@ const RoomsPage = () => {
       const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.type.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesType = !typeFilter || room.roomType === typeFilter
+      const matchesType = !typeFilter || room.rootRoomType === normalizeRootRoomType(typeFilter)
       const matchesStatus = !statusFilter || room.status === statusFilter
       const matchesFloor = !floorFilter || room.floor?.toString() === floorFilter
       return matchesSearch && matchesType && matchesStatus && matchesFloor
@@ -116,8 +115,8 @@ const RoomsPage = () => {
   const roomTypeOptions = useMemo(() => {
     const typesMap = new Map()
     roomTypes.forEach(rt => {
-      if (rt.roomType && !typesMap.has(rt.roomType.toLowerCase())) {
-        typesMap.set(rt.roomType.toLowerCase(), { value: rt.roomType, label: rt.name })
+      if (rt.roomType && !typesMap.has(rt.roomType)) {
+        typesMap.set(rt.roomType, { value: rt.roomType, label: `${rt.name} (${formatRootRoomType(rt.roomType)})` })
       }
     })
     return Array.from(typesMap.values())
@@ -282,14 +281,14 @@ const RoomsPage = () => {
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRooms.map((room) => (
-                <tr key={room.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:bg-gray-700">
+                <tr key={room.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                       {room.roomNumber}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-gray-100 capitalize">{formatRoomType(room.roomType)}</div>
+                    <div className="text-sm text-gray-900 dark:text-gray-100">{formatRootRoomType(room.rootRoomType) || formatRootRoomType(room.roomType)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-gray-100">{room.roomTypeName}</div>
@@ -409,7 +408,7 @@ const RoomsPage = () => {
                           {room.roomNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 capitalize">
-                          {formatRoomType(room.roomType)}
+                          {formatRootRoomType(room.rootRoomType) || formatRootRoomType(room.roomType)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge

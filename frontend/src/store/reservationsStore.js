@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
 import useRoomsStore from './roomsStore';
+import { normalizeRootRoomType } from '../utils/roomType';
 
 const useReservationsStore = create((set, get, storeApi) => ({
   reservations: [],
@@ -31,6 +32,7 @@ const useReservationsStore = create((set, get, storeApi) => ({
           roomNumber: res.room_number || res.room_type_name,
           roomId: res.room_id,
           roomTypeId: res.room_type_id,
+          rootRoomType: normalizeRootRoomType(res.room_type),
           roomTypeName: res.room_type_name,
           assignedUnitId: res.assigned_unit_id || null,
           unitsRequested: res.units_requested || 1,
@@ -74,6 +76,7 @@ const useReservationsStore = create((set, get, storeApi) => ({
         roomNumber: data.room_number || data.room_type_name,
         roomId: data.room_id,
         roomTypeId: data.room_type_id,
+        rootRoomType: normalizeRootRoomType(data.room_type),
         roomTypeName: data.room_type_name,
         assignedUnitId: data.assigned_unit_id || null,
         unitsRequested: data.units_requested || 1,
@@ -139,6 +142,7 @@ const useReservationsStore = create((set, get, storeApi) => ({
         roomNumber: data.room_number || data.room_type_name,
         roomId: data.room_id,
         roomTypeId: data.room_type_id,
+        rootRoomType: normalizeRootRoomType(data.room_type),
         roomTypeName: data.room_type_name,
         assignedUnitId: data.assigned_unit_id || null,
         unitsRequested: data.units_requested || 1,
@@ -202,6 +206,7 @@ const useReservationsStore = create((set, get, storeApi) => ({
         roomNumber: data.room_number || data.room_type_name,
         roomId: data.room_id,
         roomTypeId: data.room_type_id,
+        rootRoomType: normalizeRootRoomType(data.room_type),
         roomTypeName: data.room_type_name,
         assignedUnitId: data.assigned_unit_id || null,
         unitsRequested: data.units_requested || 1,
