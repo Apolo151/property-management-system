@@ -370,7 +370,7 @@ const RoomTypesPage = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Room Types</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage room types with quantity (synced from channel manager)</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage system room types with quantity</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -505,7 +505,7 @@ const RoomTypesPage = () => {
                         <span className="text-gray-500 dark:text-gray-400">units</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        From CM
+                        System Type
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
@@ -566,7 +566,7 @@ const RoomTypesPage = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Channel Manager Room Type *
+                System Root Room Type *
               </label>
               <select
                 value={newRoomType.room_type}
