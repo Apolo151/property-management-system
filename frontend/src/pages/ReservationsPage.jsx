@@ -1076,10 +1076,13 @@ const ReservationsPage = () => {
                     const units = []
                     
                     // Check each unit for availability
-                    const roomDetails = rooms.find(r => r.id === selectedRoomType.room_type_id)
+                    const linkedRooms = rooms
+                      .filter(r => r.roomTypeId === selectedRoomType.room_type_id)
+                      .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber))
+
                     for (let unitIndex = 0; unitIndex < totalUnits; unitIndex++) {
                       const unitId = `${selectedRoomType.room_type_id}-unit-${unitIndex}`
-                      const unitName = roomDetails?.units?.[unitIndex]?.name || `Unit #${unitIndex + 1}`
+                      const unitName = linkedRooms[unitIndex]?.roomNumber || `Unit #${unitIndex + 1}`
                       
                       // Check if this unit is reserved during the selected dates
                       const isReserved = reservations.some((res) => {

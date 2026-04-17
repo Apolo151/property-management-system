@@ -681,8 +681,13 @@ const CalendarPage = () => {
                     const totalUnits = selectedRoomType.total_units || 1
                     const units = []
                     
+                    const linkedRooms = rooms
+                      .filter(r => r.roomTypeId === selectedRoomType.room_type_id)
+                      .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber))
+
                     for (let unitIndex = 0; unitIndex < totalUnits; unitIndex++) {
                       const unitId = `${selectedRoomType.room_type_id}-unit-${unitIndex}`
+                      const unitName = linkedRooms[unitIndex]?.roomNumber || `Unit #${unitIndex + 1}`
                       const isAvailable = !reservations.some((res) => {
                         if (res.assignedUnitId !== unitId || reservationBlocksAvailability(res.status)) return false
                         const resCheckIn = parseISO(res.checkIn)
@@ -699,6 +704,7 @@ const CalendarPage = () => {
                       units.push({
                         unitIndex,
                         unitNumber: unitIndex + 1,
+                        unitName,
                         available: isAvailable,
                       })
                     }
@@ -732,7 +738,7 @@ const CalendarPage = () => {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <span className="font-medium">Unit #{unit.unitNumber}</span>
+                                <span className="font-medium">{unit.unitName}</span>
                                 {!unit.available && (
                                   <span className="text-sm text-red-600 ml-2">(Unavailable)</span>
                                 )}

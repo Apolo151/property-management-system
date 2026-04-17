@@ -121,6 +121,64 @@ async function calculateTotalAmount(
   return pricePerNight * nights * (unitsRequested || 1);
 }
 
+// Helper function to resolve assigned_unit_id to physical room number
+async function resolveUnitRoomNumbers(
+  hotelId: string | undefined,
+  reservations: { id: string; room_type_id: string | null; assigned_unit_id: string | null }[],
+): Promise<Map<string, string>> {
+  const resolved = new Map<string, string>();
+  
+  if (!hotelId) return resolved;
+  
+  // Group by room_type_id to batch queries
+  const roomTypesToFetch = new Set<string>();
+  for (const res of reservations) {
+    if (res.room_type_id && res.assigned_unit_id) {
+      roomTypesToFetch.add(res.room_type_id);
+    }
+  }
+
+  if (roomTypesToFetch.size === 0) {
+    return resolved;
+  }
+
+  // Fetch all linked rooms ordered by room_number to match unit indices
+  const linkedRoomsMatch = await db('rooms')
+    .select('room_type_id', 'room_number')
+    .where('hotel_id', hotelId)
+    .whereIn('room_type_id', Array.from(roomTypesToFetch))
+    .orderBy('room_number', 'asc');
+
+  // Map room_type_id -> string[] (physical room numbers in order)
+  const roomNumbersByType = new Map<string, string[]>();
+  for (const room of linkedRoomsMatch) {
+    if (!room.room_type_id || !room.room_number) continue;
+    
+    if (!roomNumbersByType.has(room.room_type_id)) {
+      roomNumbersByType.set(room.room_type_id, []);
+    }
+    roomNumbersByType.get(room.room_type_id)!.push(room.room_number);
+  }
+
+  // Resolve each reservation
+  for (const res of reservations) {
+    if (!res.room_type_id || !res.assigned_unit_id) continue;
+    
+    const match = res.assigned_unit_id.match(/-(?:unit|-)(\d+)$/i);
+    if (!match) continue;
+    
+    const unitIndex = parseInt(match[1] as string, 10);
+    if (isNaN(unitIndex)) continue;
+
+    const linkedRooms = roomNumbersByType.get(res.room_type_id);
+    if (linkedRooms && linkedRooms.length > unitIndex) {
+      resolved.set(res.id, linkedRooms[unitIndex] as string);
+    }
+  }
+
+  return resolved;
+}
+
 // Get all reservations
 export async function getReservationsHandler(
   req: Request,
@@ -177,6 +235,13 @@ export async function getReservationsHandler(
 
     const reservations = await query;
 
+    // Resolve room numbers for unit-assigned reservations
+    const resolvedRoomNumbers = await resolveUnitRoomNumbers(hotelId, reservations.map(r => ({
+      id: r.id,
+      room_type_id: r.room_type_id,
+      assigned_unit_id: r.assigned_unit_id,
+    })));
+
     // Get secondary guests for reservations that have them
     const reservationIds = reservations.map((r) => r.id);
     const secondaryGuests = await db('reservation_guests')
@@ -192,7 +257,7 @@ export async function getReservationsHandler(
         id: res.id,
         room_id: res.room_id,
         room_type_id: res.room_type_id,
-        room_number: res.room_number || res.room_type_name,
+        room_number: res.room_number || resolvedRoomNumbers.get(res.id) || res.room_type_name,
         room_type_name: res.room_type_name,
         assigned_unit_id: res.assigned_unit_id || null,
         units_requested: res.units_requested || 1,
@@ -258,6 +323,13 @@ export async function getReservationHandler(
       return;
     }
 
+    // Resolve room number for unit-assigned reservation
+    const resolvedRoomNumbers = await resolveUnitRoomNumbers(hotelId, [{
+      id: reservation.id,
+      room_type_id: reservation.room_type_id,
+      assigned_unit_id: reservation.assigned_unit_id,
+    }]);
+
     // Get secondary guest if exists
     const secondaryGuest = await db('reservation_guests')
       .select('reservation_guests.guest_id', 'guests.name', 'guests.email', 'guests.phone')
@@ -270,7 +342,7 @@ export async function getReservationHandler(
       id: reservation.id,
       room_id: reservation.room_id,
       room_type_id: reservation.room_type_id,
-      room_number: reservation.room_number || reservation.room_type_name || null,
+      room_number: reservation.room_number || resolvedRoomNumbers.get(reservation.id) || reservation.room_type_name || null,
       room_type_name: reservation.room_type_name,
       assigned_unit_id: reservation.assigned_unit_id || null,
       units_requested: reservation.units_requested || 1,
@@ -512,6 +584,13 @@ export async function createReservationHandler(
       .where('reservations.id', reservation.id)
       .first();
 
+    // Resolve room number for unit-assigned reservation
+    const resolvedRoomNumbers = await resolveUnitRoomNumbers(hotelId, [{
+      id: fullReservation.id,
+      room_type_id: fullReservation.room_type_id,
+      assigned_unit_id: fullReservation.assigned_unit_id,
+    }]);
+
     // Get secondary guest if exists
     const secondaryGuest = await db('reservation_guests')
       .select('reservation_guests.guest_id', 'guests.name', 'guests.email', 'guests.phone')
@@ -524,7 +603,7 @@ export async function createReservationHandler(
       id: fullReservation.id,
       room_id: fullReservation.room_id,
       room_type_id: fullReservation.room_type_id,
-      room_number: fullReservation.room_number || fullReservation.room_type_name || null,
+      room_number: fullReservation.room_number || resolvedRoomNumbers.get(fullReservation.id) || fullReservation.room_type_name || null,
       room_type_name: fullReservation.room_type_name,
       assigned_unit_id: fullReservation.assigned_unit_id || null,
       units_requested: fullReservation.units_requested || 1,
@@ -862,6 +941,13 @@ export async function updateReservationHandler(
       .where('reservations.id', id)
       .first();
 
+    // Resolve room number for unit-assigned reservation
+    const resolvedRoomNumbers = await resolveUnitRoomNumbers(updated.hotel_id, [{
+      id: updated.id,
+      room_type_id: updated.room_type_id,
+      assigned_unit_id: updated.assigned_unit_id,
+    }]);
+
     // Get secondary guest
     const secondaryGuest = await db('reservation_guests')
       .select('reservation_guests.guest_id', 'guests.name', 'guests.email', 'guests.phone')
@@ -874,7 +960,7 @@ export async function updateReservationHandler(
       id: updated.id,
       room_id: updated.room_id,
       room_type_id: updated.room_type_id,
-      room_number: updated.room_number || updated.room_type_name,
+      room_number: updated.room_number || resolvedRoomNumbers.get(updated.id) || updated.room_type_name,
       room_type_name: updated.room_type_name,
       assigned_unit_id: updated.assigned_unit_id || null,
       units_requested: updated.units_requested || 1,

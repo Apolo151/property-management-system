@@ -23,6 +23,11 @@ const RoomsPage = () => {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
   const toast = useToast()
 
+  const formatRoomType = (rt) => {
+    if (!rt) return '';
+    return rt.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  }
+
   // Fetch room types, rooms, housekeeping, check-ins, and staff on mount
   useEffect(() => {
     fetchRoomTypes()
@@ -112,13 +117,10 @@ const RoomsPage = () => {
     const typesMap = new Map()
     roomTypes.forEach(rt => {
       if (rt.roomType && !typesMap.has(rt.roomType.toLowerCase())) {
-        typesMap.set(rt.roomType.toLowerCase(), rt.name)
+        typesMap.set(rt.roomType.toLowerCase(), { value: rt.roomType, label: rt.name })
       }
     })
-    return Array.from(typesMap.entries()).map(([value, name]) => ({
-      value,
-      label: name
-    }))
+    return Array.from(typesMap.values())
   }, [roomTypes])
 
   // Get unique floors for filter
@@ -287,7 +289,7 @@ const RoomsPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-gray-100">{room.type}</div>
+                    <div className="text-sm text-gray-900 dark:text-gray-100 capitalize">{formatRoomType(room.roomType)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-gray-100">{room.roomTypeName}</div>
@@ -407,7 +409,7 @@ const RoomsPage = () => {
                           {room.roomNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 capitalize">
-                          {room.type}
+                          {formatRoomType(room.roomType)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge
