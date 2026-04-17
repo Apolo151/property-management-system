@@ -73,11 +73,11 @@ const RoomsPage = () => {
   const enrichedRooms = useMemo(() => {
     return rooms.map((room) => {
       const normalizedRoomType = normalizeRootRoomType(room.roomType)
-      // Prefer ID linkage, then fallback to normalized root type.
-      const matchingRoomType = roomTypes.find((rt) => {
-        if (room.roomTypeId && rt.id === room.roomTypeId) return true
-        return rt.roomType === normalizedRoomType
-      })
+
+      // Prefer strict ID linkage. Only fallback to root type if roomTypeId is missing.
+      const matchingRoomType = room.roomTypeId
+        ? roomTypes.find((rt) => rt.id === room.roomTypeId)
+        : roomTypes.find((rt) => rt.roomType === normalizedRoomType)
       
       // Find active check-in for this room
       const checkIn = getCheckInByRoom(room.id)
@@ -99,27 +99,57 @@ const RoomsPage = () => {
   const [housekeepingFilter, setHousekeepingFilter] = useState('')
   const [floorFilter, setFloorFilter] = useState('')
 
+  const roomTypeById = useMemo(() => {
+    return new Map(roomTypes.map((roomType) => [roomType.id, roomType]))
+  }, [roomTypes])
+
+  const roomTypeCountByRoot = useMemo(() => {
+    const counts = new Map()
+    roomTypes.forEach((roomType) => {
+      const key = roomType.roomType
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return counts
+  }, [roomTypes])
+
   const filteredRooms = useMemo(() => {
+    const selectedRoomType = typeFilter ? roomTypeById.get(typeFilter) : null
+
     return enrichedRooms.filter((room) => {
       const matchesSearch = room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.roomTypeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            room.type.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesType = !typeFilter || room.rootRoomType === normalizeRootRoomType(typeFilter)
+
+      const matchesType = (() => {
+        if (!typeFilter) return true
+
+        // Primary path: rooms created from room types carry roomTypeId.
+        if (room.roomTypeId) {
+          return room.roomTypeId === typeFilter
+        }
+
+        // Legacy fallback: only allow root-type fallback when that root maps to a
+        // single room type entity, otherwise matching is ambiguous.
+        if (!selectedRoomType) return false
+        if ((roomTypeCountByRoot.get(selectedRoomType.roomType) || 0) > 1) return false
+
+        return normalizeRootRoomType(room.roomType) === selectedRoomType.roomType
+      })()
+
       const matchesStatus = !statusFilter || room.status === statusFilter
       const matchesFloor = !floorFilter || room.floor?.toString() === floorFilter
       return matchesSearch && matchesType && matchesStatus && matchesFloor
     })
-  }, [searchTerm, typeFilter, statusFilter, floorFilter, enrichedRooms])
+  }, [searchTerm, typeFilter, statusFilter, floorFilter, enrichedRooms, roomTypeById, roomTypeCountByRoot])
 
-  // Get unique room types for filter
+  // Build filter options by room type entity (id), not by root type.
   const roomTypeOptions = useMemo(() => {
-    const typesMap = new Map()
-    roomTypes.forEach(rt => {
-      if (rt.roomType && !typesMap.has(rt.roomType)) {
-        typesMap.set(rt.roomType, { value: rt.roomType, label: `${rt.name} (${formatRootRoomType(rt.roomType)})` })
-      }
-    })
-    return Array.from(typesMap.values())
+    return roomTypes
+      .map((roomType) => ({
+        value: roomType.id,
+        label: `${roomType.name} (${formatRootRoomType(roomType.roomType)})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [roomTypes])
 
   // Get unique floors for filter
