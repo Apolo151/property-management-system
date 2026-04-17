@@ -37,11 +37,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - PORT=8000
       - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_NAME=hotel_pms_prod
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - JWT_SECRET=${JWT_SECRET:-change_me_for_production}
@@ -53,6 +53,7 @@ services:
       - QLO_API_KEY=${QLO_API_KEY:-}
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-USD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://${PUBLIC_APP_DOMAIN:-localhost}}
     depends_on:
       - postgres
 
@@ -69,10 +70,10 @@ services:
       dockerfile: Dockerfile
     command: ["node", "dist/src/workers/qloapps_inbound_worker.js"]
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_NAME=hotel_pms_prod
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
@@ -83,10 +84,10 @@ services:
       dockerfile: Dockerfile
     command: ["node", "dist/src/workers/qloapps_outbound_worker.js"]
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_NAME=hotel_pms_prod
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
@@ -97,10 +98,10 @@ services:
       dockerfile: Dockerfile
     command: ["node", "dist/src/workers/qloapps_sync_scheduler.js"]
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
+      - DB_NAME=hotel_pms_prod
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}

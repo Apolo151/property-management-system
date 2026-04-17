@@ -1,7 +1,17 @@
 import type { Knex } from 'knex';
 import dotenv from 'dotenv';
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const isCompiled = __filename.endsWith('.js');
+const ext = isCompiled ? 'js' : 'ts';
+const migrationDir = isCompiled ? path.join(__dirname, 'src/database/migrations') : './src/database/migrations';
+const seedDir = isCompiled ? path.join(__dirname, 'src/database/seeds') : './src/database/seeds';
 
 const config: { [key: string]: Knex.Config } = {
   development: {
@@ -19,13 +29,15 @@ const config: { [key: string]: Knex.Config } = {
       max: 10,
     },
     migrations: {
-      directory: './src/database/migrations',
+      directory: migrationDir,
       tableName: 'knex_migrations',
-      extension: 'ts',
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
     seeds: {
-      directory: './src/database/seeds',
-      extension: 'ts',
+      directory: seedDir,
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
   },
 
@@ -43,13 +55,15 @@ const config: { [key: string]: Knex.Config } = {
       max: 10,
     },
     migrations: {
-      directory: './src/database/migrations',
+      directory: migrationDir,
       tableName: 'knex_migrations',
-      extension: 'ts',
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
     seeds: {
-      directory: './src/database/seeds',
-      extension: 'ts',
+      directory: seedDir,
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
   },
 
@@ -70,13 +84,15 @@ const config: { [key: string]: Knex.Config } = {
       idleTimeoutMillis: 600000,
     },
     migrations: {
-      directory: './src/database/migrations',
+      directory: migrationDir,
       tableName: 'knex_migrations',
-      extension: 'ts',
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
     seeds: {
-      directory: './src/database/seeds',
-      extension: 'ts',
+      directory: seedDir,
+      extension: ext,
+      loadExtensions: [`.${ext}`],
     },
   },
 };

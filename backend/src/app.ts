@@ -3,16 +3,25 @@ import express from "express";
 import { apiV1Router } from "./routes.js";
 
 function corsAllowOrigin(req: express.Request): string | undefined {
-  if (process.env.NODE_ENV !== "production") {
-    return "*";
-  }
-  const single = process.env.CORS_ORIGIN?.trim();
-  if (single) return single;
-  const list = process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean);
-  if (!list?.length) return undefined;
   const origin = req.headers.origin as string | undefined;
-  if (origin && list.includes(origin)) return origin;
-  return list[0];
+
+  if (process.env.NODE_ENV !== "production") {
+    return origin || "*";
+  }
+
+  const single = process.env.CORS_ORIGIN?.trim();
+  const list = process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) || [];
+
+  if (single) list.push(single);
+
+  // If origin is not provided, it might be a same-origin request or non-browser request
+  if (!origin) return list[0];
+
+  // If the origin matches any in our list (handling protocol mismatches gracefully if needed)
+  if (list.includes(origin)) return origin;
+
+  // Fallback to first in list if available
+  return list.length > 0 ? list[0] : undefined;
 }
 
 export function buildApp() {
