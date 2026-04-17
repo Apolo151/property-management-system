@@ -306,13 +306,13 @@ export async function seed(knex: Knex): Promise<void> {
 
   // ── 10. Expenses ──────────────────────────────────────────────────────────
   const EXPENSES = [
-    { description: 'Laundry supplies', amount: 150.00, category: 'Supplies', expense_date: fmt(addDays(today, -10)) },
-    { description: 'Plumbing repair',  amount: 350.00, category: 'Maintenance', expense_date: fmt(addDays(today, -5)) },
-    { description: 'Staff overtime',   amount: 200.00, category: 'Labor', expense_date: fmt(addDays(today, -3)) },
+    { notes: 'Laundry supplies', amount: 150.00, category: 'Supplies', expense_date: fmt(addDays(today, -10)) },
+    { notes: 'Plumbing repair',  amount: 350.00, category: 'Maintenance', expense_date: fmt(addDays(today, -5)) },
+    { notes: 'Staff overtime',   amount: 200.00, category: 'Staff', expense_date: fmt(addDays(today, -3)) },
   ];
   for (const exp of EXPENSES) {
     const existing = await knex('expenses')
-      .where({ hotel_id: hotelId, description: exp.description })
+      .where({ hotel_id: hotelId, notes: exp.notes })
       .first();
     if (!existing) {
       await knex('expenses').insert({ ...exp, hotel_id: hotelId, created_at: knex.fn.now(), updated_at: knex.fn.now() });
@@ -334,7 +334,6 @@ export async function seed(knex: Knex): Promise<void> {
       await knex('maintenance_requests').insert({
         ...mr,
         hotel_id: hotelId,
-        reported_at: knex.fn.now(),
         created_at: knex.fn.now(),
         updated_at: knex.fn.now(),
       });
