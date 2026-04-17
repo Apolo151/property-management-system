@@ -26,32 +26,22 @@ vi.mock('../../store/storeRegistry.js', () => ({
 }));
 
 import { api } from '../../utils/api.js';
+import useAuthStore from '../../store/authStore.js';
 
-// Import the store AFTER mocks are set up
-// We need to isolate the module between tests to reset Zustand state
-let useAuthStore;
-
-beforeEach(async () => {
-  // Reset module registry to get fresh store state
-  vi.resetModules();
-
-  // Re-apply mocks after reset
-  vi.mock('../../utils/api.js', () => ({
-    api: {
-      auth: {
-        login: vi.fn(),
-        register: vi.fn(),
-        refreshToken: vi.fn(),
-        me: vi.fn(),
-      },
-    },
-  }));
-  vi.mock('../../store/storeRegistry.js', () => ({
-    resetAllDomainStores: vi.fn(),
-  }));
-
-  const module = await import('../../store/authStore.js');
-  useAuthStore = module.default;
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+  useAuthStore.setState({
+    user: null,
+    token: null,
+    refreshToken: null,
+    isAuthenticated: false,
+    initialized: false,
+    isLoading: false,
+    error: null,
+    hotels: [],
+    activeHotelId: null,
+  });
 });
 
 afterEach(() => {
@@ -63,8 +53,7 @@ afterEach(() => {
 
 describe('authStore – login (UC-001)', () => {
   it('sets isAuthenticated and token on successful login', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
-    mockApi.auth.login.mockResolvedValueOnce({
+    api.auth.login.mockResolvedValueOnce({
       token: 'mock-jwt-token',
       refreshToken: 'mock-refresh-token',
       user: { id: 'u1', email: 'admin@hotel.com', role: 'SUPER_ADMIN' },
@@ -83,8 +72,7 @@ describe('authStore – login (UC-001)', () => {
   });
 
   it('sets error and keeps isAuthenticated false on login failure', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
-    mockApi.auth.login.mockRejectedValueOnce(new Error('Invalid credentials'));
+    api.auth.login.mockRejectedValueOnce(new Error('Invalid credentials'));
 
     const result = await useAuthStore.getState().login('admin@hotel.com', 'wrong');
 
@@ -97,8 +85,7 @@ describe('authStore – login (UC-001)', () => {
   });
 
   it('stores token and user in localStorage on success', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
-    mockApi.auth.login.mockResolvedValueOnce({
+    api.auth.login.mockResolvedValueOnce({
       token: 'jwt-abc',
       refreshToken: 'refresh-xyz',
       user: { id: 'u1', email: 'test@test.com', role: 'MANAGER' },
@@ -113,9 +100,8 @@ describe('authStore – login (UC-001)', () => {
   });
 
   it('sets isLoading true during login, false after', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
     let resolveLogin;
-    mockApi.auth.login.mockReturnValueOnce(
+    api.auth.login.mockReturnValueOnce(
       new Promise((res) => { resolveLogin = res; })
     );
 
@@ -162,8 +148,7 @@ describe('authStore – logout (UC-002)', () => {
 
 describe('authStore – refreshAccessToken (UC-003)', () => {
   it('updates token in state and localStorage on successful refresh', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
-    mockApi.auth.refreshToken.mockResolvedValueOnce({
+    api.auth.refreshToken.mockResolvedValueOnce({
       token: 'new-token',
       refreshToken: 'new-refresh',
     });
@@ -185,8 +170,7 @@ describe('authStore – refreshAccessToken (UC-003)', () => {
   });
 
   it('calls logout on refresh failure', async () => {
-    const { api: mockApi } = await import('../../utils/api.js');
-    mockApi.auth.refreshToken.mockRejectedValueOnce(new Error('Token expired'));
+    api.auth.refreshToken.mockRejectedValueOnce(new Error('Token expired'));
 
     useAuthStore.setState({ refreshToken: 'bad-refresh', isAuthenticated: true });
     const result = await useAuthStore.getState().refreshAccessToken();

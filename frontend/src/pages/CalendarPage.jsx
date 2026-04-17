@@ -10,6 +10,7 @@ import useGuestsStore from '../store/guestsStore'
 import useAuthStore from '../store/authStore'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
+import { formatRootRoomType, normalizeRootRoomType } from '../utils/roomType'
 
 const reservationBlocksAvailability = (status) =>
   status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
@@ -34,7 +35,7 @@ const CalendarPage = () => {
     isModalOpenRef.current = isModalOpen
   }, [isModalOpen])
   
-  // Booking flow state (cm-style) - 2 steps only
+  // Booking flow state - 2 steps only
   const [bookingStep, setBookingStep] = useState(1) // 1: Dates + Room Type + Room, 2: Guest
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
@@ -639,7 +640,7 @@ const CalendarPage = () => {
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{roomType.room_type_name}</h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">{roomType.room_type}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{formatRootRoomType(roomType.room_type)}</p>
                             </div>
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                               roomType.available_units >= unitsRequested
@@ -841,7 +842,13 @@ const CalendarPage = () => {
                 onGuestNameChange={setGuestName}
               />
 
-              {(selectedRoom?.type === 'Double' || selectedRoomType?.room_type?.toLowerCase() === 'double') && (
+              {(
+                selectedRoom?.type === 'Double' ||
+                normalizeRootRoomType(selectedRoom?.roomType) === 'double' ||
+                normalizeRootRoomType(selectedRoom?.roomType) === 'kingbed' ||
+                normalizeRootRoomType(selectedRoomType?.room_type) === 'double' ||
+                normalizeRootRoomType(selectedRoomType?.room_type) === 'kingbed'
+              ) && (
                 <GuestSelect
                   value={newReservation.guest2Id}
                   onChange={(guest2Id) => {
