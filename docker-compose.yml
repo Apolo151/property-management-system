@@ -28,9 +28,6 @@ services:
       rabbitmq:
         condition: service_healthy
         required: false
-      seed:
-        condition: service_completed_successfully
-        required: false
     restart: unless-stopped
     networks:
       - hotel-network
@@ -184,41 +181,6 @@ services:
     networks:
       - hotel-network
 
-  migrate:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    command: npm run db:migrate
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - DB_HOST=${DB_HOST:-postgres}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - hotel-network
-
-  seed:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    command: npm run db:seed
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - DB_HOST=${DB_HOST:-postgres}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    networks:
-      - hotel-network
 
 volumes:
   postgres_data:
