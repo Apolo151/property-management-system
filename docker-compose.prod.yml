@@ -23,12 +23,11 @@ services:
       CADDY_EMAIL: ${CADDY_EMAIL:-internal@localhost}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - frontend_build:/frontend:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - api
-      - frontend-builder
+      - frontend
     restart: unless-stopped
     networks:
       - hotel-network
@@ -55,25 +54,14 @@ services:
       - QLOAPPS_DEFAULT_CURRENCY=${QLOAPPS_DEFAULT_CURRENCY:-USD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
     depends_on:
-      seed:
-        condition: service_completed_successfully
+      - postgres
 
-  # Override base frontend service — not used in production
   frontend:
-    profiles:
-      - disabled
-
-  frontend-builder:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.builder
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_PROD_API_URL:-https://localhost/api}
-    volumes:
-      - frontend_build:/app/dist
-    restart: "no"
-    networks:
-      - hotel-network
 
   worker-inbound:
     build:
@@ -119,32 +107,8 @@ services:
       - SYNC_INTERVAL_MS=${SYNC_INTERVAL_MS:-60000}
       - SYNC_ENABLED=${SYNC_ENABLED:-true}
 
-  # Production overrides for migrate and seed (use dev Dockerfile to access devDependencies like tsx)
-  migrate:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - DB_HOST=${DB_HOST:-postgres}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
 
-  seed:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - DB_HOST=${DB_HOST:-postgres}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-hotel_pms_dev}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
 
 volumes:
   caddy_data:
   caddy_config:
-  frontend_build:

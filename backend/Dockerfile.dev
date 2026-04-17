@@ -11,6 +11,9 @@ COPY . .
 
 EXPOSE 8000
 
-# Default command (can be overridden in docker-compose)
-# For Docker Compose setups, run database migrations once before starting the dev server.
-CMD ["sh", "-c", "npm run db:migrate && npm run db:seed && npm run dev"]
+# Use the custom entrypoint to handle DB initialization
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["npm", "run", "dev"]

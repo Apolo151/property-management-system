@@ -39,12 +39,3 @@ services:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
 
-  migrate:
-    volumes:
-      - ./backend:/app
-      - backend_node_modules:/app/node_modules
-
-  seed:
-    volumes:
-      - ./backend:/app
-      - backend_node_modules:/app/node_modules

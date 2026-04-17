@@ -14,13 +14,8 @@
 		reverse_proxy api:8000
 	}
 
-	# Share one root for both existence checks (try_files) and static serving.
-	root * /frontend
-
-	# Static SPA with React Router fallback (SPA routing)
-	# Try to serve the requested file/directory first, then fall back to index.html
+	# Static SPA application running in the frontend container
 	handle {
-		try_files {path} {path}/ /index.html
-		file_server
+		reverse_proxy frontend:80
 	}
 }
