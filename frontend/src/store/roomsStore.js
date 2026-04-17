@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../utils/api.js';
+import { normalizeRootRoomType } from '../utils/roomType.js';
 import { registerDomainReset } from './storeRegistry.js';
 
 const useRoomsStore = create((set, get, storeApi) => ({
@@ -20,7 +21,8 @@ const useRoomsStore = create((set, get, storeApi) => ({
         id: room.id,
         roomNumber: room.room_number,
         type: room.type,
-        roomType: room.room_type,
+        roomType: normalizeRootRoomType(room.room_type),
+        roomTypeId: room.room_type_id || null,
         status: room.status,
         pricePerNight: parseFloat(room.price_per_night),
         floor: room.floor,
@@ -45,7 +47,7 @@ const useRoomsStore = create((set, get, storeApi) => ({
       const backendData = {
         room_number: roomData.roomNumber,
         type: roomData.type,
-        room_type: roomData.roomType, // Required CM room type
+        room_type: roomData.roomType, // Required system root room type
         status: roomData.status || 'Available',
         price_per_night: roomData.pricePerNight,
         floor: roomData.floor,
@@ -62,6 +64,8 @@ const useRoomsStore = create((set, get, storeApi) => ({
         id: room.id,
         roomNumber: room.room_number,
         type: room.type,
+        roomType: normalizeRootRoomType(room.room_type),
+        roomTypeId: room.room_type_id || null,
         status: room.status,
         pricePerNight: parseFloat(room.price_per_night),
         floor: room.floor,
@@ -108,7 +112,8 @@ const useRoomsStore = create((set, get, storeApi) => ({
         id: room.id,
         roomNumber: room.room_number,
         type: room.type,
-        roomType: room.room_type,
+        roomType: normalizeRootRoomType(room.room_type),
+        roomTypeId: room.room_type_id || null,
         status: room.status,
         pricePerNight: parseFloat(room.price_per_night),
         floor: room.floor,

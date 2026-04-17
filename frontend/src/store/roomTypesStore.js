@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../utils/api.js';
+import { normalizeRootRoomType } from '../utils/roomType.js';
 import { registerDomainReset } from './storeRegistry.js';
 
 const useRoomTypesStore = create((set, get, storeApi) => ({
@@ -9,11 +10,12 @@ const useRoomTypesStore = create((set, get, storeApi) => ({
 
   reset: () => set(storeApi.getInitialState(), true),
 
-  // Helper function to transform backend format (snake_case) to frontend format (camelCase)
+  // roomType maps to the system root type enum (room_types.room_type).
+  // cmRoomId is integration metadata and should not drive UI filtering.
   transformRoomType: (rt) => ({
     id: rt.id,
     name: rt.name,
-    roomType: rt.room_type, // snake_case -> camelCase
+    roomType: normalizeRootRoomType(rt.room_type),
     qty: rt.qty,
     pricePerNight: parseFloat(rt.price_per_night || 0),
     minPrice: rt.min_price,
@@ -45,6 +47,15 @@ const useRoomTypesStore = create((set, get, storeApi) => ({
     createdAt: rt.created_at,
     updatedAt: rt.updated_at,
   }),
+
+  getRoomTypeByIdOrRootType: (roomTypeId, roomTypeValue) => {
+    const normalizedType = normalizeRootRoomType(roomTypeValue);
+
+    return get().roomTypes.find((rt) => {
+      if (roomTypeId && rt.id === roomTypeId) return true;
+      return normalizedType && rt.roomType === normalizedType;
+    }) || null;
+  },
 
   // Fetch all room types
   fetchRoomTypes: async (filters = {}) => {

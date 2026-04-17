@@ -16,29 +16,30 @@ import usePermissions from '../hooks/usePermissions'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 import { api } from '../utils/api'
+import { formatRootRoomType, normalizeRootRoomType } from '../utils/roomType'
 
 const reservationBlocksAvailability = (status) =>
   status === 'Cancelled' || status === 'No-show' || status === 'Checked-out'
 
 const isDoubleOrKingBedSelection = (selectedRoom, selectedRoomType) => {
   const selectedRoomLegacyType = selectedRoom?.type?.toLowerCase()
-  const selectedRoomBeds24Type = selectedRoom?.roomType?.toLowerCase()
-  const selectedRoomTypeValue = selectedRoomType?.room_type?.toLowerCase()
+  const selectedRoomRootType = normalizeRootRoomType(selectedRoom?.roomType)
+  const selectedRoomTypeValue = normalizeRootRoomType(selectedRoomType?.room_type)
 
   return (
     selectedRoomLegacyType === 'double' ||
-    selectedRoomBeds24Type === 'double' ||
-    selectedRoomBeds24Type === 'kingbed' ||
+    selectedRoomRootType === 'double' ||
+    selectedRoomRootType === 'kingbed' ||
     selectedRoomTypeValue === 'double' ||
     selectedRoomTypeValue === 'kingbed'
   )
 }
 
 const getSelectionGuestPromptLabel = (selectedRoom, selectedRoomType) => {
-  const selectedRoomBeds24Type = selectedRoom?.roomType?.toLowerCase()
-  const selectedRoomTypeValue = selectedRoomType?.room_type?.toLowerCase()
+  const selectedRoomRootType = normalizeRootRoomType(selectedRoom?.roomType)
+  const selectedRoomTypeValue = normalizeRootRoomType(selectedRoomType?.room_type)
 
-  if (selectedRoomBeds24Type === 'kingbed' || selectedRoomTypeValue === 'kingbed') {
+  if (selectedRoomRootType === 'kingbed' || selectedRoomTypeValue === 'kingbed') {
     return 'King Bed'
   }
 
@@ -49,7 +50,7 @@ const ReservationsPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId)
   const { canCreate, canEdit, canDelete, canViewFinancials } = usePermissions()
   const { rooms, fetchRooms } = useRoomsStore()
-  const { getAvailableRoomTypes } = useRoomTypesStore()
+  const { roomTypes, fetchRoomTypes, getAvailableRoomTypes } = useRoomTypesStore()
   const { guests, fetchGuests, createGuest } = useGuestsStore()
   const { invoices, fetchInvoices, createInvoice } = useInvoicesStore()
   const toast = useToast()
@@ -119,8 +120,9 @@ const ReservationsPage = () => {
     fetchReservations()
     fetchGuests()
     fetchRooms()
+    fetchRoomTypes()
     fetchInvoices()
-  }, [activeHotelId, fetchReservations, fetchGuests, fetchRooms, fetchInvoices])
+  }, [activeHotelId, fetchReservations, fetchGuests, fetchRooms, fetchRoomTypes, fetchInvoices])
 
   // Check availability when dates change - runs immediately when dates are valid
   useEffect(() => {
@@ -195,15 +197,16 @@ const ReservationsPage = () => {
 
     const fetchRoomsForType = async () => {
       try {
+        const selectedRootType = normalizeRootRoomType(selectedRoomType?.room_type)
+        const roomTypeId = selectedRoomType.room_type_id || selectedRoomType.id
+
         const roomsForType = rooms.filter((room) => {
-          const roomTypeMatch = room.roomType === selectedRoomType.room_type_id || 
-                               room.roomType === selectedRoomType.room_type ||
-                               room.roomType?.toLowerCase() === selectedRoomType.room_type?.toLowerCase()
-          const legacyTypeMatch = room.type?.toLowerCase() === selectedRoomType.room_type?.toLowerCase()
-          return roomTypeMatch || legacyTypeMatch
+          const roomTypeIdMatch = room.roomTypeId && roomTypeId && room.roomTypeId === roomTypeId
+          const roomTypeMatch = normalizeRootRoomType(room.roomType) === selectedRootType
+          const legacyTypeMatch = room.type?.toLowerCase() === selectedRootType
+          return roomTypeIdMatch || roomTypeMatch || legacyTypeMatch
         })
 
-        const roomTypeId = selectedRoomType.room_type_id || selectedRoomType.id
         if (!roomTypeId) {
           setAvailableRooms([])
           return
@@ -232,6 +235,18 @@ const ReservationsPage = () => {
     fetchRoomsForType()
   }, [selectedRoomType, checkIn, checkOut, rooms, unitsRequested])
 
+  const roomTypeById = useMemo(() => {
+    const byId = new Map()
+    roomTypes.forEach((roomType) => {
+      if (roomType.id) {
+        byId.set(roomType.id, normalizeRootRoomType(roomType.roomType))
+      }
+    })
+    return byId
+  }, [roomTypes])
+
+  const normalizedRoomTypeFilter = normalizeRootRoomType(roomTypeFilter)
+
   const filteredAndSortedReservations = useMemo(() => {
     let filtered = reservations.filter((res) => {
       const matchesSearch =
@@ -239,7 +254,8 @@ const ReservationsPage = () => {
         (res.roomNumber && res.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         String(res.id).toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = !statusFilter || res.status === statusFilter
-      const matchesRoomType = !roomTypeFilter || res.roomTypeId === roomTypeFilter || res.roomTypeName === roomTypeFilter
+      const reservationRootType = normalizeRootRoomType(res.rootRoomType || roomTypeById.get(res.roomTypeId) || '')
+      const matchesRoomType = !normalizedRoomTypeFilter || reservationRootType === normalizedRoomTypeFilter
       
       let matchesDates = true
       if (dateFrom) {
@@ -286,7 +302,7 @@ const ReservationsPage = () => {
     })
 
     return filtered
-  }, [searchTerm, statusFilter, roomTypeFilter, dateFrom, dateTo, quickFilter, sortBy, sortOrder, reservations])
+  }, [searchTerm, statusFilter, normalizedRoomTypeFilter, dateFrom, dateTo, quickFilter, sortBy, sortOrder, reservations, roomTypeById])
 
   // Check if an invoice already exists for a reservation
   const hasInvoice = (reservationId) => {
@@ -602,13 +618,17 @@ const ReservationsPage = () => {
 
   const roomTypeOptions = useMemo(() => {
     const typesMap = new Map()
-    reservations.forEach(r => {
-      if (r.roomTypeName && !typesMap.has(r.roomTypeName)) {
-        typesMap.set(r.roomTypeName, { value: r.roomTypeName, label: r.roomTypeName })
+    roomTypes.forEach((roomType) => {
+      const normalized = normalizeRootRoomType(roomType.roomType)
+      if (normalized && !typesMap.has(normalized)) {
+        typesMap.set(normalized, {
+          value: normalized,
+          label: `${roomType.name} (${formatRootRoomType(roomType.roomType)})`,
+        })
       }
     })
     return Array.from(typesMap.values())
-  }, [reservations])
+  }, [roomTypes])
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -1032,7 +1052,7 @@ const ReservationsPage = () => {
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{roomType.room_type_name}</h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">{roomType.room_type}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{formatRootRoomType(roomType.room_type)}</p>
                             </div>
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                               roomType.available_units >= unitsRequested
@@ -1201,7 +1221,7 @@ const ReservationsPage = () => {
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Unit:</span>
                       <span className="font-medium">
-                        {rooms.find(r => r.id === selectedRoomType?.room_type_id)?.units?.[selectedUnit]?.name || `#${selectedUnit + 1}`}
+                        {rooms.find((r) => r.roomTypeId === selectedRoomType?.room_type_id)?.units?.[selectedUnit]?.name || `#${selectedUnit + 1}`}
                       </span>
                     </div>
                   )}

@@ -8,6 +8,7 @@ import Modal from './Modal'
 import { useToast } from '../hooks/useToast'
 import { useConfirmation } from '../hooks/useConfirmation'
 import useAuthStore from '../store/authStore'
+import { formatRootRoomType } from '../utils/roomType'
 
 const BookingTimeline = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId)
@@ -266,7 +267,7 @@ const BookingTimeline = () => {
                     {room.roomTypeName} #{room.unitNumber}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {room.roomType} • {room.totalUnits} total
+                    {formatRootRoomType(room.roomType)} • {room.totalUnits} total
                   </div>
                 </div>
 
