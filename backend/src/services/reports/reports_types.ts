@@ -2,6 +2,7 @@ export interface ReportStatsResponse {
   reservations: {
     total: number;
     by_status: Record<string, number>;
+    cancellation_rate: number;
     today_check_ins: number;
     today_check_outs: number;
     upcoming_check_ins: number; // Next 7 days
@@ -26,6 +27,7 @@ export interface ReportStatsResponse {
   };
   financial: {
     total_revenue: number;
+    today_revenue: number;
     total_expenses: number;
     profit: number;
     profit_margin: number; // Percentage

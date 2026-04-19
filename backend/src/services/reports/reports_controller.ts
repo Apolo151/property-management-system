@@ -37,19 +37,15 @@ export async function getReportStatsHandler(
       reservationsByStatus[res.status] = (reservationsByStatus[res.status] || 0) + 1;
     });
 
-    const todaysCheckIns = await db('reservations')
-      .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in = ?', [todayStr as any])
-      .whereIn('status', ['Confirmed', 'Checked-in'])
-      .whereNull('deleted_at')
+    const todaysCheckIns = await db('check_ins')
+      .where('check_ins.hotel_id', hotelId)
+      .whereRaw('DATE(check_in_time) = ?', [todayStr as any])
       .count('* as count')
       .first();
 
-    const todaysCheckOuts = await db('reservations')
-      .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_out = ?', [todayStr as any])
-      .whereIn('status', ['Checked-in', 'Checked-out'])
-      .whereNull('deleted_at')
+    const todaysCheckOuts = await db('check_ins')
+      .where('check_ins.hotel_id', hotelId)
+      .whereRaw('DATE(actual_checkout_time) = ?', [todayStr as any])
       .count('* as count')
       .first();
 
@@ -104,6 +100,10 @@ export async function getReportStatsHandler(
       }
     });
 
+    const todayRevenue = allInvoices
+      .filter((inv) => inv.status === 'Paid' && String(inv.issue_date) === todayStr)
+      .reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
+
     const overdueInvoices = await db('invoices')
       .where('invoices.hotel_id', hotelId)
       .where('status', 'Pending')
@@ -144,13 +144,10 @@ export async function getReportStatsHandler(
       .sum('qty as total');
     const totalRoomsCount = totalRoomsResult?.[0]?.total ? parseInt(String(totalRoomsResult[0].total), 10) : 0;
 
-    // Count occupied rooms from checked-in reservations
-    const occupiedRooms = await db('reservations')
-      .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in <= ?', [todayStr as any])
-      .whereRaw('check_out > ?', [todayStr as any])
-      .whereIn('status', ['Checked-in'])
-      .whereNull('deleted_at')
+    // Count occupied rooms from active check-ins
+    const occupiedRooms = await db('check_ins')
+      .where('check_ins.hotel_id', hotelId)
+      .where('status', 'checked_in')
       .count('* as count')
       .first();
 
@@ -158,26 +155,61 @@ export async function getReportStatsHandler(
     const currentOccupancyRate = totalRoomsCount > 0 ? (occupiedRoomsCount / totalRoomsCount) * 100 : 0;
 
     // Average occupancy for last 30 days
-    const last30Days = new Date();
-    last30Days.setDate(last30Days.getDate() - 30);
-    const last30DaysStr = last30Days.toISOString().split('T')[0];
+    const occupancyDays = 30;
+    const periodStart = new Date(today);
+    periodStart.setDate(periodStart.getDate() - (occupancyDays - 1));
+    const periodStartStr = periodStart.toISOString().split('T')[0]!;
 
-    const reservationsLast30Days = await db('reservations')
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0]!;
+
+    const reservationsForOccupancy = await db('reservations')
       .where('reservations.hotel_id', hotelId)
-      .whereRaw('check_in >= ?', [last30DaysStr as any])
-      .whereRaw('check_in <= ?', [todayStr as any])
-      .whereIn('status', ['Checked-in', 'Checked-out'])
-      .whereNull('deleted_at');
+      .whereRaw('check_in < ?', [tomorrowStr])
+      .whereRaw('check_out > ?', [periodStartStr])
+      .whereNotIn('status', ['Cancelled', 'No-show'])
+      .whereNull('deleted_at')
+      .select('check_in', 'check_out', 'units_requested');
 
-    // Calculate average occupancy (simplified - count of check-ins / days)
+    const parseDateOnlyUtc = (value: string): Date => {
+      const parts = value.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const day = Number(parts[2]);
+      return new Date(Date.UTC(year, month - 1, day));
+    };
+
+    const windowStart = parseDateOnlyUtc(periodStartStr);
+    const windowEnd = parseDateOnlyUtc(tomorrowStr);
+
+    const occupiedRoomNights = reservationsForOccupancy.reduce((sum, reservation) => {
+      const checkInDate = parseDateOnlyUtc(String(reservation.check_in));
+      const checkOutDate = parseDateOnlyUtc(String(reservation.check_out));
+
+      const overlapStart = checkInDate > windowStart ? checkInDate : windowStart;
+      const overlapEnd = checkOutDate < windowEnd ? checkOutDate : windowEnd;
+      const nights = Math.max(0, (overlapEnd.getTime() - overlapStart.getTime()) / (24 * 60 * 60 * 1000));
+      const unitsRequested = Math.max(1, Number(reservation.units_requested) || 1);
+
+      return sum + nights * unitsRequested;
+    }, 0);
+
     const averageOccupancyRate = totalRoomsCount > 0
-      ? ((reservationsLast30Days.length / 30) / totalRoomsCount) * 100
+      ? (occupiedRoomNights / (occupancyDays * totalRoomsCount)) * 100
+      : 0;
+
+    const totalReservations = allReservations.length;
+    const cancelledReservations = reservationsByStatus.Cancelled || 0;
+    const cancellationRate = totalReservations > 0
+      ? (cancelledReservations / totalReservations) * 100
       : 0;
 
     const response: ReportStatsResponse = {
       reservations: {
         total: allReservations.length,
         by_status: reservationsByStatus,
+        cancellation_rate: cancellationRate,
         today_check_ins: todaysCheckIns?.count ? parseInt(String(todaysCheckIns.count), 10) : 0,
         today_check_outs: todaysCheckOuts?.count ? parseInt(String(todaysCheckOuts.count), 10) : 0,
         upcoming_check_ins: upcomingCheckIns?.count ? parseInt(String(upcomingCheckIns.count), 10) : 0,
@@ -202,6 +234,7 @@ export async function getReportStatsHandler(
       },
       financial: {
         total_revenue: totalRevenue,
+        today_revenue: todayRevenue,
         total_expenses: totalExpenses,
         profit: profit,
         profit_margin: profitMargin,

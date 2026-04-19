@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState, useCallback } from 'react'
 import StatCard from '../components/StatCard'
 import { api } from '../utils/api.js'
 import useAuthStore from '../store/authStore.js'
@@ -21,54 +21,61 @@ const DashboardPage = () => {
   const [statsLoading, setStatsLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setStatsLoading(true)
-        setError(null)
-        
-        // Fetch all dashboard data in parallel
-        const results = await Promise.allSettled([
-          api.roomTypes.getAll(),
-          fetchReservations(),
-          fetchInvoices(),
-          fetchExpenses(),
-          fetchCheckIns(),
-          api.reports.getStats()
-        ])
-        
-        // Check for errors
-        const errors = results.filter(r => r.status === 'rejected')
-        if (errors.length > 0) {
-          console.error('Some dashboard fetches failed:', errors)
-        }
-        
-        // Set room types if successful
-        if (results[0].status === 'fulfilled') {
-          setRoomTypes(results[0].value || [])
-        }
-        
-        // Set report stats if successful
-        if (results[5].status === 'fulfilled') {
-          setReportStats(results[5].value)
-        }
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err)
-        setError(err.message || 'Failed to load dashboard statistics')
-      } finally {
-        setStatsLoading(false)
-      }
-    }
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setStatsLoading(true)
+      setError(null)
 
+      // Fetch all dashboard data in parallel
+      const results = await Promise.allSettled([
+        api.roomTypes.getAll(),
+        fetchReservations(),
+        fetchInvoices(),
+        fetchExpenses(),
+        fetchCheckIns(),
+        api.reports.getStats(),
+      ])
+
+      // Check for errors
+      const errors = results.filter((r) => r.status === 'rejected')
+      if (errors.length > 0) {
+        console.error('Some dashboard fetches failed:', errors)
+      }
+
+      // Set room types if successful
+      if (results[0].status === 'fulfilled') {
+        setRoomTypes(results[0].value || [])
+      }
+
+      // Set report stats if successful
+      if (results[5].status === 'fulfilled') {
+        setReportStats(results[5].value)
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err)
+      setError(err.message || 'Failed to load dashboard statistics')
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [fetchReservations, fetchInvoices, fetchExpenses, fetchCheckIns])
+
+  useEffect(() => {
     fetchDashboardData()
-  }, [activeHotelId, fetchReservations, fetchInvoices, fetchExpenses, fetchCheckIns])
+
+    // Keep operational metrics fresh while dashboard is open.
+    const intervalId = setInterval(() => {
+      fetchDashboardData()
+    }, 60_000)
+
+    return () => clearInterval(intervalId)
+  }, [activeHotelId, fetchDashboardData])
 
   const loading = statsLoading || reservationsLoading || invoicesLoading || expensesLoading || checkInsLoading
 
   // Calculate stats from backend data and check-ins
   const stats = useMemo(() => {
     // Calculate total rooms from room types (sum of qty for each room type)
-    const totalRooms = roomTypes.reduce((sum, rt) => sum + (parseInt(rt.qty) || 1), 0)
+    const totalRooms = roomTypes.reduce((sum, rt) => sum + (parseInt(rt.qty, 10) || 0), 0)
     
     // Calculate occupied rooms from active check-ins
     const occupiedRooms = activeCheckIns.length
@@ -80,36 +87,40 @@ const DashboardPage = () => {
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split('T')[0]
     
-    const todaysCheckInsCount = checkIns.filter((ci) => {
+    const localTodaysCheckInsCount = checkIns.filter((ci) => {
       if (!ci.check_in_time) return false
       const checkInDate = ci.check_in_time.split('T')[0]
       return checkInDate === todayStr
     }).length
 
-    const todaysCheckOutsCount = checkIns.filter((ci) => {
+    const localTodaysCheckOutsCount = checkIns.filter((ci) => {
       if (!ci.actual_checkout_time) return false
       const checkOutDate = ci.actual_checkout_time.split('T')[0]
       return checkOutDate === todayStr
     }).length
 
     // Calculate today's revenue from invoices issued today
-    const todaysRevenue = invoices
+    const localTodaysRevenue = invoices
       .filter((inv) => {
         const issueDate = inv.issueDate ? inv.issueDate.split('T')[0] : null
         return issueDate === todayStr && inv.status === 'Paid'
       })
       .reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0)
 
+    const todaysCheckIns = Number(reportStats?.reservations?.today_check_ins)
+    const todaysCheckOuts = Number(reportStats?.reservations?.today_check_outs)
+    const todaysRevenue = Number(reportStats?.financial?.today_revenue)
+
     return {
       totalRooms,
       occupiedRooms,
       availableRooms,
       activeCheckIns: activeCheckIns.length,
-      todaysCheckIns: todaysCheckInsCount,
-      todaysCheckOuts: todaysCheckOutsCount,
-      todaysRevenue,
+      todaysCheckIns: Number.isFinite(todaysCheckIns) ? todaysCheckIns : localTodaysCheckInsCount,
+      todaysCheckOuts: Number.isFinite(todaysCheckOuts) ? todaysCheckOuts : localTodaysCheckOutsCount,
+      todaysRevenue: Number.isFinite(todaysRevenue) ? todaysRevenue : localTodaysRevenue,
     }
-  }, [roomTypes, invoices, checkIns, activeCheckIns])
+  }, [roomTypes, invoices, checkIns, activeCheckIns, reportStats])
 
   // Financial calculations from backend stats (always use backend data)
   const financialStats = useMemo(() => {
@@ -139,6 +150,8 @@ const DashboardPage = () => {
   // Cancellation rate from backend stats
   const cancellationRate = useMemo(() => {
     if (reportStats?.reservations) {
+      const backendRate = Number(reportStats.reservations.cancellation_rate)
+      if (Number.isFinite(backendRate)) return backendRate
       const total = reportStats.reservations.total || 0
       const cancelled = reportStats.reservations.by_status?.Cancelled || 0
       return total > 0 ? (cancelled / total) * 100 : 0
