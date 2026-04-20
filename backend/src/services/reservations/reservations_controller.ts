@@ -11,6 +11,7 @@ import {
 } from '../../integrations/qloapps/hooks/sync_hooks.js';
 import { RoomTypeAvailabilityService } from '../room_types/room_type_availability_service.js';
 import { logCreate, logUpdate, logDelete, logAction } from '../audit/audit_utils.js';
+import { checkInGuest, getEligibleRooms } from '../check_ins/check_ins_service.js';
 
 const availabilityService = new RoomTypeAvailabilityService();
 
@@ -177,6 +178,61 @@ async function resolveUnitRoomNumbers(
   }
 
   return resolved;
+}
+
+async function autoCreateCheckInFromLegacyStatus(
+  reservationId: string,
+  hotelId: string,
+  preferredRoomId: string | null,
+  userId?: string,
+): Promise<void> {
+  const reservation = await db('reservations')
+    .where({ id: reservationId, hotel_id: hotelId })
+    .whereNull('deleted_at')
+    .first();
+
+  if (!reservation) {
+    throw new Error('Reservation not found');
+  }
+
+  if (reservation.checkin_id) {
+    return;
+  }
+
+  // checkInGuest accepts only Confirmed reservations.
+  if (reservation.status !== 'Confirmed') {
+    await db('reservations').where({ id: reservationId }).update({
+      status: 'Confirmed',
+      updated_at: db.fn.now(),
+    });
+  }
+
+  let actualRoomId = preferredRoomId || reservation.room_id || null;
+  if (!actualRoomId) {
+    const eligibleRooms = await getEligibleRooms(reservationId, hotelId);
+    if (eligibleRooms.available_rooms.length === 0) {
+      throw new Error('No available rooms for this reservation');
+    }
+
+    const matchedRoom = eligibleRooms.reserved_room_id
+      ? eligibleRooms.available_rooms.find((room) => room.id === eligibleRooms.reserved_room_id)
+      : null;
+    actualRoomId = matchedRoom?.id || eligibleRooms.available_rooms[0]?.id || null;
+  }
+
+  if (!actualRoomId) {
+    throw new Error('No room could be assigned for check-in');
+  }
+
+  await checkInGuest(
+    {
+      reservation_id: reservationId,
+      actual_room_id: actualRoomId,
+      notes: 'Auto check-in from legacy reservation status',
+    },
+    hotelId,
+    userId,
+  );
 }
 
 // Get all reservations
@@ -380,6 +436,7 @@ export async function createReservationHandler(
 ) {
   try {
     const hotelId = (req as any).hotelId;
+    const userId = (req as any).user?.userId as string | undefined;
     const {
       room_id, // Legacy: individual room
       room_type_id, // New: room type
@@ -546,26 +603,27 @@ export async function createReservationHandler(
         });
       }
 
-      // ⚠️ LEGACY: Update room status if status is Checked-in (backward compatibility)
-      // DEPRECATION WARNING: This direct status update is maintained for backward compatibility
-      // with existing workflows. For new implementations, use the Check-ins API instead:
-      //   POST /api/v1/reservations/:id/check-in
-      // The Check-ins API provides:
-      // - Proper separation of booking intent vs actual stay
-      // - Room assignment audit trail
-      // - Support for room changes during stay
-      if (status === 'Checked-in' && roomId) {
-        console.warn(`[Reservation] Using legacy check-in flow for reservation ${newReservation.id}. Consider using Check-ins API instead.`);
-        await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
-        await trx('housekeeping')
-          .where({ room_id: roomId })
-          .update({ status: 'Dirty', updated_at: new Date() });
-      }
-      // Note: For room types, we don't update individual room status
-      // Room type availability is calculated dynamically
-
       return newReservation;
     });
+
+    if (status === 'Checked-in') {
+      console.warn(
+        `[Reservation] Legacy create with status=Checked-in for ${reservation.id}. Auto-creating check-in linkage.`,
+      );
+      try {
+        await autoCreateCheckInFromLegacyStatus(reservation.id, hotelId, roomId, userId);
+      } catch (legacyCheckInError: any) {
+        // Compensate to avoid leaving a partially successful API intent.
+        await db('reservations').where({ id: reservation.id }).update({
+          status: 'Cancelled',
+          deleted_at: new Date(),
+          updated_at: db.fn.now(),
+        });
+        throw new Error(
+          `Failed to complete legacy Checked-in reservation flow: ${legacyCheckInError.message || 'unknown error'}`,
+        );
+      }
+    }
 
     // Fetch full reservation with guest details
     const fullReservation = await db('reservations')
@@ -663,6 +721,7 @@ export async function updateReservationHandler(
   try {
     const { id } = req.params;
     const updates = req.body;
+    const userId = (req as any).user?.userId as string | undefined;
 
     // Check if reservation exists
     const existing = await db('reservations')
@@ -870,15 +929,7 @@ export async function updateReservationHandler(
       if (updates.status && roomId) {
         const room = await trx('rooms').where({ id: roomId }).first();
         if (room) {
-          if (updates.status === 'Checked-in') {
-            console.warn(
-              `[Reservation] DEPRECATED: PUT reservation status=Checked-in for ${id}. Use POST /api/v1/reservations/:id/check-in (Check-ins API) instead.`,
-            );
-            await trx('rooms').where({ id: roomId }).update({ status: 'Occupied' });
-            await trx('housekeeping')
-              .where({ room_id: roomId })
-              .update({ status: 'Dirty', updated_at: new Date() });
-          } else if (updates.status === 'Checked-out') {
+          if (updates.status === 'Checked-out') {
             console.warn(
               `[Reservation] DEPRECATED: PUT reservation status=Checked-out for ${id}. Use PATCH /api/v1/check-ins/:id/checkout instead.`,
             );
@@ -895,6 +946,24 @@ export async function updateReservationHandler(
         }
       }
     });
+
+    if (updates.status === 'Checked-in') {
+      console.warn(
+        `[Reservation] Legacy update with status=Checked-in for ${id}. Auto-creating check-in linkage.`,
+      );
+      try {
+        await autoCreateCheckInFromLegacyStatus(id, existing.hotel_id, roomId, userId);
+      } catch (legacyCheckInError: any) {
+        await db('reservations').where({ id }).update({
+          status: existing.status,
+          checkin_id: existing.checkin_id || null,
+          updated_at: db.fn.now(),
+        });
+        throw new Error(
+          `Failed to complete legacy Checked-in update flow: ${legacyCheckInError.message || 'unknown error'}`,
+        );
+      }
+    }
 
     if (updates.status === 'No-show' && existing.status === 'Confirmed') {
       logAction(req, 'RESERVATION_NO_SHOW', 'reservation', id, {

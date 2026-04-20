@@ -10,6 +10,7 @@ import useRoomsStore from '../store/roomsStore';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../hooks/useToast';
 import { useConfirmation } from '../hooks/useConfirmation';
+import { subscribeDashboardMetricsChanged } from '../utils/dashboardMetricsEvents';
 
 const CheckInsPage = () => {
   const activeHotelId = useAuthStore((s) => s.activeHotelId);
@@ -50,6 +51,22 @@ const CheckInsPage = () => {
     fetchCheckIns();
     fetchRooms();
   }, [activeHotelId, fetchCheckIns, fetchRooms]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeDashboardMetricsChanged(({ reason }) => {
+      if (
+        reason === 'checkin-created' ||
+        reason === 'checkin-created-direct' ||
+        reason === 'checkout-completed' ||
+        reason === 'checkin-room-changed' ||
+        reason === 'legacy-reservation-checkedin'
+      ) {
+        fetchCheckIns();
+      }
+    });
+
+    return unsubscribe;
+  }, [fetchCheckIns]);
 
   // Filter and sort check-ins
   const filteredAndSortedCheckIns = useMemo(() => {

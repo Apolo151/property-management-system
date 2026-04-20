@@ -38,7 +38,7 @@ import { getHotelTimezone, getLocalDateStringForTimezone } from '../../utils/hot
 export async function checkInGuest(
   request: CheckInRequest,
   hotelId: string,
-  checkedInBy: string,
+  checkedInBy?: string,
 ): Promise<CheckInResponse> {
   const checkInDetails = await db.transaction(async (trx: Knex.Transaction) => {
     // 1. Validate reservation exists and is eligible for check-in
@@ -120,7 +120,7 @@ export async function checkInGuest(
         actual_room_id: request.actual_room_id,
         check_in_time: checkInTime,
         expected_checkout_time: expectedCheckoutTime,
-        checked_in_by: checkedInBy,
+        checked_in_by: checkedInBy || null,
         notes: request.notes,
         status: 'checked_in',
       })
@@ -136,7 +136,7 @@ export async function checkInGuest(
         assignment_type: 'initial',
         change_reason: null,
         notes: request.notes,
-        assigned_by: checkedInBy,
+        assigned_by: checkedInBy || null,
       })
       .returning('*');
 
@@ -637,6 +637,7 @@ export async function listCheckIns(
     .leftJoin('rooms', 'check_ins.actual_room_id', 'rooms.id')
     .leftJoin('users', 'check_ins.checked_in_by', 'users.id')
     .leftJoin('reservations', 'check_ins.reservation_id', 'reservations.id')
+    .leftJoin('room_types', 'reservations.room_type_id', 'room_types.id')
     .leftJoin('guests as pg', 'reservations.primary_guest_id', 'pg.id');
 
   // Apply filters
@@ -681,6 +682,8 @@ export async function listCheckIns(
       'reservations.check_in as reservation_check_in',
       'reservations.check_out as reservation_check_out',
       'reservations.status as reservation_status',
+      'reservations.room_type_id as reservation_room_type_id',
+      'room_types.name as reservation_room_type_name',
       'pg.id as primary_guest_id',
       'pg.name as primary_guest_name',
       'pg.email as primary_guest_email',
@@ -715,6 +718,8 @@ export async function listCheckIns(
       check_in: ci.reservation_check_in,
       check_out: ci.reservation_check_out,
       status: ci.reservation_status,
+      room_type_id: ci.reservation_room_type_id,
+      room_type_name: ci.reservation_room_type_name,
     } as ReservationSummary,
   }));
 
