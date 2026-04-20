@@ -100,6 +100,36 @@ describe('UC-301 – Create Reservation', () => {
 
     expect(res.status).toBe(403);
   });
+
+  it('legacy status=Checked-in creates linked check-in visible in /check-ins', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/reservations')
+      .set(frontDesk.headers)
+      .send({
+        primary_guest_id: guestId,
+        room_type_id: roomTypeId,
+        check_in: addDays(0),
+        check_out: addDays(2),
+        status: 'Checked-in',
+      });
+
+    expect([200, 201]).toContain(createRes.status);
+    const created = createRes.body.reservation ?? createRes.body;
+    expect(created.id).toBeTruthy();
+    expect(created.status).toBe('Checked-in');
+    expect(created.checkin_id).toBeTruthy();
+
+    const checkInsRes = await request(app)
+      .get(`/api/v1/check-ins?reservation_id=${created.id}`)
+      .set(frontDesk.headers);
+
+    expect(checkInsRes.status).toBe(200);
+    const list = checkInsRes.body?.check_ins ?? checkInsRes.body?.data ?? [];
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBeGreaterThan(0);
+    expect(list[0]?.reservation_id).toBe(created.id);
+    expect(list[0]?.status).toBe('checked_in');
+  });
 });
 
 // ── UC-302: View Reservation ──────────────────────────────────────────────────
@@ -187,6 +217,43 @@ describe('UC-303 – Update Reservation', () => {
     // Note: checking that check_out was successfully updated. 
     // Format might vary slightly (time included vs not), so basic truthiness check.
     expect(updated.check_out).toBeDefined();
+  });
+
+  it('legacy update status=Checked-in creates linked check-in visible in /check-ins', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/reservations')
+      .set(admin.headers)
+      .send({
+        primary_guest_id: guestId,
+        room_type_id: roomTypeId,
+        check_in: addDays(0),
+        check_out: addDays(1),
+        status: 'Confirmed',
+      });
+
+    expect([200, 201]).toContain(createRes.status);
+    const created = createRes.body.reservation ?? createRes.body;
+
+    const updateRes = await request(app)
+      .put(`/api/v1/reservations/${created.id}`)
+      .set(frontDesk.headers)
+      .send({ status: 'Checked-in' });
+
+    expect([200, 201]).toContain(updateRes.status);
+    const updated = updateRes.body.reservation ?? updateRes.body;
+    expect(updated.status).toBe('Checked-in');
+    expect(updated.checkin_id).toBeTruthy();
+
+    const checkInsRes = await request(app)
+      .get(`/api/v1/check-ins?reservation_id=${created.id}`)
+      .set(frontDesk.headers);
+
+    expect(checkInsRes.status).toBe(200);
+    const list = checkInsRes.body?.check_ins ?? checkInsRes.body?.data ?? [];
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBeGreaterThan(0);
+    expect(list[0]?.reservation_id).toBe(created.id);
+    expect(list[0]?.status).toBe('checked_in');
   });
 });
 

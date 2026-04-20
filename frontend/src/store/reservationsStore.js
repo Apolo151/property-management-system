@@ -164,6 +164,9 @@ const useReservationsStore = create((set, get, storeApi) => ({
       }));
 
       emitDashboardMetricsChanged('reservation-created');
+      if (transformed.status === 'Checked-in' && transformed.checkinId) {
+        emitDashboardMetricsChanged('legacy-reservation-checkedin');
+      }
 
       return transformed;
     } catch (error) {
