@@ -1,4 +1,8 @@
 export interface ReportStatsResponse {
+  meta: {
+    hotel_timezone: string;
+    business_date: string;
+  };
   reservations: {
     total: number;
     by_status: Record<string, number>;
@@ -33,6 +37,8 @@ export interface ReportStatsResponse {
     profit_margin: number; // Percentage
   };
   occupancy: {
+    total_units: number;
+    current_occupied_units: number;
     current_occupancy_rate: number; // Percentage
     average_occupancy_rate: number; // Last 30 days
   };

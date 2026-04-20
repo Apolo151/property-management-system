@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
+import { emitDashboardMetricsChanged } from '../utils/dashboardMetricsEvents';
 
 const useInvoicesStore = create((set, get, storeApi) => ({
   invoices: [],
@@ -127,6 +128,8 @@ const useInvoicesStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('invoice-created');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to create invoice', loading: false });
@@ -192,6 +195,8 @@ const useInvoicesStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('invoice-updated');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to update invoice', loading: false });
@@ -209,6 +214,8 @@ const useInvoicesStore = create((set, get, storeApi) => ({
         invoices: state.invoices.filter((inv) => inv.id !== id),
         loading: false,
       }));
+
+      emitDashboardMetricsChanged('invoice-deleted');
     } catch (error) {
       set({ error: error.message || 'Failed to delete invoice', loading: false });
       throw error;

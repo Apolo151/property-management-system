@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import db from '../../config/database.js';
 import type { ReportStatsResponse } from './reports_types.js';
+import { getHotelTimezone, getLocalDateStringForTimezone } from '../../utils/hotel_date.js';
 
 // Get comprehensive report statistics
 export async function getReportStatsHandler(
@@ -12,13 +13,22 @@ export async function getReportStatsHandler(
     const { start_date, end_date } = req.query;
     const hotelId = (req as any).hotelId;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const hotelTimezone = await getHotelTimezone(db, hotelId);
+    const todayStr = getLocalDateStringForTimezone(new Date(), hotelTimezone);
 
-    const next7Days = new Date();
-    next7Days.setDate(next7Days.getDate() + 7);
-    const next7DaysStr = next7Days.toISOString().split('T')[0];
+    const addDaysToDateString = (dateString: string, days: number): string => {
+      const parts = dateString.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const day = Number(parts[2]);
+      const shifted = new Date(Date.UTC(year, month - 1, day + days));
+      const yyyy = shifted.getUTCFullYear();
+      const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(shifted.getUTCDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const next7DaysStr = addDaysToDateString(todayStr, 7);
 
     // Reservations statistics
     let reservationsQuery = db('reservations')
@@ -39,13 +49,14 @@ export async function getReportStatsHandler(
 
     const todaysCheckIns = await db('check_ins')
       .where('check_ins.hotel_id', hotelId)
-      .whereRaw('DATE(check_in_time) = ?', [todayStr as any])
+      .whereRaw("DATE(check_in_time AT TIME ZONE ?) = ?", [hotelTimezone, todayStr])
       .count('* as count')
       .first();
 
     const todaysCheckOuts = await db('check_ins')
       .where('check_ins.hotel_id', hotelId)
-      .whereRaw('DATE(actual_checkout_time) = ?', [todayStr as any])
+      .whereNotNull('actual_checkout_time')
+      .whereRaw("DATE(actual_checkout_time AT TIME ZONE ?) = ?", [hotelTimezone, todayStr])
       .count('* as count')
       .first();
 
@@ -100,6 +111,9 @@ export async function getReportStatsHandler(
       }
     });
 
+    totalRevenue = Math.max(0, totalRevenue);
+    pendingAmount = Math.max(0, pendingAmount);
+
     const todayRevenue = allInvoices
       .filter((inv) => inv.status === 'Paid' && String(inv.issue_date) === todayStr)
       .reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
@@ -133,6 +147,8 @@ export async function getReportStatsHandler(
       totalExpenses += parseFloat(exp.amount);
     });
 
+    totalExpenses = Math.max(0, totalExpenses);
+
     // Financial calculations
     const profit = totalRevenue - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
@@ -146,23 +162,26 @@ export async function getReportStatsHandler(
 
     // Count occupied rooms from active check-ins
     const occupiedRooms = await db('check_ins')
+      .join('reservations', 'reservations.id', 'check_ins.reservation_id')
       .where('check_ins.hotel_id', hotelId)
-      .where('status', 'checked_in')
-      .count('* as count')
+      .where('check_ins.status', 'checked_in')
+      .whereNull('reservations.deleted_at')
+      .sum('reservations.units_requested as occupied_units')
       .first();
 
-    const occupiedRoomsCount = occupiedRooms?.count ? parseInt(String(occupiedRooms.count), 10) : 0;
-    const currentOccupancyRate = totalRoomsCount > 0 ? (occupiedRoomsCount / totalRoomsCount) * 100 : 0;
+    const occupiedUnitsCount = occupiedRooms?.occupied_units
+      ? parseInt(String(occupiedRooms.occupied_units), 10)
+      : 0;
+    const safeOccupiedUnitsCount = Math.max(0, occupiedUnitsCount);
+    const safeTotalRoomsCount = Math.max(0, totalRoomsCount);
+    const currentOccupancyRate = totalRoomsCount > 0
+      ? (safeOccupiedUnitsCount / safeTotalRoomsCount) * 100
+      : 0;
 
     // Average occupancy for last 30 days
     const occupancyDays = 30;
-    const periodStart = new Date(today);
-    periodStart.setDate(periodStart.getDate() - (occupancyDays - 1));
-    const periodStartStr = periodStart.toISOString().split('T')[0]!;
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0]!;
+    const periodStartStr = addDaysToDateString(todayStr, -(occupancyDays - 1));
+    const tomorrowStr = addDaysToDateString(todayStr, 1);
 
     const reservationsForOccupancy = await db('reservations')
       .where('reservations.hotel_id', hotelId)
@@ -201,11 +220,16 @@ export async function getReportStatsHandler(
 
     const totalReservations = allReservations.length;
     const cancelledReservations = reservationsByStatus.Cancelled || 0;
-    const cancellationRate = totalReservations > 0
+    const rawCancellationRate = totalReservations > 0
       ? (cancelledReservations / totalReservations) * 100
       : 0;
+    const cancellationRate = Math.min(100, Math.max(0, rawCancellationRate));
 
     const response: ReportStatsResponse = {
+      meta: {
+        hotel_timezone: hotelTimezone,
+        business_date: todayStr,
+      },
       reservations: {
         total: allReservations.length,
         by_status: reservationsByStatus,
@@ -240,6 +264,8 @@ export async function getReportStatsHandler(
         profit_margin: profitMargin,
       },
       occupancy: {
+        total_units: safeTotalRoomsCount,
+        current_occupied_units: safeOccupiedUnitsCount,
         current_occupancy_rate: currentOccupancyRate,
         average_occupancy_rate: averageOccupancyRate,
       },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
+import { emitDashboardMetricsChanged } from '../utils/dashboardMetricsEvents';
 
 const useExpensesStore = create((set, get, storeApi) => ({
   expenses: [],
@@ -95,6 +96,8 @@ const useExpensesStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('expense-created');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to create expense', loading: false });
@@ -134,6 +137,8 @@ const useExpensesStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('expense-updated');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to update expense', loading: false });
@@ -151,6 +156,8 @@ const useExpensesStore = create((set, get, storeApi) => ({
         expenses: state.expenses.filter((exp) => exp.id !== id),
         loading: false,
       }));
+
+      emitDashboardMetricsChanged('expense-deleted');
     } catch (error) {
       set({ error: error.message || 'Failed to delete expense', loading: false });
       throw error;

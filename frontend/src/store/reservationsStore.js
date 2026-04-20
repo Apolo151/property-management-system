@@ -3,6 +3,7 @@ import { api } from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
 import useRoomsStore from './roomsStore';
 import { normalizeRootRoomType } from '../utils/roomType';
+import { emitDashboardMetricsChanged } from '../utils/dashboardMetricsEvents';
 
 const useReservationsStore = create((set, get, storeApi) => ({
   reservations: [],
@@ -162,6 +163,8 @@ const useReservationsStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('reservation-created');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to create reservation', loading: false });
@@ -228,6 +231,8 @@ const useReservationsStore = create((set, get, storeApi) => ({
         loading: false,
       }));
 
+      emitDashboardMetricsChanged('reservation-updated');
+
       return transformed;
     } catch (error) {
       set({ error: error.message || 'Failed to update reservation', loading: false });
@@ -245,6 +250,8 @@ const useReservationsStore = create((set, get, storeApi) => ({
         reservations: state.reservations.filter((r) => r.id !== id),
         loading: false,
       }));
+
+      emitDashboardMetricsChanged('reservation-deleted');
     } catch (error) {
       set({ error: error.message || 'Failed to delete reservation', loading: false });
       throw error;
