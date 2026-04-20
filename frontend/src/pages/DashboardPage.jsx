@@ -6,6 +6,7 @@ import useReservationsStore from '../store/reservationsStore.js'
 import useInvoicesStore from '../store/invoicesStore.js'
 import useExpensesStore from '../store/expensesStore.js'
 import useCheckInsStore from '../store/checkInsStore.js'
+import { subscribeDashboardMetricsChanged } from '../utils/dashboardMetricsEvents.js'
 import { format, eachDayOfInterval, addDays, getMonth, getYear } from 'date-fns'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
@@ -20,6 +21,7 @@ const DashboardPage = () => {
   const [reportStats, setReportStats] = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isPartiallyStale, setIsPartiallyStale] = useState(false)
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -41,6 +43,7 @@ const DashboardPage = () => {
       if (errors.length > 0) {
         console.error('Some dashboard fetches failed:', errors)
       }
+      setIsPartiallyStale(errors.length > 0)
 
       // Set room types if successful
       if (results[0].status === 'fulfilled') {
@@ -70,22 +73,36 @@ const DashboardPage = () => {
     return () => clearInterval(intervalId)
   }, [activeHotelId, fetchDashboardData])
 
+  useEffect(() => {
+    const unsubscribe = subscribeDashboardMetricsChanged(() => {
+      fetchDashboardData()
+    })
+
+    return unsubscribe
+  }, [fetchDashboardData])
+
   const loading = statsLoading || reservationsLoading || invoicesLoading || expensesLoading || checkInsLoading
 
   // Calculate stats from backend data and check-ins
   const stats = useMemo(() => {
     // Calculate total rooms from room types (sum of qty for each room type)
-    const totalRooms = roomTypes.reduce((sum, rt) => sum + (parseInt(rt.qty, 10) || 0), 0)
+    const localTotalRooms = roomTypes.reduce((sum, rt) => sum + (parseInt(rt.qty, 10) || 0), 0)
     
     // Calculate occupied rooms from active check-ins
-    const occupiedRooms = activeCheckIns.length
+    const localOccupiedRooms = activeCheckIns.length
+
+    const backendTotalRooms = Number(reportStats?.occupancy?.total_units)
+    const backendOccupiedRooms = Number(reportStats?.occupancy?.current_occupied_units)
+
+    const totalRooms = Number.isFinite(backendTotalRooms) ? backendTotalRooms : localTotalRooms
+    const occupiedRooms = Number.isFinite(backendOccupiedRooms) ? backendOccupiedRooms : localOccupiedRooms
     
     const availableRooms = Math.max(0, totalRooms - occupiedRooms)
 
     // Calculate today's check-ins and check-outs
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = reportStats?.meta?.business_date || today.toISOString().split('T')[0]
     
     const localTodaysCheckInsCount = checkIns.filter((ci) => {
       if (!ci.check_in_time) return false
@@ -299,6 +316,12 @@ const DashboardPage = () => {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">Welcome back! Here's an overview of your hotel.</p>
       </div>
+
+      {isPartiallyStale && (
+        <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+          Some metrics are using fallback/local data because one or more dashboard sources could not be refreshed.
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

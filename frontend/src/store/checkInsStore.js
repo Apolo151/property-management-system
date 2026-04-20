@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import api from '../utils/api';
 import { registerDomainReset } from './storeRegistry';
+import { emitDashboardMetricsChanged } from '../utils/dashboardMetricsEvents';
 
 const useCheckInsStore = create((set, get, storeApi) => ({
   checkIns: [],
@@ -102,6 +103,7 @@ const useCheckInsStore = create((set, get, storeApi) => ({
       // Refresh the list
       await get().fetchCheckIns(get().filters);
       set({ loading: false });
+      emitDashboardMetricsChanged('checkin-created');
       return transformed;
     } catch (error) {
       set({ error: error.message, loading: false });
@@ -117,6 +119,7 @@ const useCheckInsStore = create((set, get, storeApi) => ({
       // Refresh the list
       await get().fetchCheckIns(get().filters);
       set({ loading: false });
+      emitDashboardMetricsChanged('checkin-created-direct');
       return checkIn;
     } catch (error) {
       set({ error: error.message, loading: false });
@@ -162,6 +165,7 @@ const useCheckInsStore = create((set, get, storeApi) => ({
         activeCheckIns: state.activeCheckIns.filter((c) => c.id !== checkInId),
         loading: false,
       }));
+      emitDashboardMetricsChanged('checkout-completed');
       return transformed;
     } catch (error) {
       set({ error: error.message, loading: false });
@@ -207,6 +211,7 @@ const useCheckInsStore = create((set, get, storeApi) => ({
         ),
         loading: false,
       }));
+      emitDashboardMetricsChanged('checkin-room-changed');
       return transformed;
     } catch (error) {
       set({ error: error.message, loading: false });
