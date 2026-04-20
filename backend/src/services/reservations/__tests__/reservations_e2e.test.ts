@@ -130,6 +130,23 @@ describe('UC-301 – Create Reservation', () => {
     expect(list[0]?.reservation_id).toBe(created.id);
     expect(list[0]?.status).toBe('checked_in');
   });
+
+  it('legacy status=Checked-in with future arrival returns 400 with actionable message', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/reservations')
+      .set(frontDesk.headers)
+      .send({
+        primary_guest_id: guestId,
+        room_type_id: roomTypeId,
+        check_in: addDays(1),
+        check_out: addDays(2),
+        status: 'Checked-in',
+      });
+
+    expect(createRes.status).toBe(400);
+    expect(createRes.body?.error).toContain('Cannot mark reservation as Checked-in before the scheduled arrival date');
+    expect(createRes.body?.code).toBe('LEGACY_CHECKIN_FAILED');
+  });
 });
 
 // ── UC-302: View Reservation ──────────────────────────────────────────────────

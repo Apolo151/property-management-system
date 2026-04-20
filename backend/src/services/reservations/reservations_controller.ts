@@ -235,6 +235,34 @@ async function autoCreateCheckInFromLegacyStatus(
   );
 }
 
+function getLegacyCheckedInErrorStatus(message: string): number {
+  if (message.includes('not found')) {
+    return 404;
+  }
+
+  if (
+    message.includes('scheduled arrival') ||
+    message.includes('Hotel local date') ||
+    message.includes('before scheduled')
+  ) {
+    return 400;
+  }
+
+  return 409;
+}
+
+function getLegacyCheckedInErrorMessage(message: string): string {
+  if (
+    message.includes('scheduled arrival') ||
+    message.includes('Hotel local date') ||
+    message.includes('before scheduled')
+  ) {
+    return 'Cannot mark reservation as Checked-in before the scheduled arrival date. Save it as Confirmed and complete check-in on the arrival date.';
+  }
+
+  return message;
+}
+
 // Get all reservations
 export async function getReservationsHandler(
   req: Request,
@@ -619,9 +647,17 @@ export async function createReservationHandler(
           deleted_at: new Date(),
           updated_at: db.fn.now(),
         });
-        throw new Error(
-          `Failed to complete legacy Checked-in reservation flow: ${legacyCheckInError.message || 'unknown error'}`,
-        );
+
+        const rawMessage =
+          legacyCheckInError?.message || 'Failed to complete legacy Checked-in reservation flow';
+        const statusCode = getLegacyCheckedInErrorStatus(rawMessage);
+        const publicMessage = getLegacyCheckedInErrorMessage(rawMessage);
+
+        res.status(statusCode).json({
+          error: publicMessage,
+          code: 'LEGACY_CHECKIN_FAILED',
+        } as any);
+        return;
       }
     }
 
@@ -959,9 +995,17 @@ export async function updateReservationHandler(
           checkin_id: existing.checkin_id || null,
           updated_at: db.fn.now(),
         });
-        throw new Error(
-          `Failed to complete legacy Checked-in update flow: ${legacyCheckInError.message || 'unknown error'}`,
-        );
+
+        const rawMessage =
+          legacyCheckInError?.message || 'Failed to complete legacy Checked-in update flow';
+        const statusCode = getLegacyCheckedInErrorStatus(rawMessage);
+        const publicMessage = getLegacyCheckedInErrorMessage(rawMessage);
+
+        res.status(statusCode).json({
+          error: publicMessage,
+          code: 'LEGACY_CHECKIN_FAILED',
+        } as any);
+        return;
       }
     }
 
